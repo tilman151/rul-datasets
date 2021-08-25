@@ -9,6 +9,7 @@ python = "^3.7"
 torch = "^1.9.0"
 pytorch-lightning = "0.10.0"
 scikit-learn = "^0.24.2"
+tqdm = "^4.62.2"
 
 [tool.poetry.dev-dependencies]
 black = {extras = ["d"], version = "^21.7b0"}
