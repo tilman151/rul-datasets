@@ -14,8 +14,8 @@ black:
 
 download cmapss:
   stage: prepare data
-  before_script:
-
+  variables:
+    https_proxy: http://172.16.41.90:3128
   script:
     - curl -o ./data https://ti.arc.nasa.gov/c/6/
   artifacts:
@@ -26,8 +26,8 @@ download cmapss:
 unittest:
   stage: test
   before_script:
-  - pip install poetry
-  - poetry install
+    - pip install poetry
+    - poetry install
   script:
     - poetry run python -m unittest -v
   needs: ["download cmapss"]
