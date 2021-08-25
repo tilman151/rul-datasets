@@ -1,0 +1,21 @@
+image: python:3.7
+
+
+before_script:
+  - python --version
+  - pip install poetry
+  - poetry install
+
+stages:
+  - static
+  - test
+
+black:
+  stage: static
+  script:
+    - poetry run black --check ./
+
+unittest:
+  stage: test
+  script:
+    - poetry run python -m unittest -v
