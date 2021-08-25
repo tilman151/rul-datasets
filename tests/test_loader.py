@@ -101,7 +101,8 @@ class TestCMAPSSLoader(CmapssTestTemplate, unittest.TestCase):
             self.assertEqual(len(full_run), len(trunc_run))
 
     @mock.patch(
-        "rul_datasets.loader.CMAPSSLoader._truncate_runs", wraps=lambda x, y, *args: (x, y)
+        "rul_datasets.loader.CMAPSSLoader._truncate_runs",
+        wraps=lambda x, y, *args: (x, y),
     )
     def test_val_truncation(self, mock_truncate):
         dataset = loader.CMAPSSLoader(fd=1, window_size=30)

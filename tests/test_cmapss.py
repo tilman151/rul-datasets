@@ -183,7 +183,9 @@ class TestPairedDataset(unittest.TestCase):
         self.fd3 = loader.CMAPSSLoader(3)
 
     def test_get_pair_idx_piecewise(self):
-        data = rul_datasets.cmapss.PairedCMAPSS([self.cmapss_normal], "dev", 512, 1, True)
+        data = rul_datasets.cmapss.PairedCMAPSS(
+            [self.cmapss_normal], "dev", 512, 1, True
+        )
         middle_idx = self.length // 2
         for _ in range(512):
             run, anchor_idx, query_idx, distance, _ = data._get_pair_idx_piecewise()
@@ -194,14 +196,18 @@ class TestPairedDataset(unittest.TestCase):
                 self.assertLessEqual(0, distance)
 
     def test_get_pair_idx_linear(self):
-        data = rul_datasets.cmapss.PairedCMAPSS([self.cmapss_normal], "dev", 512, 1, True)
+        data = rul_datasets.cmapss.PairedCMAPSS(
+            [self.cmapss_normal], "dev", 512, 1, True
+        )
         for _ in range(512):
             run, anchor_idx, query_idx, distance, _ = data._get_pair_idx()
             self.assertLess(0, distance)
             self.assertGreaterEqual(125, distance)
 
     def test_get_labeled_pair_idx(self):
-        data = rul_datasets.cmapss.PairedCMAPSS([self.cmapss_normal], "dev", 512, 1, True)
+        data = rul_datasets.cmapss.PairedCMAPSS(
+            [self.cmapss_normal], "dev", 512, 1, True
+        )
         for _ in range(512):
             run, anchor_idx, query_idx, distance, _ = data._get_labeled_pair_idx()
             self.assertEqual(self.length, len(run))

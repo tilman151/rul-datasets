@@ -37,7 +37,9 @@ class TestCMAPSSAdaption(CmapssTestTemplate, unittest.TestCase):
             )
 
     def test_override_window_size(self):
-        dataset = rul_datasets.DomainAdaptionDataModule(3, 2, batch_size=16, window_size=40)
+        dataset = rul_datasets.DomainAdaptionDataModule(
+            3, 2, batch_size=16, window_size=40
+        )
         self.assertEqual(self.dataset.target.window_size, self.dataset.window_size)
         self.assertEqual(40, dataset.target.window_size)
         self.assertEqual(dataset.target.window_size, dataset.source.window_size)

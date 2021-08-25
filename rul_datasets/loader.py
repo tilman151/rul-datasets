@@ -124,9 +124,7 @@ class CMAPSSLoader(AbstractLoader):
         self.percent_broken = percent_broken
         self.percent_fail_runs = percent_fail_runs
 
-        self.DATA_ROOT = os.path.join(
-            os.path.dirname(__file__), "..", "data", "CMAPSS"
-        )
+        self.DATA_ROOT = os.path.join(os.path.dirname(__file__), "..", "data", "CMAPSS")
 
     def prepare_data(self):
         # Check if training data was already split
@@ -297,9 +295,7 @@ class CMAPSSLoader(AbstractLoader):
 
 class FEMTOLoader(AbstractLoader):
     DATA_ROOT = os.path.normpath(
-        os.path.join(
-            os.path.dirname(__file__), "..", "data", "FEMTOBearingDataSet"
-        )
+        os.path.join(os.path.dirname(__file__), "..", "data", "FEMTOBearingDataSet")
     )
 
     def __init__(
