@@ -10,7 +10,7 @@ black:
     - pip install black
   stage: static
   script:
-    - poetry run black --check ./
+    - black --check ./
 
 download cmapss:
   stage: prepare data
