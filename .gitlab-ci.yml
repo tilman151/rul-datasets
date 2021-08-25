@@ -2,9 +2,13 @@ image: python:3.7
 
 
 before_script:
+  - echo -e "\e[0Ksection_start:`date +%s`:before_script[collapsed=true]\r\e[0KOutputs of before_script"
+  - echo \e[31m
   - python --version
   - pip install poetry
   - poetry install
+  - echo \e[0m
+  - echo -e "\e[0Ksection_end:`date +%s`:before_script[collapsed=true]\r\e[0K"
 
 stages:
   - static
