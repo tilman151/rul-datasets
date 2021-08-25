@@ -1,10 +1,45 @@
 from typing import List, Optional, Union
 
+import numpy as np
 import pytorch_lightning as pl
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 
-from rul_datasets.cmapss import AdaptionDataset, CMAPSSDataModule, PairedCMAPSS
+from rul_datasets.cmapss import CMAPSSDataModule, PairedCMAPSS
 from rul_datasets.loader import CMAPSSLoader
+
+
+class AdaptionDataset(Dataset):
+    def __init__(self, source, target, deterministic=False):
+        self.source = source
+        self.target = target
+        self.deterministic = deterministic
+        self._target_len = len(target)
+
+        self._rng = np.random.default_rng(seed=42)
+        if self.deterministic:
+            self._get_target_idx = self._get_deterministic_target_idx
+            self._target_idx = [
+                self._get_random_target_idx(_) for _ in range(len(self))
+            ]
+        else:
+            self._get_target_idx = self._get_random_target_idx
+            self._target_idx = None
+
+    def _get_random_target_idx(self, _):
+        return self._rng.integers(0, self._target_len)
+
+    def _get_deterministic_target_idx(self, idx):
+        return self._target_idx[idx]
+
+    def __getitem__(self, idx):
+        target_idx = self._get_target_idx(idx)
+        source, source_label = self.source[idx]
+        target, _ = self.target[target_idx]
+
+        return source, source_label, target
+
+    def __len__(self):
+        return len(self.source)
 
 
 class DomainAdaptionDataModule(pl.LightningDataModule):

@@ -3,9 +3,7 @@ from unittest import mock
 
 import numpy as np
 import torch
-from torch.utils.data import TensorDataset
 
-import rul_datasets
 from rul_datasets import cmapss, loader
 from tests.templates import CmapssTestTemplate
 
@@ -183,9 +181,7 @@ class TestPairedDataset(unittest.TestCase):
         self.fd3 = loader.CMAPSSLoader(3)
 
     def test_get_pair_idx_piecewise(self):
-        data = rul_datasets.cmapss.PairedCMAPSS(
-            [self.cmapss_normal], "dev", 512, 1, True
-        )
+        data = cmapss.PairedCMAPSS([self.cmapss_normal], "dev", 512, 1, True)
         middle_idx = self.length // 2
         for _ in range(512):
             run, anchor_idx, query_idx, distance, _ = data._get_pair_idx_piecewise()
@@ -196,18 +192,14 @@ class TestPairedDataset(unittest.TestCase):
                 self.assertLessEqual(0, distance)
 
     def test_get_pair_idx_linear(self):
-        data = rul_datasets.cmapss.PairedCMAPSS(
-            [self.cmapss_normal], "dev", 512, 1, True
-        )
+        data = cmapss.PairedCMAPSS([self.cmapss_normal], "dev", 512, 1, True)
         for _ in range(512):
             run, anchor_idx, query_idx, distance, _ = data._get_pair_idx()
             self.assertLess(0, distance)
             self.assertGreaterEqual(125, distance)
 
     def test_get_labeled_pair_idx(self):
-        data = rul_datasets.cmapss.PairedCMAPSS(
-            [self.cmapss_normal], "dev", 512, 1, True
-        )
+        data = cmapss.PairedCMAPSS([self.cmapss_normal], "dev", 512, 1, True)
         for _ in range(512):
             run, anchor_idx, query_idx, distance, _ = data._get_labeled_pair_idx()
             self.assertEqual(self.length, len(run))
@@ -217,29 +209,27 @@ class TestPairedDataset(unittest.TestCase):
 
     def test_pair_func_selection(self):
         with self.subTest("default"):
-            data = rul_datasets.cmapss.PairedCMAPSS(
-                [self.cmapss_normal], "dev", 512, 1, True
-            )
+            data = cmapss.PairedCMAPSS([self.cmapss_normal], "dev", 512, 1, True)
             self.assertEqual(data._get_pair_idx, data._get_pair_func)
         with self.subTest("piecewise"):
-            data = rul_datasets.cmapss.PairedCMAPSS(
+            data = cmapss.PairedCMAPSS(
                 [self.cmapss_normal], "dev", 512, 1, True, mode="linear"
             )
             self.assertEqual(data._get_pair_idx, data._get_pair_func)
         with self.subTest("piecewise"):
-            data = rul_datasets.cmapss.PairedCMAPSS(
+            data = cmapss.PairedCMAPSS(
                 [self.cmapss_normal], "dev", 512, 1, True, mode="piecewise"
             )
             self.assertEqual(data._get_pair_idx_piecewise, data._get_pair_func)
         with self.subTest("labeled"):
-            data = rul_datasets.cmapss.PairedCMAPSS(
+            data = cmapss.PairedCMAPSS(
                 [self.cmapss_normal], "dev", 512, 1, True, mode="labeled"
             )
             self.assertEqual(data._get_labeled_pair_idx, data._get_pair_func)
 
     def test_sampled_data(self):
         fixed_idx = [0, 60, 80, 1, 55, 99]  # two samples with run, anchor and query idx
-        data = rul_datasets.cmapss.PairedCMAPSS([self.cmapss_short], "dev", 2, 2)
+        data = cmapss.PairedCMAPSS([self.cmapss_short], "dev", 2, 2)
         data._rng = mock.MagicMock()
         data._rng.integers = mock.MagicMock(side_effect=fixed_idx)
         for i, sample in enumerate(data):
@@ -255,7 +245,7 @@ class TestPairedDataset(unittest.TestCase):
             self.assertEqual(expected_domain_idx, sample[3].item())
 
     def test_discarding_too_short_runs(self):
-        data = rul_datasets.cmapss.PairedCMAPSS([self.cmapss_short], "dev", 512, 2)
+        data = cmapss.PairedCMAPSS([self.cmapss_short], "dev", 512, 2)
         for run, labels in zip(data._features, data._labels):
             self.assertTrue((run >= 1).all())
             self.assertTrue((labels < 500).all())
@@ -263,10 +253,10 @@ class TestPairedDataset(unittest.TestCase):
 
     def test_determinisim(self):
         with self.subTest("non-deterministic"):
-            data = rul_datasets.cmapss.PairedCMAPSS([self.cmapss_short], "dev", 512, 2)
+            data = cmapss.PairedCMAPSS([self.cmapss_short], "dev", 512, 2)
             self.assertTrue(self._two_epochs_different(data))
         with self.subTest("non-deterministic"):
-            data = rul_datasets.cmapss.PairedCMAPSS(
+            data = cmapss.PairedCMAPSS(
                 [self.cmapss_short], "dev", 512, 2, deterministic=True
             )
             self.assertFalse(self._two_epochs_different(data))
@@ -283,9 +273,7 @@ class TestPairedDataset(unittest.TestCase):
         return different
 
     def test_min_distance(self):
-        dataset = rul_datasets.cmapss.PairedCMAPSS(
-            [self.cmapss_short], "dev", 512, min_distance=30
-        )
+        dataset = cmapss.PairedCMAPSS([self.cmapss_short], "dev", 512, min_distance=30)
         pairs = self._get_pairs(dataset)
         distances = pairs[:, 1] - pairs[:, 0]
         self.assertTrue(np.all(pairs[:, 0] < pairs[:, 1]))
@@ -294,7 +282,7 @@ class TestPairedDataset(unittest.TestCase):
     def test_build_pairs(self):
         for split in ["dev", "val"]:
             with self.subTest(split=split):
-                paired_dataset = rul_datasets.cmapss.PairedCMAPSS(
+                paired_dataset = cmapss.PairedCMAPSS(
                     [self.fd1, self.fd3], split, 1000, 1
                 )
                 pairs = self._get_pairs(paired_dataset)
@@ -305,7 +293,7 @@ class TestPairedDataset(unittest.TestCase):
                 self.assertTrue(np.all(pairs[:, 3] >= 0))  # or zero
 
     def test_domain_labels(self):
-        dataset = rul_datasets.cmapss.PairedCMAPSS(
+        dataset = cmapss.PairedCMAPSS(
             [self.cmapss_normal, self.cmapss_short], "dev", 512, min_distance=30
         )
         for _ in range(512):
@@ -323,41 +311,3 @@ class TestPairedDataset(unittest.TestCase):
         ]
 
         return np.array(pairs)
-
-
-class TestAdaptionDataset(unittest.TestCase):
-    def setUp(self):
-        self.source = TensorDataset(torch.arange(100), torch.arange(100))
-        self.target = TensorDataset(torch.arange(150), torch.arange(150))
-        self.dataset = rul_datasets.cmapss.AdaptionDataset(
-            self.source,
-            self.target,
-        )
-
-    def test_len(self):
-        self.assertEqual(len(self.dataset.source), len(self.dataset))
-
-    def test_source_target_shuffeled(self):
-        for i in range(len(self.dataset)):
-            source_one, label_one, target_one = self.dataset[i]
-            source_another, label_another, target_another = self.dataset[i]
-            self.assertEqual(source_one, source_another)
-            self.assertEqual(label_one, label_another)
-            self.assertNotEqual(target_one, target_another)
-
-    def test_source_target_deterministic(self):
-        dataset = rul_datasets.cmapss.AdaptionDataset(
-            self.source, self.target, deterministic=True
-        )
-        for i in range(len(dataset)):
-            source_one, label_one, target_one = dataset[i]
-            source_another, label_another, target_another = dataset[i]
-            self.assertEqual(source_one, source_another)
-            self.assertEqual(label_one, label_another)
-            self.assertEqual(target_one, target_another)
-
-    def test_source_sampled_completely(self):
-        for i in range(len(self.dataset)):
-            source, labels, _ = self.dataset[i]
-            self.assertEqual(i, source.item())
-            self.assertEqual(i, labels.item())
