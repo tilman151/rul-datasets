@@ -4,8 +4,8 @@ import torch
 import torch.utils.data
 from torch.utils.data import RandomSampler, SequentialSampler
 
-import datasets
-from tests.dataset_tests.templates import (
+import rul_datasets
+from tests.templates import (
     CmapssTestTemplate,
     PretrainingDataModuleTemplate,
 )
@@ -13,14 +13,14 @@ from tests.dataset_tests.templates import (
 
 class TestCMAPSSBaseline(CmapssTestTemplate, unittest.TestCase):
     def setUp(self):
-        self.dataset = datasets.BaselineDataModule(
+        self.dataset = rul_datasets.BaselineDataModule(
             3, batch_size=16, percent_fail_runs=0.8
         )
         self.dataset.prepare_data()
         self.dataset.setup()
 
     def test_override_window_size(self):
-        dataset = datasets.BaselineDataModule(
+        dataset = rul_datasets.BaselineDataModule(
             3, batch_size=16, window_size=40, percent_fail_runs=0.8
         )
         for fd in dataset.cmapss.values():
@@ -29,7 +29,7 @@ class TestCMAPSSBaseline(CmapssTestTemplate, unittest.TestCase):
     def test_default_window_size(self):
         window_sizes = [30, 20, 30, 15]
         for i, win in enumerate(window_sizes, start=1):
-            dataset = datasets.BaselineDataModule(
+            dataset = rul_datasets.BaselineDataModule(
                 i, batch_size=16, percent_fail_runs=0.8
             )
             for fd in dataset.cmapss.values():
@@ -96,7 +96,7 @@ class TestPretrainingBaselineDataModuleFullData(
     CmapssTestTemplate, PretrainingDataModuleTemplate, unittest.TestCase
 ):
     def setUp(self):
-        self.dataset = datasets.PretrainingBaselineDataModule(
+        self.dataset = rul_datasets.PretrainingBaselineDataModule(
             3, num_samples=10000, batch_size=16, min_distance=2
         )
         self.dataset.prepare_data()
@@ -107,21 +107,21 @@ class TestPretrainingBaselineDataModuleFullData(
 
     def test_val_truncation(self):
         with self.subTest(truncation=False):
-            dataset = datasets.PretrainingBaselineDataModule(
+            dataset = rul_datasets.PretrainingBaselineDataModule(
                 3, num_samples=10000, batch_size=16
             )
             self.assertFalse(dataset.broken_source_loader.truncate_val)
             self.assertFalse(dataset.source.truncate_val)
 
         with self.subTest(truncation=True):
-            dataset = datasets.PretrainingBaselineDataModule(
+            dataset = rul_datasets.PretrainingBaselineDataModule(
                 3, num_samples=10000, batch_size=16, truncate_val=True
             )
             self.assertTrue(dataset.broken_source_loader.truncate_val)
             self.assertTrue(dataset.source.truncate_val)
 
     def test_override_window_size(self):
-        dataset = datasets.PretrainingBaselineDataModule(
+        dataset = rul_datasets.PretrainingBaselineDataModule(
             3, num_samples=10000, batch_size=16, window_size=40
         )
         dataset.prepare_data()
@@ -133,7 +133,7 @@ class TestPretrainingBaselineDataModuleFullData(
         self.assertEqual(40, queries.shape[2])
 
     def test_truncation_passed_correctly(self):
-        dataset = datasets.PretrainingBaselineDataModule(
+        dataset = rul_datasets.PretrainingBaselineDataModule(
             3, 1000, 16, percent_broken=0.2, percent_fail_runs=0.5
         )
         self.assertEqual(0.2, dataset.broken_source_loader.percent_broken)
@@ -142,14 +142,14 @@ class TestPretrainingBaselineDataModuleFullData(
         self.assertIsNone(dataset.fails_source_loader.percent_broken)
 
     def test_distance_mode_passed_correctly(self):
-        dataset = datasets.PretrainingBaselineDataModule(
+        dataset = rul_datasets.PretrainingBaselineDataModule(
             3, 1000, 16, distance_mode="labeled"
         )
         data_loader = dataset.train_dataloader()
         self.assertEqual(dataset.distance_mode, data_loader.dataset.mode)
 
     def test_both_source_datasets_used(self):
-        dataset = datasets.PretrainingBaselineDataModule(
+        dataset = rul_datasets.PretrainingBaselineDataModule(
             3, 1000, 16, percent_broken=0.2, percent_fail_runs=0.5
         )
         for split in ["dev", "val"]:
@@ -163,7 +163,7 @@ class TestPretrainingBaselineDataModuleFullData(
 
     def test_get_unfailed_runs(self):
         fail_runs = [1, 5, 40, 79]
-        dataset = datasets.PretrainingBaselineDataModule(
+        dataset = rul_datasets.PretrainingBaselineDataModule(
             3, 1000, 16, percent_broken=0.2, percent_fail_runs=fail_runs
         )
         self.assertListEqual(fail_runs, dataset.fails_source_loader.percent_fail_runs)
@@ -171,7 +171,7 @@ class TestPretrainingBaselineDataModuleFullData(
             self.assertNotIn(r, dataset.broken_source_loader.percent_fail_runs)
 
     def test_percent_fails_zero(self):
-        dataset = datasets.PretrainingBaselineDataModule(
+        dataset = rul_datasets.PretrainingBaselineDataModule(
             3, 1000, 16, percent_broken=0.2, percent_fail_runs=0.0
         )
         num_broken_runs = len(dataset.broken_source_loader.load_split("dev")[0])
@@ -184,7 +184,7 @@ class TestPretrainingBaselineDataModuleLowData(
     CmapssTestTemplate, PretrainingDataModuleTemplate, unittest.TestCase
 ):
     def setUp(self):
-        self.dataset = datasets.PretrainingBaselineDataModule(
+        self.dataset = rul_datasets.PretrainingBaselineDataModule(
             3, num_samples=10000, batch_size=16, percent_broken=0.2
         )
         self.dataset.prepare_data()

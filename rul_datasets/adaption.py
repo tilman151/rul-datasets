@@ -3,8 +3,8 @@ from typing import List, Optional, Union
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 
-from datasets.cmapss import AdaptionDataset, CMAPSSDataModule, PairedCMAPSS
-from datasets.loader import CMAPSSLoader
+from rul_datasets.cmapss import AdaptionDataset, CMAPSSDataModule, PairedCMAPSS
+from rul_datasets.loader import CMAPSSLoader
 
 
 class DomainAdaptionDataModule(pl.LightningDataModule):

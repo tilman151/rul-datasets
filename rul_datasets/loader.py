@@ -125,7 +125,7 @@ class CMAPSSLoader(AbstractLoader):
         self.percent_fail_runs = percent_fail_runs
 
         self.DATA_ROOT = os.path.join(
-            os.path.dirname(__file__), "../..", "data", "CMAPSS"
+            os.path.dirname(__file__), "..", "data", "CMAPSS"
         )
 
     def prepare_data(self):
@@ -298,7 +298,7 @@ class CMAPSSLoader(AbstractLoader):
 class FEMTOLoader(AbstractLoader):
     DATA_ROOT = os.path.normpath(
         os.path.join(
-            os.path.dirname(__file__), "..", "..", "data", "FEMTOBearingDataSet"
+            os.path.dirname(__file__), "..", "data", "FEMTOBearingDataSet"
         )
     )
 
@@ -428,10 +428,22 @@ class FEMTOPreparator:
         return feature_files
 
     def _load_feature_file(self, file_path: str) -> np.ndarray:
-        features = np.loadtxt(file_path, delimiter=",")
+        try:
+            features = np.loadtxt(file_path, delimiter=",")
+        except ValueError:
+            self._replace_delimiters(file_path)
+            features = np.loadtxt(file_path, delimiter=",")
         features = features[:, [4, 5]]
 
         return features
+
+    def _replace_delimiters(self, file_path: str):
+        with open(file_path, mode="r+t") as f:
+            content = f.read()
+            f.seek(0)
+            content = content.replace(";", ",")
+            f.write(content)
+            f.truncate()
 
     def _targets_from_file_paths(self, file_paths: List[List[str]]) -> List[np.ndarray]:
         targets = []

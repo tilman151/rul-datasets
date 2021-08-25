@@ -3,9 +3,9 @@ import unittest
 import torch
 from torch.utils.data import TensorDataset
 
-import datasets
-import datasets.cmapss
-from tests.dataset_tests.templates import (
+import rul_datasets
+import rul_datasets.cmapss
+from tests.templates import (
     CmapssTestTemplate,
     PretrainingDataModuleTemplate,
 )
@@ -13,7 +13,7 @@ from tests.dataset_tests.templates import (
 
 class TestCMAPSSAdaption(CmapssTestTemplate, unittest.TestCase):
     def setUp(self):
-        self.dataset = datasets.DomainAdaptionDataModule(3, 2, batch_size=16)
+        self.dataset = rul_datasets.DomainAdaptionDataModule(3, 2, batch_size=16)
         self.dataset.prepare_data()
         self.dataset.setup()
 
@@ -29,7 +29,7 @@ class TestCMAPSSAdaption(CmapssTestTemplate, unittest.TestCase):
             )
 
         with self.subTest(case="smaller2bigger"):
-            dataset = datasets.DomainAdaptionDataModule(2, 3, batch_size=16)
+            dataset = rul_datasets.DomainAdaptionDataModule(2, 3, batch_size=16)
             self.assertEqual(self.dataset.target.window_size, self.dataset.window_size)
             self.assertEqual(dataset.target.window_size, dataset.source.window_size)
             self.assertEqual(
@@ -37,7 +37,7 @@ class TestCMAPSSAdaption(CmapssTestTemplate, unittest.TestCase):
             )
 
     def test_override_window_size(self):
-        dataset = datasets.DomainAdaptionDataModule(3, 2, batch_size=16, window_size=40)
+        dataset = rul_datasets.DomainAdaptionDataModule(3, 2, batch_size=16, window_size=40)
         self.assertEqual(self.dataset.target.window_size, self.dataset.window_size)
         self.assertEqual(40, dataset.target.window_size)
         self.assertEqual(dataset.target.window_size, dataset.source.window_size)
@@ -77,7 +77,7 @@ class TestCMAPSSAdaption(CmapssTestTemplate, unittest.TestCase):
     def test_train_batch_structure(self):
         window_size = self.dataset.target.window_size
         train_loader = self.dataset.train_dataloader()
-        self.assertIsInstance(train_loader.dataset, datasets.cmapss.AdaptionDataset)
+        self.assertIsInstance(train_loader.dataset, rul_datasets.cmapss.AdaptionDataset)
         batch = next(iter(train_loader))
         self.assertEqual(3, len(batch))
         source, source_labels, target = batch
@@ -109,7 +109,7 @@ class TestCMAPSSAdaption(CmapssTestTemplate, unittest.TestCase):
         self.assertEqual(torch.Size((16,)), labels.shape)
 
     def test_truncation_passed_correctly(self):
-        dataset = datasets.DomainAdaptionDataModule(
+        dataset = rul_datasets.DomainAdaptionDataModule(
             3, 2, 16, percent_broken=0.2, percent_fail_runs=0.5
         )
         self.assertIsNone(dataset.source.percent_broken)
@@ -120,7 +120,7 @@ class TestCMAPSSAdaption(CmapssTestTemplate, unittest.TestCase):
         self.assertEqual(0.5, dataset.target_truncated.percent_fail_runs)
 
     def test_distance_mode_passed_correctly(self):
-        dataset = datasets.PretrainingAdaptionDataModule(
+        dataset = rul_datasets.PretrainingAdaptionDataModule(
             3, 2, 1000, 16, distance_mode="labeled"
         )
         data_loader = dataset.train_dataloader()
@@ -131,7 +131,7 @@ class TestPretrainingDataModuleFullData(
     CmapssTestTemplate, PretrainingDataModuleTemplate, unittest.TestCase
 ):
     def setUp(self):
-        self.dataset = datasets.PretrainingAdaptionDataModule(
+        self.dataset = rul_datasets.PretrainingAdaptionDataModule(
             3, 2, num_samples=10000, batch_size=16, min_distance=2
         )
         self.dataset.prepare_data()
@@ -142,19 +142,19 @@ class TestPretrainingDataModuleFullData(
 
     def test_target_val_truncation(self):
         with self.subTest(truncation=False):
-            dataset = datasets.PretrainingAdaptionDataModule(
+            dataset = rul_datasets.PretrainingAdaptionDataModule(
                 3, 2, num_samples=10000, batch_size=16
             )
             self.assertFalse(dataset.target_loader.truncate_val)
 
         with self.subTest(truncation=True):
-            dataset = datasets.PretrainingAdaptionDataModule(
+            dataset = rul_datasets.PretrainingAdaptionDataModule(
                 3, 2, num_samples=10000, batch_size=16, truncate_target_val=True
             )
             self.assertTrue(dataset.target_loader.truncate_val)
 
     def test_override_window_size(self):
-        dataset = datasets.PretrainingAdaptionDataModule(
+        dataset = rul_datasets.PretrainingAdaptionDataModule(
             3, 2, num_samples=10000, batch_size=16, window_size=40
         )
         dataset.prepare_data()
@@ -166,7 +166,7 @@ class TestPretrainingDataModuleFullData(
         self.assertEqual(40, queries.shape[2])
 
     def test_truncation_passed_correctly(self):
-        dataset = datasets.PretrainingAdaptionDataModule(
+        dataset = rul_datasets.PretrainingAdaptionDataModule(
             3, 2, 10000, 16, percent_broken=0.2, percent_fail_runs=0.5
         )
         self.assertIsNone(dataset.source.percent_broken)
@@ -179,7 +179,7 @@ class TestPretrainingDataModuleLowData(
     CmapssTestTemplate, PretrainingDataModuleTemplate, unittest.TestCase
 ):
     def setUp(self):
-        self.dataset = datasets.PretrainingAdaptionDataModule(
+        self.dataset = rul_datasets.PretrainingAdaptionDataModule(
             1, 3, num_samples=10000, batch_size=16, percent_broken=0.2
         )
         self.dataset.prepare_data()

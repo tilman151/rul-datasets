@@ -5,8 +5,8 @@ from unittest import mock
 import numpy as np
 import torch
 
-from datasets import loader
-from tests.dataset_tests.templates import CmapssTestTemplate, FemtoTestTemplate
+from rul_datasets import loader
+from tests.templates import CmapssTestTemplate, FemtoTestTemplate
 
 
 class TestCMAPSSLoader(CmapssTestTemplate, unittest.TestCase):
@@ -101,7 +101,7 @@ class TestCMAPSSLoader(CmapssTestTemplate, unittest.TestCase):
             self.assertEqual(len(full_run), len(trunc_run))
 
     @mock.patch(
-        "datasets.loader.CMAPSSLoader._truncate_runs", wraps=lambda x, y, *args: (x, y)
+        "rul_datasets.loader.CMAPSSLoader._truncate_runs", wraps=lambda x, y, *args: (x, y)
     )
     def test_val_truncation(self, mock_truncate):
         dataset = loader.CMAPSSLoader(fd=1, window_size=30)
@@ -238,7 +238,7 @@ class TestFEMTOLoader(FemtoTestTemplate, unittest.TestCase):
 
     @unittest.skip("No val set yet.")
     @mock.patch(
-        "datasets.loader.CMAPSSLoader._truncate_runs", wraps=lambda x, y: (x, y)
+        "rul_datasets.loader.CMAPSSLoader._truncate_runs", wraps=lambda x, y: (x, y)
     )
     def test_val_truncation(self, mock_truncate):
         dataset = loader.CMAPSSLoader(fd=1, window_size=30)

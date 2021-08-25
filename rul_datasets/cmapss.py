@@ -5,7 +5,7 @@ import pytorch_lightning as pl
 import torch
 from torch.utils.data import DataLoader, Dataset, IterableDataset, TensorDataset
 
-from datasets.loader import CMAPSSLoader
+from rul_datasets.loader import CMAPSSLoader
 
 
 class CMAPSSDataModule(pl.LightningDataModule):
