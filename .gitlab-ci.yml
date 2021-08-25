@@ -1,21 +1,33 @@
 image: python:3.7
 
-
-before_script:
-  - python --version
-  - pip install poetry
-  - poetry install
-
 stages:
   - static
+  - prepare data
   - test
 
 black:
+  before_script:
+    - pip install black
   stage: static
   script:
-    - poetry run black --check ./
+    - black --check ./
+
+download cmapss:
+  stage: prepare data
+  variables:
+    https_proxy: http://172.16.41.90:3128
+  script:
+    - curl -o ./data https://ti.arc.nasa.gov/c/6/
+  artifacts:
+    paths:
+      - ./data
+    expire_in: 1 hour
 
 unittest:
   stage: test
+  before_script:
+    - pip install poetry
+    - poetry install
   script:
     - poetry run python -m unittest -v
+  needs: ["download cmapss"]
