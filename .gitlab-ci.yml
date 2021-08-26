@@ -19,6 +19,14 @@ flake8:
   script:
     - flake8 ./tests ./rul_datasets
 
+mypy:
+  stage: static
+  before_script:
+    - pip install poetry
+    - poetry install
+  script:
+    - mypy ./tests ./rul_datasets
+
 download cmapss:
   stage: prepare data
   script:
