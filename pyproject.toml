@@ -14,6 +14,10 @@ tqdm = "^4.62.2"
 [tool.poetry.dev-dependencies]
 black = {extras = ["d"], version = "^21.7b0"}
 flake8 = "^3.9.2"
+mypy = "^0.910"
+
+[tool.mypy]
+plugins = "numpy.typing.mypy_plugin"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
