@@ -145,7 +145,8 @@ class PairedCMAPSS(IterableDataset):
         if not all(d.window_size == self.loaders[0].window_size for d in self.loaders):
             window_sizes = [d.window_size for d in self.loaders]
             raise ValueError(
-                f"Datasets to be paired do not have the same window size, but {window_sizes}"
+                f"Datasets to be paired do not have "
+                f"the same window size, but {window_sizes}"
             )
 
         self._run_domain_idx = None

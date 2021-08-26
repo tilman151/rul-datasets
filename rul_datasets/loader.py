@@ -131,7 +131,8 @@ class CMAPSSLoader(AbstractLoader):
         dev_path = self._file_path("dev")
         if not os.path.exists(dev_path):
             warnings.warn(
-                f"Training data for FD{self.fd:03d} not yet split into dev and val. Splitting now."
+                f"Training data for FD{self.fd:03d} not "
+                f"yet split into dev and val. Splitting now."
             )
             self._split_fd_train(self._file_path("train"))
 
