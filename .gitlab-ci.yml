@@ -25,7 +25,7 @@ mypy:
     - pip install poetry
     - poetry install
   script:
-    - mypy ./tests ./rul_datasets
+    - poetry run mypy ./tests ./rul_datasets
 
 download cmapss:
   stage: prepare data
