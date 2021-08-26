@@ -6,16 +6,21 @@ stages:
   - test
 
 black:
+  stage: static
   before_script:
     - pip install black
-  stage: static
   script:
     - black --check ./
 
+flake8:
+  stage: static
+  before_script:
+    - pip install flake8
+  script:
+    - flake8 ./tests ./rul_datasets
+
 download cmapss:
   stage: prepare data
-  variables:
-    https_proxy: http://172.16.41.90:3128
   script:
     - curl -o ./data https://ti.arc.nasa.gov/c/6/
   artifacts:
