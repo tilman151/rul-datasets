@@ -5,9 +5,9 @@ import warnings
 from typing import Iterable, List, Tuple, Union
 
 import numpy as np
-import sklearn.preprocessing as scalers
+import sklearn.preprocessing as scalers  # type: ignore
 import torch
-from tqdm import tqdm
+from tqdm import tqdm  # type: ignore
 
 
 class AbstractLoader:
@@ -82,12 +82,11 @@ class AbstractLoader:
     def _to_tensor(
         self, features: List[np.ndarray], targets: List[np.ndarray]
     ) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
-        features = [
-            torch.tensor(f, dtype=torch.float32).permute(0, 2, 1) for f in features
-        ]
-        targets = [torch.tensor(t, dtype=torch.float32) for t in targets]
+        dtype = torch.float32
+        tensor_feats = [torch.tensor(f, dtype=dtype).permute(0, 2, 1) for f in features]
+        tensor_targets = [torch.tensor(t, dtype=dtype) for t in targets]
 
-        return features, targets
+        return tensor_feats, tensor_targets
 
 
 class CMAPSSLoader(AbstractLoader):
@@ -178,9 +177,9 @@ class CMAPSSLoader(AbstractLoader):
         else:
             raise ValueError(f"Unknown split {split}.")
 
-        features, targets = self._to_tensor(features, targets)
+        tensor_feats, tensor_targets = self._to_tensor(features, targets)
 
-        return features, targets
+        return tensor_feats, tensor_targets
 
     def _process_dev_or_val_split(self, split, features, time_steps):
         # Build targets from time steps on training
@@ -274,8 +273,8 @@ class CMAPSSLoader(AbstractLoader):
                 seq[i : (i + self.window_size)] for i in range(0, num_frames)
             ]
             target = target[-num_frames:]
-            feature_windows = np.stack(feature_windows)
-            new_features.append(feature_windows)
+            stacked_windows = np.stack(feature_windows)
+            new_features.append(stacked_windows)
             new_targets.append(target)
 
         return new_features, new_targets

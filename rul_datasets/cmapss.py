@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pytorch_lightning as pl
@@ -17,7 +17,7 @@ class CMAPSSDataModule(pl.LightningDataModule):
         max_rul: int = 125,
         percent_broken: float = None,
         percent_fail_runs: Union[float, List[int]] = None,
-        feature_select: int = None,
+        feature_select: List[int] = None,
         truncate_val: bool = False,
     ):
         super().__init__()
@@ -51,7 +51,10 @@ class CMAPSSDataModule(pl.LightningDataModule):
             "truncate_val": self.truncate_val,
         }
 
-        self.data = {}
+        self.data: Dict[str, Tuple[torch.Tensor, torch.Tensor]] = {}
+
+    def transfer_batch_to_device(self, batch: Any, device: torch.device) -> Any:
+        super().transfer_batch_to_device(batch, device)
 
     @classmethod
     def from_loader(cls, loader: CMAPSSLoader, batch_size: int):
@@ -100,7 +103,7 @@ class CMAPSSDataModule(pl.LightningDataModule):
 
         return loader
 
-    def val_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
+    def val_dataloader(self, *args, **kwargs) -> DataLoader:
         return DataLoader(
             self.to_dataset("val"),
             batch_size=self.batch_size,
@@ -108,7 +111,7 @@ class CMAPSSDataModule(pl.LightningDataModule):
             pin_memory=True,
         )
 
-    def test_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
+    def test_dataloader(self, *args, **kwargs) -> DataLoader:
         return DataLoader(
             self.to_dataset("test"),
             batch_size=self.batch_size,
@@ -149,9 +152,9 @@ class PairedCMAPSS(IterableDataset):
                 f"the same window size, but {window_sizes}"
             )
 
-        self._run_domain_idx = None
-        self._features = None
-        self._labels = None
+        self._run_domain_idx: np.ndarray
+        self._features: List[torch.Tensor]
+        self._labels: List[torch.Tensor]
         self._prepare_datasets()
 
         self._max_rul = max(loader.max_rul for loader in self.loaders)
@@ -258,7 +261,7 @@ class PairedCMAPSS(IterableDataset):
             high=run_length,
         )
         # RUL label difference is negative time step difference
-        distance = chosen_labels[anchor_idx] - chosen_labels[query_idx]
+        distance = int(chosen_labels[anchor_idx] - chosen_labels[query_idx])
 
         return chosen_run, anchor_idx, query_idx, distance, domain_label
 
@@ -272,8 +275,8 @@ class PairedCMAPSS(IterableDataset):
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         anchors = run[anchor_idx]
         queries = run[query_idx]
-        domain_label = torch.tensor(domain_label, dtype=torch.float)
+        domain_tensor = torch.tensor(domain_label, dtype=torch.float)
         distances = torch.tensor(distance, dtype=torch.float) / self._max_rul
         distances = torch.clamp_max(distances, max=1)  # max distance is max_rul
 
-        return anchors, queries, distances, domain_label
+        return anchors, queries, distances, domain_tensor

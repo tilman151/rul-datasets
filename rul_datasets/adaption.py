@@ -52,7 +52,7 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
         max_rul: int = 125,
         percent_fail_runs: float = None,
         percent_broken: float = None,
-        feature_select: float = None,
+        feature_select: Optional[List[int]] = None,
     ):
         super().__init__()
 
