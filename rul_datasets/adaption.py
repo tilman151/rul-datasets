@@ -94,15 +94,17 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
             truncate_val=True,
         )
 
-        self.hparams = {
-            "fd_source": self.fd_source,
-            "fd_target": self.fd_target,
-            "batch_size": self.batch_size,
-            "window_size": self.window_size,
-            "max_rul": self.max_rul,
-            "percent_broken": self.percent_broken,
-            "percent_fail_runs": self.percent_fail_runs,
-        }
+        self.save_hyperparameters(
+            {
+                "fd_source": self.fd_source,
+                "fd_target": self.fd_target,
+                "batch_size": self.batch_size,
+                "window_size": self.window_size,
+                "max_rul": self.max_rul,
+                "percent_broken": self.percent_broken,
+                "percent_fail_runs": self.percent_fail_runs,
+            }
+        )
 
     def prepare_data(self, *args, **kwargs):
         self.source.prepare_data(*args, **kwargs)
@@ -207,19 +209,21 @@ class PretrainingAdaptionDataModule(pl.LightningDataModule):
         self.source = CMAPSSDataModule.from_loader(self.source_loader, self.batch_size)
         self.target = CMAPSSDataModule.from_loader(self.target_loader, self.batch_size)
 
-        self.hparams = {
-            "fd_source": self.fd_source,
-            "fd_target": self.fd_target,
-            "num_samples": self.num_samples,
-            "batch_size": self.batch_size,
-            "window_size": self.window_size,
-            "max_rul": self.max_rul,
-            "min_distance": self.min_distance,
-            "percent_broken": self.percent_broken,
-            "percent_fail_runs": self.percent_fail_runs,
-            "truncate_target_val": self.truncate_target_val,
-            "distance_mode": self.distance_mode,
-        }
+        self.save_hyperparameters(
+            {
+                "fd_source": self.fd_source,
+                "fd_target": self.fd_target,
+                "num_samples": self.num_samples,
+                "batch_size": self.batch_size,
+                "window_size": self.window_size,
+                "max_rul": self.max_rul,
+                "min_distance": self.min_distance,
+                "percent_broken": self.percent_broken,
+                "percent_fail_runs": self.percent_fail_runs,
+                "truncate_target_val": self.truncate_target_val,
+                "distance_mode": self.distance_mode,
+            }
+        )
 
     def prepare_data(self, *args, **kwargs):
         self.source_loader.prepare_data()

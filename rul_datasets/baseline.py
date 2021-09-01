@@ -26,13 +26,15 @@ class BaselineDataModule(pl.LightningDataModule):
         self.percent_fail_runs = percent_fail_runs
         self.feature_select = feature_select
 
-        self.hparams = {
-            "fd_source": self.fd_source,
-            "batch_size": self.batch_size,
-            "window_size": self.window_size,
-            "percent_fail_runs": self.percent_fail_runs,
-            "max_rul": self.max_rul,
-        }
+        self.save_hyperparameters(
+            {
+                "fd_source": self.fd_source,
+                "batch_size": self.batch_size,
+                "window_size": self.window_size,
+                "percent_fail_runs": self.percent_fail_runs,
+                "max_rul": self.max_rul,
+            }
+        )
 
         self.cmapss = {}
         for fd in range(1, 5):
@@ -129,18 +131,20 @@ class PretrainingBaselineDataModule(pl.LightningDataModule):
             self.broken_source_loader, self.batch_size
         )
 
-        self.hparams = {
-            "fd_source": self.fd_source,
-            "num_samples": self.num_samples,
-            "batch_size": self.batch_size,
-            "window_size": self.window_size,
-            "max_rul": self.max_rul,
-            "min_distance": self.min_distance,
-            "percent_broken": self.percent_broken,
-            "percent_fail_runs": self.percent_fail_runs,
-            "truncate_val": self.truncate_val,
-            "distance_mode": self.distance_mode,
-        }
+        self.save_hyperparameters(
+            {
+                "fd_source": self.fd_source,
+                "num_samples": self.num_samples,
+                "batch_size": self.batch_size,
+                "window_size": self.window_size,
+                "max_rul": self.max_rul,
+                "min_distance": self.min_distance,
+                "percent_broken": self.percent_broken,
+                "percent_fail_runs": self.percent_fail_runs,
+                "truncate_val": self.truncate_val,
+                "distance_mode": self.distance_mode,
+            }
+        )
 
     def _get_unbroken_runs(self, fail_runs):
         if fail_runs is None or isinstance(fail_runs, float):

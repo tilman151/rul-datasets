@@ -7,7 +7,7 @@ authors = ["Krokotsch, Tilman (TP-T) <tilman.krokotsch@iav.de>"]
 [tool.poetry.dependencies]
 python = "^3.7"
 torch = "^1.9.0"
-pytorch-lightning = "0.10.0"
+pytorch-lightning = "^1.4.4"
 scikit-learn = "^0.24.2"
 tqdm = "^4.62.2"
 

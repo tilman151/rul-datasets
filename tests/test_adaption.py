@@ -125,6 +125,23 @@ class TestCMAPSSAdaption(CmapssTestTemplate, unittest.TestCase):
         data_loader = dataset.train_dataloader()
         self.assertEqual(dataset.distance_mode, data_loader.dataset.mode)
 
+    def test_hparams(self):
+        dataset = adaption.PretrainingAdaptionDataModule(3, 2, 1000, 16)
+        expected_hparams = {
+            "fd_source": 3,
+            "fd_target": 2,
+            "num_samples": 1000,
+            "batch_size": 16,
+            "window_size": 20,
+            "max_rul": 125,
+            "min_distance": 1,
+            "percent_broken": None,
+            "percent_fail_runs": None,
+            "truncate_target_val": False,
+            "distance_mode": "linear",
+        }
+        self.assertDictEqual(expected_hparams, dataset.hparams)
+
 
 class TestPretrainingDataModuleFullData(
     CmapssTestTemplate, PretrainingDataModuleTemplate, unittest.TestCase
@@ -222,3 +239,16 @@ class TestAdaptionDataset(unittest.TestCase):
             source, labels, _ = self.dataset[i]
             self.assertEqual(i, source.item())
             self.assertEqual(i, labels.item())
+
+    def test_hparams(self):
+        dataset = adaption.DomainAdaptionDataModule(3, 2, 16)
+        expected_hparams = {
+            "fd_source": 3,
+            "fd_target": 2,
+            "batch_size": 16,
+            "window_size": 20,
+            "max_rul": 125,
+            "percent_broken": None,
+            "percent_fail_runs": None,
+        }
+        self.assertDictEqual(expected_hparams, dataset.hparams)

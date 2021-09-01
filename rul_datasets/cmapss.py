@@ -41,15 +41,17 @@ class CMAPSSDataModule(pl.LightningDataModule):
         self.feature_select = self._loader.feature_select
         self.truncate_val = self._loader.truncate_val
 
-        self.hparams = {
-            "fd": self.fd,
-            "batch_size": self.batch_size,
-            "window_size": self.window_size,
-            "max_rul": self.max_rul,
-            "percent_broken": self.percent_broken,
-            "percent_fail_runs": self.percent_fail_runs,
-            "truncate_val": self.truncate_val,
-        }
+        self.save_hyperparameters(
+            {
+                "fd": self.fd,
+                "batch_size": self.batch_size,
+                "window_size": self.window_size,
+                "max_rul": self.max_rul,
+                "percent_broken": self.percent_broken,
+                "percent_fail_runs": self.percent_fail_runs,
+                "truncate_val": self.truncate_val,
+            }
+        )
 
         self.data: Dict[str, Tuple[torch.Tensor, torch.Tensor]] = {}
 

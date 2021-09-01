@@ -91,6 +91,17 @@ class TestCMAPSSBaseline(CmapssTestTemplate, unittest.TestCase):
             else:
                 self.assertIsNone(self.dataset.cmapss[i].percent_fail_runs)
 
+    def test_hparams(self):
+        dataset = rul_datasets.BaselineDataModule(3, 16)
+        expected_hparams = {
+            "fd_source": 3,
+            "batch_size": 16,
+            "window_size": 30,
+            "max_rul": 125,
+            "percent_fail_runs": None,
+        }
+        self.assertDictEqual(expected_hparams, dataset.hparams)
+
 
 class TestPretrainingBaselineDataModuleFullData(
     CmapssTestTemplate, PretrainingDataModuleTemplate, unittest.TestCase
