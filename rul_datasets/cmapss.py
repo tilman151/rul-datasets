@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pytorch_lightning as pl
@@ -54,9 +54,6 @@ class CMAPSSDataModule(pl.LightningDataModule):
         )
 
         self.data: Dict[str, Tuple[torch.Tensor, torch.Tensor]] = {}
-
-    def transfer_batch_to_device(self, batch: Any, device: torch.device) -> Any:
-        super().transfer_batch_to_device(batch, device)
 
     @classmethod
     def from_loader(cls, loader: CMAPSSLoader, batch_size: int):
