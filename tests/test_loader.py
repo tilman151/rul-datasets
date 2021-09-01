@@ -169,6 +169,17 @@ class TestCMAPSSLoader(CmapssTestTemplate, unittest.TestCase):
             )
 
 
+def _raw_csv_exist():
+    csv_path = os.path.join(
+        loader.FEMTOLoader.DATA_ROOT,
+        loader.FEMTOPreparator.SPLIT_FOLDERS["train"],
+        "Bearing1_1",
+    )
+    csv_exists = os.path.exists(csv_path)
+
+    return csv_exists
+
+
 class TestFEMTOLoader(FemtoTestTemplate, unittest.TestCase):
     NUM_CHANNELS = 2
 
@@ -306,6 +317,7 @@ class TestFEMTOPreperator(FemtoTestTemplate, unittest.TestCase):
         3: {"train": 2152, "test": 434},
     }
 
+    @unittest.skipIf(not _raw_csv_exist(), "Raw CSV files not found.")
     def test_file_discovery(self):
         for fd in range(1, 4):
             preparator = loader.FEMTOPreparator(fd, loader.FEMTOLoader.DATA_ROOT)
@@ -315,6 +327,7 @@ class TestFEMTOPreperator(FemtoTestTemplate, unittest.TestCase):
                 actual_num_files = len(sum(csv_paths, []))
                 self.assertEqual(expected_num_files, actual_num_files)
 
+    @unittest.skipIf(not _raw_csv_exist(), "Raw CSV files not found.")
     def test_loading_one_file(self):
         preparator = loader.FEMTOPreparator(1, loader.FEMTOLoader.DATA_ROOT)
         csv_paths = preparator._get_csv_file_paths("train")
@@ -322,6 +335,7 @@ class TestFEMTOPreperator(FemtoTestTemplate, unittest.TestCase):
         self.assertIsInstance(features, np.ndarray)
         self.assertEqual(features.shape, (preparator.DEFAULT_WINDOW_SIZE, 2))
 
+    @unittest.skipIf(not _raw_csv_exist(), "Raw CSV files not found.")
     def test_target_generation(self):
         preparator = loader.FEMTOPreparator(1, loader.FEMTOLoader.DATA_ROOT)
         csv_paths = preparator._get_csv_file_paths("train")
