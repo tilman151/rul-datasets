@@ -1,8 +1,13 @@
-image: python:3.7
+include:
+  - template: 'Workflows/MergeRequest-Pipelines.gitlab-ci.yml'
+
+default:
+  image: python:3.7
 
 stages:
   - static
-  - prepare data
+  - fetch data
+  - process data
   - test
 
 black:
@@ -27,14 +32,70 @@ mypy:
   script:
     - poetry run mypy ./tests ./rul_datasets
 
-download cmapss:
-  stage: prepare data
+fetch_cmapss:
+    stage: fetch data
+    image: alpine
+    rules:
+      - if: $INITIAL
+      - when: never
+    before_script:
+      - apk add wget
+    script:
+      - mkdir ./data
+      - mkdir ./data/CMAPSS
+      - wget -q -O ./cmapss.zip https://ti.arc.nasa.gov/c/6/
+      - unzip -q ./cmapss.zip -d ./data/CMAPSS
+    artifacts:
+        paths:
+            - ./data
+
+fetch_femto:
+    stage: fetch data
+    image: alpine
+    rules:
+      - if: $INITIAL
+      - when: never
+    before_script:
+      - apk add wget
+    script:
+      - mkdir ./data
+      - mkdir ./data/FEMTOBearingDataSet
+      - wget -q -O ./femto.zip https://ti.arc.nasa.gov/c/18/
+      - unzip -q ./femto.zip
+      - unzip -q Test_set.zip -d ./data/FEMTOBearingDataSet
+      - unzip -q ./data/FEMTOBearingDataSet/Training_set.zip -d ./data/FEMTOBearingDataSet
+      - unzip -q ./data/FEMTOBearingDataSet/Validation_Set.zip -d ./data/FEMTOBearingDataSet
+      - rm ./data/FEMTOBearingDataSet/Training_set.zip
+      - rm ./data/FEMTOBearingDataSet/Validation_Set.zip
+    artifacts:
+        paths:
+            - ./data
+
+process_femto:
+  stage: process data
+  rules:
+    - if: $INITIAL
+    - if: $REPROCESS
+    - when: never
+  before_script:
+    - pip install poetry
+    - poetry install
   script:
-    - curl -o ./data https://ti.arc.nasa.gov/c/6/
+    - poetry run python ./ci/process_femto.py
+    - rm -r ./data/FEMTOBearingDataSet/Learning_set/Bearing*
+    - rm -r ./data/FEMTOBearingDataSet/Full_Test_Set/Bearing*
+    - rm -r ./data/FEMTOBearingDataSet/Test_set/Bearing*
+  needs:
+    - job: fetch_femto
+      optional: true
+      artifacts: false
+    - project: $CI_PROJECT_PATH
+      job: fetch_femto
+      ref: $CI_DEFAULT_BRANCH
+      artifacts: true
   artifacts:
-    paths:
-      - ./data
-    expire_in: 1 hour
+      paths:
+          - ./data
 
 unittest:
   stage: test
@@ -43,4 +104,18 @@ unittest:
     - poetry install
   script:
     - poetry run python -m unittest -v
-  needs: ["download cmapss"]
+  needs:
+    - job: fetch_cmapss
+      optional: true
+      artifacts: false
+    - project: $CI_PROJECT_PATH
+      job: fetch_cmapss
+      ref: $CI_DEFAULT_BRANCH
+      artifacts: true
+    - job: process_femto
+      optional: true
+      artifacts: false
+    - project: $CI_PROJECT_PATH
+      job: process_femto
+      ref: $CI_DEFAULT_BRANCH
+      artifacts: true
