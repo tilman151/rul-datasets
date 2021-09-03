@@ -3,7 +3,7 @@ from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 import pytorch_lightning as pl
 import torch
-from torch.utils.data import DataLoader, IterableDataset, TensorDataset
+from torch.utils.data import DataLoader, IterableDataset, TensorDataset, get_worker_info
 
 from rul_datasets.loader import CMAPSSLoader
 
@@ -166,8 +166,6 @@ class PairedCMAPSS(IterableDataset):
         elif mode == "labeled":
             self._get_pair_func = self._get_labeled_pair_idx
 
-        self._pair_idx: List[Tuple[int, int, int, int, int]]
-
     def _prepare_datasets(self):
         run_domain_idx = []
         features = []
@@ -184,25 +182,29 @@ class PairedCMAPSS(IterableDataset):
         self._features = features
         self._labels = labels
 
-    def _reset_rng(self) -> np.random.Generator:
-        return np.random.default_rng(seed=42)
+    def _reset_rng(self, seed=42) -> np.random.Generator:
+        return np.random.default_rng(seed=seed)
 
     def __len__(self) -> int:
         return self.num_samples
 
     def __iter__(self):
         self._curr_iter = 0
-        if self.deterministic:
+        worker_info = get_worker_info()
+        if self.deterministic and worker_info is not None:
+            raise RuntimeError(
+                "PairedDataset cannot run deterministic in multiprocessing"
+            )
+        elif self.deterministic:
             self._rng = self._reset_rng()
-        self._pair_idx = [self._get_pair_func() for _ in range(self.num_samples)]
+        elif worker_info is not None:
+            self._rng = self._reset_rng(worker_info.seed)
 
         return self
 
     def __next__(self) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         if self._curr_iter < self.num_samples:
-            run_idx, anchor_idx, query_idx, dist, domain_label = self._pair_idx[
-                self._curr_iter
-            ]
+            run_idx, anchor_idx, query_idx, dist, domain_label = self._get_pair_func()
             self._curr_iter += 1
             run = self._features[run_idx]
             return self._build_pair(run, anchor_idx, query_idx, dist, domain_label)

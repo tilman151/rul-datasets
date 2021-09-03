@@ -3,6 +3,7 @@ from unittest import mock
 
 import numpy as np
 import torch
+from torch.utils.data import DataLoader
 
 from rul_datasets import cmapss, loader
 from tests.templates import CmapssTestTemplate
@@ -321,3 +322,36 @@ class TestPairedDataset(unittest.TestCase):
                 self.assertEqual(0, domain_idx)  # First domain is self.length long
             else:
                 self.assertEqual(1, domain_idx)  # Second is not
+
+    def test_no_determinism_in_multiprocessing(self):
+        dataset = cmapss.PairedCMAPSS(
+            [self.cmapss_normal, self.cmapss_short], "dev", 100, 1, deterministic=True
+        )
+        dataloader = DataLoader(dataset, num_workers=2)
+        with self.assertRaises(RuntimeError):
+            for _ in dataloader:
+                pass
+
+    def test_no_duplicate_batches_in_multiprocessing(self):
+        dataset = cmapss.PairedCMAPSS(
+            [self.cmapss_normal, self.cmapss_short], "dev", 100, 1
+        )
+        dataloader = DataLoader(dataset, batch_size=10, num_workers=2)
+        batches = [batch for batch in dataloader]
+        are_duplicated = []
+        for b0, b1 in zip(batches[::2], batches[1::2]):
+            are_duplicated.append(self._is_same_batch(b0, b1))
+        self.assertFalse(all(are_duplicated))
+
+    def test_no_repeating_epochs_in_multiprocessing(self):
+        dataset = cmapss.PairedCMAPSS(
+            [self.cmapss_normal, self.cmapss_short], "dev", 100, 1
+        )
+        dataloader = DataLoader(dataset, batch_size=10, num_workers=2)
+        epoch0 = [batch for batch in dataloader]
+        epoch1 = [batch for batch in dataloader]
+        for b0, b1 in zip(epoch0, epoch1):
+            self.assertFalse(self._is_same_batch(b0, b1))
+
+    def _is_same_batch(self, b0, b1):
+        return all(torch.dist(a, b) == 0.0 for a, b in zip(b0, b1))
