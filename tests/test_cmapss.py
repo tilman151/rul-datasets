@@ -3,6 +3,7 @@ from unittest import mock
 
 import numpy as np
 import torch
+from torch.utils.data import DataLoader
 
 from rul_datasets import cmapss, loader
 from tests.templates import CmapssTestTemplate
@@ -184,7 +185,8 @@ class TestPairedDataset(unittest.TestCase):
         data = cmapss.PairedCMAPSS([self.cmapss_normal], "dev", 512, 1, True)
         middle_idx = self.length // 2
         for _ in range(512):
-            run, anchor_idx, query_idx, distance, _ = data._get_pair_idx_piecewise()
+            run_idx, anchor_idx, query_idx, distance, _ = data._get_pair_idx_piecewise()
+            run = data._features[run_idx]
             self.assertEqual(middle_idx, len(run) // 2)
             if anchor_idx < middle_idx:
                 self.assertEqual(0, distance)
@@ -201,7 +203,8 @@ class TestPairedDataset(unittest.TestCase):
     def test_get_labeled_pair_idx(self):
         data = cmapss.PairedCMAPSS([self.cmapss_normal], "dev", 512, 1, True)
         for _ in range(512):
-            run, anchor_idx, query_idx, distance, _ = data._get_labeled_pair_idx()
+            run_idx, anchor_idx, query_idx, distance, _ = data._get_labeled_pair_idx()
+            run = data._features[run_idx]
             self.assertEqual(self.length, len(run))
             expected_distance = data._labels[0][anchor_idx] - data._labels[0][query_idx]
             self.assertLessEqual(0, distance)
@@ -297,7 +300,8 @@ class TestPairedDataset(unittest.TestCase):
             [self.cmapss_normal, self.cmapss_short], "dev", 512, min_distance=30
         )
         for _ in range(512):
-            run, _, _, _, domain_idx = dataset._get_pair_idx_piecewise()
+            run_idx, _, _, _, domain_idx = dataset._get_pair_idx_piecewise()
+            run = dataset._features[run_idx]
             if len(run) == self.length:
                 self.assertEqual(0, domain_idx)  # First domain is self.length long
             else:

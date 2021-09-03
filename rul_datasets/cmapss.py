@@ -198,12 +198,13 @@ class PairedCMAPSS(IterableDataset):
     def __next__(self) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         if self._current_iteration < self.num_samples:
             self._current_iteration += 1
-            idx = self._get_pair_func()
-            return self._build_pair(*idx)
+            run_idx, anchor_idx, query_idx, dist, domain_label = self._get_pair_func()
+            run = self._features[run_idx]
+            return self._build_pair(run, anchor_idx, query_idx, dist, domain_label)
         else:
             raise StopIteration
 
-    def _get_pair_idx(self) -> Tuple[torch.Tensor, int, int, int, int]:
+    def _get_pair_idx(self) -> Tuple[int, int, int, int, int]:
         chosen_run_idx = self._rng.integers(0, len(self._features))
         domain_label = self._run_domain_idx[chosen_run_idx]
         chosen_run = self._features[chosen_run_idx]
@@ -220,9 +221,9 @@ class PairedCMAPSS(IterableDataset):
         )
         distance = query_idx - anchor_idx
 
-        return chosen_run, anchor_idx, query_idx, distance, domain_label
+        return chosen_run_idx, anchor_idx, query_idx, distance, domain_label
 
-    def _get_pair_idx_piecewise(self) -> Tuple[torch.Tensor, int, int, int, int]:
+    def _get_pair_idx_piecewise(self) -> Tuple[int, int, int, int, int]:
         chosen_run_idx = self._rng.integers(0, len(self._features))
         domain_label = self._run_domain_idx[chosen_run_idx]
         chosen_run = self._features[chosen_run_idx]
@@ -242,9 +243,9 @@ class PairedCMAPSS(IterableDataset):
         )
         distance = query_idx - anchor_idx if anchor_idx > middle_idx else 0
 
-        return chosen_run, anchor_idx, query_idx, distance, domain_label
+        return chosen_run_idx, anchor_idx, query_idx, distance, domain_label
 
-    def _get_labeled_pair_idx(self) -> Tuple[torch.Tensor, int, int, int, int]:
+    def _get_labeled_pair_idx(self) -> Tuple[int, int, int, int, int]:
         chosen_run_idx = self._rng.integers(0, len(self._features))
         domain_label = self._run_domain_idx[chosen_run_idx]
         chosen_run = self._features[chosen_run_idx]
@@ -262,7 +263,7 @@ class PairedCMAPSS(IterableDataset):
         # RUL label difference is negative time step difference
         distance = int(chosen_labels[anchor_idx] - chosen_labels[query_idx])
 
-        return chosen_run, anchor_idx, query_idx, distance, domain_label
+        return chosen_run_idx, anchor_idx, query_idx, distance, domain_label
 
     def _build_pair(
         self,
