@@ -157,7 +157,7 @@ class PairedCMAPSS(IterableDataset):
         self._prepare_datasets()
 
         self._max_rul = max(loader.max_rul for loader in self.loaders)
-        self._current_iteration = 0
+        self._curr_iter = 0
         self._rng = self._reset_rng()
         if mode == "linear":
             self._get_pair_func = self._get_pair_idx
@@ -165,6 +165,8 @@ class PairedCMAPSS(IterableDataset):
             self._get_pair_func = self._get_pair_idx_piecewise
         elif mode == "labeled":
             self._get_pair_func = self._get_labeled_pair_idx
+
+        self._pair_idx: List[Tuple[int, int, int, int, int]]
 
     def _prepare_datasets(self):
         run_domain_idx = []
@@ -189,16 +191,19 @@ class PairedCMAPSS(IterableDataset):
         return self.num_samples
 
     def __iter__(self):
-        self._current_iteration = 0
+        self._curr_iter = 0
         if self.deterministic:
             self._rng = self._reset_rng()
+        self._pair_idx = [self._get_pair_func() for _ in range(self.num_samples)]
 
         return self
 
     def __next__(self) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        if self._current_iteration < self.num_samples:
-            self._current_iteration += 1
-            run_idx, anchor_idx, query_idx, dist, domain_label = self._get_pair_func()
+        if self._curr_iter < self.num_samples:
+            run_idx, anchor_idx, query_idx, dist, domain_label = self._pair_idx[
+                self._curr_iter
+            ]
+            self._curr_iter += 1
             run = self._features[run_idx]
             return self._build_pair(run, anchor_idx, query_idx, dist, domain_label)
         else:

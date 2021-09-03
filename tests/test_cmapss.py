@@ -3,7 +3,6 @@ from unittest import mock
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader
 
 from rul_datasets import cmapss, loader
 from tests.templates import CmapssTestTemplate
@@ -276,24 +275,40 @@ class TestPairedDataset(unittest.TestCase):
         return different
 
     def test_min_distance(self):
-        dataset = cmapss.PairedCMAPSS([self.cmapss_short], "dev", 512, min_distance=30)
-        pairs = self._get_pairs(dataset)
-        distances = pairs[:, 1] - pairs[:, 0]
-        self.assertTrue(np.all(pairs[:, 0] < pairs[:, 1]))
-        self.assertTrue(np.all(distances >= 30))
-
-    def test_build_pairs(self):
-        for split in ["dev", "val"]:
-            with self.subTest(split=split):
-                paired_dataset = cmapss.PairedCMAPSS(
-                    [self.fd1, self.fd3], split, 1000, 1
+        for mode in ["linear", "piecewise", "labeled"]:
+            with self.subTest(mode):
+                dataset = cmapss.PairedCMAPSS(
+                    [self.cmapss_short], "dev", 512, min_distance=30, mode=mode
                 )
-                pairs = self._get_pairs(paired_dataset)
-                self.assertTrue(
-                    np.all(pairs[:, 0] < pairs[:, 1])
-                )  # query always after anchor
-                self.assertTrue(np.all(pairs[:, 3] <= 1))  # domain label is either 1
-                self.assertTrue(np.all(pairs[:, 3] >= 0))  # or zero
+                pairs = self._all_get_pairs(dataset)
+                distances = pairs[:, 1] - pairs[:, 0]
+                self.assertTrue(np.all(pairs[:, 0] < pairs[:, 1]))
+                self.assertTrue(np.all(distances >= 30))
+
+    def test_get_pairs(self):
+        for split in ["dev", "val"]:
+            for mode in ["linear", "piecewise", "labeled"]:
+                with self.subTest(split=split, mode=mode):
+                    paired_dataset = cmapss.PairedCMAPSS(
+                        [self.fd1, self.fd3], split, 1000, 1, mode=mode
+                    )
+                    pairs = self._all_get_pairs(paired_dataset)
+                    self.assertTrue(
+                        np.all(pairs[:, 0] < pairs[:, 1])
+                    )  # query always after anchor
+                    self.assertTrue(
+                        np.all(pairs[:, 3] <= 1)
+                    )  # domain label is either 1
+                    self.assertTrue(np.all(pairs[:, 3] >= 0))  # or zero
+
+    def _all_get_pairs(self, paired):
+        pairs = [paired._get_pair_func() for _ in range(paired.num_samples)]
+        pairs = [
+            (anchor_idx, query_idx, distance, domain_idx)
+            for _, anchor_idx, query_idx, distance, domain_idx in pairs
+        ]
+
+        return np.array(pairs)
 
     def test_domain_labels(self):
         dataset = cmapss.PairedCMAPSS(
@@ -306,12 +321,3 @@ class TestPairedDataset(unittest.TestCase):
                 self.assertEqual(0, domain_idx)  # First domain is self.length long
             else:
                 self.assertEqual(1, domain_idx)  # Second is not
-
-    def _get_pairs(self, paired):
-        pairs = [paired._get_pair_idx_piecewise() for _ in range(paired.num_samples)]
-        pairs = [
-            (anchor_idx, query_idx, distance, domain_idx)
-            for _, anchor_idx, query_idx, distance, domain_idx in pairs
-        ]
-
-        return np.array(pairs)
