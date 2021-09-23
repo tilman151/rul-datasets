@@ -1,73 +1,46 @@
 import unittest
+import warnings
+from unittest import mock
 
 import torch
 import torch.utils.data
-from torch.utils.data import RandomSampler, SequentialSampler
 
 import rul_datasets
-from tests.templates import (
-    CmapssTestTemplate,
-    PretrainingDataModuleTemplate,
-)
+from rul_datasets import cmapss
+from tests.templates import PretrainingDataModuleTemplate
 
 
-class TestCMAPSSBaseline(CmapssTestTemplate, unittest.TestCase):
+class TestCMAPSSBaseline(unittest.TestCase):
     def setUp(self):
-        self.dataset = rul_datasets.BaselineDataModule(
-            3, batch_size=16, percent_fail_runs=0.8
-        )
+        self.mock_loader = mock.MagicMock(name="CMAPSSLoader")
+        self.mock_loader.fd = 1
+        self.mock_loader.hparams = {"fd": self.mock_loader.fd}
+        self.mock_runs = [torch.zeros(1, 1, 1)], [torch.zeros(1)]
+        self.mock_loader.load_split.return_value = self.mock_runs
+
+        self.base_module = cmapss.CMAPSSDataModule(self.mock_loader, batch_size=16)
+        self.dataset = rul_datasets.BaselineDataModule(self.base_module)
         self.dataset.prepare_data()
         self.dataset.setup()
 
-    def test_override_window_size(self):
-        dataset = rul_datasets.BaselineDataModule(
-            3, batch_size=16, window_size=40, percent_fail_runs=0.8
-        )
-        for fd in dataset.cmapss.values():
-            self.assertEqual(40, fd.window_size)
-
-    def test_default_window_size(self):
-        window_sizes = [30, 20, 30, 15]
-        for i, win in enumerate(window_sizes, start=1):
-            dataset = rul_datasets.BaselineDataModule(
-                i, batch_size=16, percent_fail_runs=0.8
-            )
-            for fd in dataset.cmapss.values():
-                self.assertEqual(win, fd.window_size)
-
-    def test_train_batch_structure(self):
-        train_loader = self.dataset.train_dataloader()
-        self.assertIsInstance(train_loader.sampler, RandomSampler)
-        self._assert_batch_structure(train_loader)
-
-    def test_val_batch_structure(self):
-        val_loader = self.dataset.val_dataloader()
-        self.assertIsInstance(val_loader.sampler, SequentialSampler)
-        self._assert_batch_structure(val_loader)
-
-    def test_test_batch_structure(self):
-        test_loaders = self.dataset.test_dataloader()
-        for test_loader in test_loaders:
-            self.assertIsInstance(test_loader.sampler, SequentialSampler)
-            self._assert_batch_structure(test_loader)
-
-    def _assert_batch_structure(self, loader):
-        batch = next(iter(loader))
-        self.assertEqual(2, len(batch))
-        features, labels = batch
-        self.assertEqual(torch.Size((16, 14, 30)), features.shape)
-        self.assertEqual(torch.Size((16,)), labels.shape)
+    def test_test_sets_created_correctly(self):
+        for fd in range(1, 5):
+            self.assertIn(fd, self.dataset.cmapss)
+            self.assertEqual(fd, self.dataset.cmapss[fd].loader.fd)
+            if fd == self.dataset.hparams["fd"]:
+                self.assertIs(self.dataset.data_module, self.dataset.cmapss[fd])
+            else:
+                self.assertIsNone(self.dataset.cmapss[fd].loader.percent_fail_runs)
+                self.assertIsNone(self.dataset.cmapss[fd].loader.percent_broken)
 
     def test_selected_source_on_train(self):
-        fd_source = self.dataset.fd_source
         baseline_train_dataset = self.dataset.train_dataloader().dataset
-        source_train_dataset = self.dataset.cmapss[fd_source].train_dataloader().dataset
+        source_train_dataset = self.dataset.data_module.train_dataloader().dataset
         self._assert_datasets_equal(baseline_train_dataset, source_train_dataset)
 
     def test_selected_source_on_val(self):
-        fd_source = self.dataset.fd_source
         baseline_val_dataset = self.dataset.val_dataloader().dataset
-        source_val_dataset = self.dataset.cmapss[fd_source].val_dataloader().dataset
+        source_val_dataset = self.dataset.data_module.val_dataloader().dataset
         self._assert_datasets_equal(baseline_val_dataset, source_val_dataset)
 
     def test_selected_all_on_test(self):
@@ -84,122 +57,190 @@ class TestCMAPSSBaseline(CmapssTestTemplate, unittest.TestCase):
         for baseline, inner in zip(baseline_data, inner_data):
             self.assertEqual(0, torch.sum(baseline - inner))
 
-    def test_fail_runs_passed_correctly(self):
-        for i in range(1, 5):
-            if i == self.dataset.fd_source:
-                self.assertEqual(0.8, self.dataset.cmapss[i].percent_fail_runs)
-            else:
-                self.assertIsNone(self.dataset.cmapss[i].percent_fail_runs)
-
     def test_hparams(self):
-        dataset = rul_datasets.BaselineDataModule(3, 16)
-        expected_hparams = {
-            "fd_source": 3,
-            "batch_size": 16,
-            "window_size": 30,
-            "max_rul": 125,
-            "percent_fail_runs": None,
-        }
-        self.assertDictEqual(expected_hparams, dataset.hparams)
+        self.assertDictEqual(self.base_module.hparams, self.dataset.hparams)
 
 
 class TestPretrainingBaselineDataModuleFullData(
-    CmapssTestTemplate, PretrainingDataModuleTemplate, unittest.TestCase
+    PretrainingDataModuleTemplate, unittest.TestCase
 ):
     def setUp(self):
+        self.mock_runs = [torch.randn(16, 14, 1)] * 8, [torch.rand(16)] * 8
+
+        self.failed_loader = mock.MagicMock(name="CMAPSSLoader")
+        self.failed_loader.fd = 1
+        self.failed_loader.percent_fail_runs = list(range(8))
+        self.failed_loader.percent_broken = None
+        self.failed_loader.window_size = 1
+        self.failed_loader.max_rul = 125
+        self.failed_loader.hparams = {"fd": self.failed_loader.fd}
+        self.failed_loader.load_split.return_value = self.mock_runs
+        self.failed_data = cmapss.CMAPSSDataModule(self.failed_loader, batch_size=16)
+
+        self.unfailed_loader = mock.MagicMock(name="CMAPSSLoader")
+        self.unfailed_loader.fd = 1
+        self.unfailed_loader.percent_fail_runs = list(range(8, 16))
+        self.unfailed_loader.percent_broken = 0.8
+        self.unfailed_loader.window_size = 1
+        self.unfailed_loader.max_rul = 125
+        self.unfailed_loader.hparams = {"fd": self.unfailed_loader.fd}
+        self.unfailed_loader.load_split.return_value = self.mock_runs
+        self.unfailed_data = cmapss.CMAPSSDataModule(
+            self.unfailed_loader, batch_size=16
+        )
+
         self.dataset = rul_datasets.PretrainingBaselineDataModule(
-            3, num_samples=10000, batch_size=16, min_distance=2
+            self.failed_data,
+            self.unfailed_data,
+            num_samples=10000,
+            min_distance=2,
         )
         self.dataset.prepare_data()
         self.dataset.setup()
 
         self.expected_num_val_loaders = 2
-        self.window_size = self.dataset.broken_source_loader.window_size
+        self.window_size = 1
 
-    def test_val_truncation(self):
-        with self.subTest(truncation=False):
-            dataset = rul_datasets.PretrainingBaselineDataModule(
-                3, num_samples=10000, batch_size=16
-            )
-            self.assertFalse(dataset.broken_source_loader.truncate_val)
-            self.assertFalse(dataset.source.truncate_val)
-
-        with self.subTest(truncation=True):
-            dataset = rul_datasets.PretrainingBaselineDataModule(
-                3, num_samples=10000, batch_size=16, truncate_val=True
-            )
-            self.assertTrue(dataset.broken_source_loader.truncate_val)
-            self.assertTrue(dataset.source.truncate_val)
-
-    def test_override_window_size(self):
-        dataset = rul_datasets.PretrainingBaselineDataModule(
-            3, num_samples=10000, batch_size=16, window_size=40
-        )
-        dataset.prepare_data()
-        dataset.setup()
-        train_loader = dataset.train_dataloader()
-
-        anchors, queries, _, _ = next(iter(train_loader))
-        self.assertEqual(40, anchors.shape[2])
-        self.assertEqual(40, queries.shape[2])
-
-    def test_truncation_passed_correctly(self):
-        dataset = rul_datasets.PretrainingBaselineDataModule(
-            3, 1000, 16, percent_broken=0.2, percent_fail_runs=0.5
-        )
-        self.assertEqual(0.2, dataset.broken_source_loader.percent_broken)
-        self.assertIsNone(dataset.broken_source_loader.percent_fail_runs)
-        self.assertEqual(0.5, dataset.fails_source_loader.percent_fail_runs)
-        self.assertIsNone(dataset.fails_source_loader.percent_broken)
+    def test_loader_compatability_checked(self):
+        self.failed_loader.check_compatibility.assert_called_with(self.unfailed_loader)
 
     def test_distance_mode_passed_correctly(self):
         dataset = rul_datasets.PretrainingBaselineDataModule(
-            3, 1000, 16, distance_mode="labeled"
+            self.failed_data, self.unfailed_data, 10, distance_mode="labeled"
         )
         data_loader = dataset.train_dataloader()
         self.assertEqual(dataset.distance_mode, data_loader.dataset.mode)
 
     def test_both_source_datasets_used(self):
         dataset = rul_datasets.PretrainingBaselineDataModule(
-            3, 1000, 16, percent_broken=0.2, percent_fail_runs=0.5
+            self.failed_data, self.unfailed_data, 10
         )
         for split in ["dev", "val"]:
             with self.subTest(split):
-                num_broken_runs = len(dataset.broken_source_loader.load_split(split)[0])
-                num_fail_runs = len(dataset.fails_source_loader.load_split(split)[0])
+                num_broken_runs = len(dataset.unfailed_loader.load_split(split)[0])
+                num_fail_runs = len(dataset.failed_loader.load_split(split)[0])
                 paired_dataset = dataset._get_paired_dataset(split)
                 self.assertEqual(
                     num_broken_runs + num_fail_runs, len(paired_dataset._features)
                 )
 
-    def test_get_unfailed_runs(self):
-        fail_runs = [1, 5, 40, 79]
-        dataset = rul_datasets.PretrainingBaselineDataModule(
-            3, 1000, 16, percent_broken=0.2, percent_fail_runs=fail_runs
+    def test_error_on_fd_missmatch(self):
+        self.failed_data.loader.fd = 2
+        self.assertRaises(
+            ValueError,
+            rul_datasets.PretrainingBaselineDataModule,
+            self.failed_data,
+            self.unfailed_data,
+            10,
         )
-        self.assertListEqual(fail_runs, dataset.fails_source_loader.percent_fail_runs)
-        for r in fail_runs:
-            self.assertNotIn(r, dataset.broken_source_loader.percent_fail_runs)
 
-    def test_percent_fails_zero(self):
-        dataset = rul_datasets.PretrainingBaselineDataModule(
-            3, 1000, 16, percent_broken=0.2, percent_fail_runs=0.0
+    def test_error_on_float_fail_runs(self):
+        with self.subTest("failed data"):
+            self.failed_data.loader.percent_fail_runs = 0.9
+            self.assertRaises(
+                ValueError,
+                rul_datasets.PretrainingBaselineDataModule,
+                self.failed_data,
+                self.unfailed_data,
+                10,
+            )
+
+        with self.subTest("failed data"):
+            self.failed_data.loader.percent_fail_runs = list(range(0, 8))
+            self.unfailed_data.loader.percent_fail_runs = 0.9
+            self.assertRaises(
+                ValueError,
+                rul_datasets.PretrainingBaselineDataModule,
+                self.failed_data,
+                self.unfailed_data,
+                10,
+            )
+
+    def test_error_on_overlapping_runs(self):
+        self.unfailed_data.loader.percent_fail_runs = list(range(6, 14))
+        self.assertRaises(
+            ValueError,
+            rul_datasets.PretrainingBaselineDataModule,
+            self.failed_data,
+            self.unfailed_data,
+            10,
         )
-        num_broken_runs = len(dataset.broken_source_loader.load_split("dev")[0])
-        num_fail_runs = len(dataset.fails_source_loader.load_split("dev")[0])
-        self.assertEqual(0, num_fail_runs)
-        self.assertNotEqual(0, num_broken_runs)
+
+    def test_error_on_no_percent_broken_for_unfailed_data(self):
+        with self.subTest("none"):
+            self.unfailed_data.loader.percent_broken = None
+            self.assertRaises(
+                ValueError,
+                rul_datasets.PretrainingBaselineDataModule,
+                self.failed_data,
+                self.unfailed_data,
+                10,
+            )
+        with self.subTest("1.0"):
+            self.unfailed_data.loader.percent_broken = 1.0
+            self.assertRaises(
+                ValueError,
+                rul_datasets.PretrainingBaselineDataModule,
+                self.failed_data,
+                self.unfailed_data,
+                10,
+            )
+
+    def test_error_on_percent_broken_for_failed_data(self):
+        self.failed_data.loader.percent_broken = 0.8
+        self.assertRaises(
+            ValueError,
+            rul_datasets.PretrainingBaselineDataModule,
+            self.failed_data,
+            self.unfailed_data,
+            10,
+        )
+
+    def test_warning_on_non_truncated_val_data(self):
+        self.unfailed_data.loader.truncate_val = False
+        with warnings.catch_warnings(record=True) as warn:
+            rul_datasets.PretrainingBaselineDataModule(
+                self.failed_data, self.unfailed_data, 10
+            )
+        self.assertTrue(warn)
 
 
 class TestPretrainingBaselineDataModuleLowData(
-    CmapssTestTemplate, PretrainingDataModuleTemplate, unittest.TestCase
+    PretrainingDataModuleTemplate, unittest.TestCase
 ):
     def setUp(self):
+        self.mock_runs = [torch.randn(16, 14, 1)] * 2, [torch.rand(16)] * 2
+
+        self.failed_loader = mock.MagicMock(name="CMAPSSLoader")
+        self.failed_loader.fd = 1
+        self.failed_loader.percent_fail_runs = list(range(8))
+        self.failed_loader.percent_broken = None
+        self.failed_loader.window_size = 1
+        self.failed_loader.max_rul = 125
+        self.failed_loader.hparams = {"fd": self.failed_loader.fd}
+        self.failed_loader.load_split.return_value = self.mock_runs
+        self.failed_data = cmapss.CMAPSSDataModule(self.failed_loader, batch_size=16)
+
+        self.unfailed_loader = mock.MagicMock(name="CMAPSSLoader")
+        self.unfailed_loader.fd = 1
+        self.unfailed_loader.percent_fail_runs = list(range(8, 16))
+        self.unfailed_loader.percent_broken = 0.2
+        self.unfailed_loader.window_size = 1
+        self.unfailed_loader.max_rul = 125
+        self.unfailed_loader.hparams = {"fd": self.unfailed_loader.fd}
+        self.unfailed_loader.load_split.return_value = self.mock_runs
+        self.unfailed_data = cmapss.CMAPSSDataModule(
+            self.unfailed_loader, batch_size=16
+        )
+
         self.dataset = rul_datasets.PretrainingBaselineDataModule(
-            3, num_samples=10000, batch_size=16, percent_broken=0.2
+            self.failed_data,
+            self.unfailed_data,
+            num_samples=10000,
+            min_distance=2,
         )
         self.dataset.prepare_data()
         self.dataset.setup()
 
         self.expected_num_val_loaders = 2
-        self.window_size = self.dataset.broken_source_loader.window_size
+        self.window_size = 1
