@@ -1,40 +1,9 @@
-import os
-import zipfile
+from unittest import mock
 
 import torch
 from torch.utils.data import TensorDataset
 
 from rul_datasets.cmapss import PairedCMAPSS
-
-
-class CmapssTestTemplate:
-    @classmethod
-    def setUpClass(cls):
-        script_path = os.path.dirname(__file__)
-        data_path = os.path.join(script_path, "..", "data", "CMAPSS")
-        if "train_FD001.txt" not in os.listdir(data_path):
-            print("Extract CMAPSS data...")
-            data_zip = os.path.join(data_path, "CMAPSSData.zip")
-            with zipfile.ZipFile(data_zip) as zip_file:
-                zip_file.extractall(data_path)
-
-
-class FemtoTestTemplate:
-    @classmethod
-    def setUpClass(cls):
-        script_path = os.path.dirname(__file__)
-        data_path = os.path.join(script_path, "..", "data", "FEMTOBearingDataSet")
-        if "Test_set" not in os.listdir(data_path):
-            print("Extract FEMTO data...")
-            test_zip = os.path.join(data_path, "Test_set.zip")
-            with zipfile.ZipFile(test_zip) as zip_file:
-                zip_file.extractall(data_path)
-            train_zip = os.path.join(data_path, "Training_set.zip")
-            with zipfile.ZipFile(train_zip) as zip_file:
-                zip_file.extractall(data_path)
-            val_zip = os.path.join(data_path, "Validation_Set.zip")
-            with zipfile.ZipFile(val_zip) as zip_file:
-                zip_file.extractall(data_path)
 
 
 class PretrainingDataModuleTemplate:
@@ -88,7 +57,7 @@ class PretrainingDataModuleTemplate:
             *another_train_data, another_domain_labels = self._run_epoch(train_loader)
 
             for one, another in zip(one_train_data, another_train_data):
-                self.assertNotEqual(0.0, torch.sum(one - another))
+                self.assertNotEqual(0.0, torch.dist(one, another))
 
         with self.subTest(split="val"):
             paired_val_loader = self.dataset.val_dataloader()[0]
@@ -96,7 +65,7 @@ class PretrainingDataModuleTemplate:
             another_train_data = self._run_epoch(paired_val_loader)
 
             for one, another in zip(one_train_data, another_train_data):
-                self.assertEqual(0.0, torch.sum(one - another))
+                self.assertEqual(0.0, torch.dist(one, another))
 
     def _run_epoch(self, loader):
         anchors = torch.empty((len(loader.dataset), 14, self.window_size))
@@ -121,3 +90,28 @@ class PretrainingDataModuleTemplate:
         self.assertEqual(self.dataset.min_distance, train_loader.dataset.min_distance)
         val_loader = self.dataset.val_dataloader()[0]
         self.assertEqual(1, val_loader.dataset.min_distance)
+
+    def test_train_dataloader(self):
+        mock_get_paired_dataset = mock.MagicMock(
+            name="_get_paired_dataset", wraps=self.dataset._get_paired_dataset
+        )
+        self.dataset._get_paired_dataset = mock_get_paired_dataset
+        train_loader = self.dataset.train_dataloader()
+
+        mock_get_paired_dataset.assert_called_with("dev")
+        self.assertEqual(self.dataset.batch_size, train_loader.batch_size)
+        self.assertFalse(train_loader.dataset.deterministic)
+        self.assertTrue(train_loader.pin_memory)
+
+    def test_val_dataloader(self):
+        mock_get_paired_dataset = mock.MagicMock(
+            name="_get_paired_dataset", wraps=self.dataset._get_paired_dataset
+        )
+        self.dataset._get_paired_dataset = mock_get_paired_dataset
+        val_loaders = self.dataset.val_dataloader()
+
+        mock_get_paired_dataset.assert_called_with("val")
+        self.assertTrue(val_loaders[0].dataset.deterministic)
+        for val_loader in val_loaders:
+            self.assertEqual(self.dataset.batch_size, val_loader.batch_size)
+            self.assertTrue(val_loader.pin_memory)

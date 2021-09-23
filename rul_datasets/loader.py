@@ -2,7 +2,7 @@ import os
 import pickle
 import re
 import warnings
-from typing import Iterable, List, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 import sklearn.preprocessing as scalers  # type: ignore
@@ -11,11 +11,33 @@ from tqdm import tqdm  # type: ignore
 
 
 class AbstractLoader:
+    fd: int
+    window_size: int
+    max_rul: int
+    percent_broken: Optional[float]
+    percent_fail_runs: Union[float, List[int], None]
+    truncate_val: bool
+
+    @property
+    def hparams(self) -> Dict[str, Any]:
+        raise NotImplementedError
+
     def prepare_data(self):
         raise NotImplementedError
 
     def load_split(self, split: str) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
         raise NotImplementedError
+
+    def check_compatibility(self, other: "AbstractLoader") -> None:
+        if not self.window_size == other.window_size:
+            raise ValueError(
+                f"Window sizes are not compatible "
+                f"{self.window_size} vs. {other.window_size}"
+            )
+        if not self.max_rul == other.max_rul:
+            raise ValueError(
+                f"Max RULs are not compatible " f"{self.max_rul} vs. {other.max_rul}"
+            )
 
     def _truncate_runs(
         self,
@@ -124,6 +146,17 @@ class CMAPSSLoader(AbstractLoader):
         self.percent_fail_runs = percent_fail_runs
 
         self.DATA_ROOT = os.path.join(os.path.dirname(__file__), "..", "data", "CMAPSS")
+
+    @property
+    def hparams(self) -> Dict[str, Any]:
+        return {
+            "fd": self.fd,
+            "window_size": self.window_size,
+            "max_rul": self.max_rul,
+            "percent_broken": self.percent_broken,
+            "percent_fail_runs": self.percent_fail_runs,
+            "truncate_val": self.truncate_val,
+        }
 
     def prepare_data(self):
         # Check if training data was already split

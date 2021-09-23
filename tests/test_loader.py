@@ -1,16 +1,46 @@
 import os
 import unittest
+from dataclasses import dataclass
+from typing import List, Optional, Tuple, Union
 from unittest import mock
 
 import numpy as np
 import torch
 
 from rul_datasets import loader
-from tests.templates import CmapssTestTemplate, FemtoTestTemplate
 
 
-class TestCMAPSSLoader(CmapssTestTemplate, unittest.TestCase):
+@dataclass
+class DummyLoader(loader.AbstractLoader):
+    fd: int
+    window_size: int
+    max_rul: int
+    percent_broken: Optional[float] = None
+    percent_fail_runs: Optional[Union[float, List[int]]] = None
+    truncate_val: bool = True
+
+    def prepare_data(self):
+        pass
+
+    def load_split(self, split: str) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+        pass
+
+
+class TestAbstractLoader(unittest.TestCase):
+    def test_check_compatibility(self):
+        this = DummyLoader(1, 30, 125)
+        this.check_compatibility(DummyLoader(1, 30, 125))
+        self.assertRaises(ValueError, this.check_compatibility, DummyLoader(1, 20, 125))
+        self.assertRaises(ValueError, this.check_compatibility, DummyLoader(1, 30, 120))
+
+
+class TestCMAPSSLoader(unittest.TestCase):
     NUM_CHANNELS = len(loader.CMAPSSLoader.DEFAULT_CHANNELS)
+
+    @classmethod
+    def setUpClass(cls):
+        for fd in range(1, 5):
+            loader.CMAPSSLoader(fd).prepare_data()
 
     def test_run_shape_and_dtype(self):
         window_sizes = [30, 20, 30, 15]
@@ -32,6 +62,12 @@ class TestCMAPSSLoader(CmapssTestTemplate, unittest.TestCase):
         self.assertEqual(torch.float32, run.dtype)
         self.assertEqual(torch.float32, run_target.dtype)
 
+    def test_default_window_size(self):
+        window_sizes = [30, 20, 30, 15]
+        for n, win in enumerate(window_sizes, start=1):
+            cmapss_loader = loader.CMAPSSLoader(n)
+            self.assertEqual(win, cmapss_loader.window_size)
+
     def test_override_window_size(self):
         window_size = 40
         for n in range(1, 5):
@@ -41,6 +77,12 @@ class TestCMAPSSLoader(CmapssTestTemplate, unittest.TestCase):
                     features, targets = dataset.load_split(split)
                     for run in features:
                         self.assertEqual(window_size, run.shape[2])
+
+    def test_default_feature_select(self):
+        cmapss_loader = loader.CMAPSSLoader(1)
+        self.assertListEqual(
+            cmapss_loader.DEFAULT_CHANNELS, cmapss_loader.feature_select
+        )
 
     def test_feature_select(self):
         dataset = loader.CMAPSSLoader(1, feature_select=[4, 9, 10, 13, 14, 15, 22])
@@ -180,7 +222,7 @@ def _raw_csv_exist():
     return csv_exists
 
 
-class TestFEMTOLoader(FemtoTestTemplate, unittest.TestCase):
+class TestFEMTOLoader(unittest.TestCase):
     NUM_CHANNELS = 2
 
     def test_run_shape_and_dtype(self):
@@ -250,10 +292,10 @@ class TestFEMTOLoader(FemtoTestTemplate, unittest.TestCase):
 
     @unittest.skip("No val set yet.")
     @mock.patch(
-        "rul_datasets.loader.CMAPSSLoader._truncate_runs", wraps=lambda x, y: (x, y)
+        "rul_datasets.loader.FEMTOLoader._truncate_runs", wraps=lambda x, y: (x, y)
     )
     def test_val_truncation(self, mock_truncate):
-        dataset = loader.CMAPSSLoader(fd=1, window_size=30)
+        dataset = loader.FEMTOLoader(fd=1, window_size=30)
         with self.subTest(truncate_val=False):
             dataset.load_split("dev")
             mock_truncate.assert_called_once()
@@ -261,7 +303,7 @@ class TestFEMTOLoader(FemtoTestTemplate, unittest.TestCase):
             dataset.load_split("val")
             mock_truncate.assert_not_called()
 
-        dataset = loader.CMAPSSLoader(fd=1, window_size=30, truncate_val=True)
+        dataset = loader.FEMTOLoader(fd=1, window_size=30, truncate_val=True)
         with self.subTest(truncate_val=True):
             dataset.load_split("dev")
             mock_truncate.assert_called_once()
@@ -310,7 +352,7 @@ class TestFEMTOLoader(FemtoTestTemplate, unittest.TestCase):
         self.assertEqual(0, torch.dist(full_train_targets[1], trunc_train_targets[0]))
 
 
-class TestFEMTOPreperator(FemtoTestTemplate, unittest.TestCase):
+class TestFEMTOPreperator(unittest.TestCase):
     NUM_SAMPLES = {
         1: {"train": 3674, "test": 10973},
         2: {"train": 1708, "test": 5948},

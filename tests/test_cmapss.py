@@ -1,136 +1,164 @@
 import unittest
+from dataclasses import dataclass
 from unittest import mock
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, TensorDataset
 
 from rul_datasets import cmapss, loader
-from tests.templates import CmapssTestTemplate
 
 
-class TestCMAPSS(CmapssTestTemplate, unittest.TestCase):
-    def test_data(self):
-        window_sizes = [30, 20, 30, 15]
-        for n, win in enumerate(window_sizes, start=1):
-            dataset = cmapss.CMAPSSDataModule(n, batch_size=16)
-            dataset.prepare_data()
-            dataset.setup()
-            for split in ["dev", "val", "test"]:
-                with self.subTest(fd=n, split=split):
-                    features, targets = dataset.data[split]
-                    self.assertEqual(win, features.shape[2])
-                    self.assertEqual(len(features), len(targets))
-                    self.assertEqual(torch.float32, features.dtype)
-                    self.assertEqual(torch.float32, targets.dtype)
+class TestCMAPSS(unittest.TestCase):
+    def setUp(self):
+        self.mock_loader = mock.MagicMock(name="AbstractLoader")
+        self.mock_loader.hparams = {"test": 0}
+        self.mock_runs = [torch.zeros(1, 1, 1)], [torch.zeros(1)]
+        self.mock_loader.load_split.return_value = self.mock_runs
 
-    def test_override_window_size(self):
-        window_size = 40
-        for n in range(1, 5):
-            dataset = cmapss.CMAPSSDataModule(n, batch_size=16, window_size=window_size)
-            self.assertEqual(window_size, dataset.window_size)
-            self.assertEqual(window_size, dataset._loader.window_size)
+    def test_created_correctly(self):
+        dataset = cmapss.CMAPSSDataModule(self.mock_loader, batch_size=16)
 
-    def test_default_window_size(self):
-        window_sizes = [30, 20, 30, 15]
-        for n, win in enumerate(window_sizes, start=1):
-            dataset = cmapss.CMAPSSDataModule(n, batch_size=16)
-            self.assertEqual(win, dataset.window_size)
-            self.assertEqual(win, dataset._loader.window_size)
+        self.assertIs(self.mock_loader, dataset.loader)
+        self.assertEqual(16, dataset.batch_size)
+        self.assertDictEqual({"test": 0, "batch_size": 16}, dataset.hparams)
 
-    def test_feature_select(self):
-        feature_idx = [4, 9, 10, 13, 14, 15, 22]
-        dataset = cmapss.CMAPSSDataModule(1, batch_size=16, feature_select=feature_idx)
-        self.assertListEqual(feature_idx, dataset.feature_select)
-        self.assertListEqual(feature_idx, dataset._loader.feature_select)
-
-    def test_default_feature_select(self):
-        dataset = cmapss.CMAPSSDataModule(1, batch_size=16)
-        self.assertListEqual(dataset._loader.DEFAULT_CHANNELS, dataset.feature_select)
-        self.assertListEqual(
-            dataset._loader.DEFAULT_CHANNELS, dataset._loader.feature_select
-        )
-
-    def test_truncation_functions(self):
-        full_dataset = cmapss.CMAPSSDataModule(fd=1, batch_size=4, window_size=30)
-        full_dataset.prepare_data()
-        full_dataset.setup()
-
-        dataset = cmapss.CMAPSSDataModule(
-            fd=1, batch_size=4, window_size=30, percent_fail_runs=0.8
-        )
+    def test_prepare_data(self):
+        dataset = cmapss.CMAPSSDataModule(self.mock_loader, batch_size=16)
         dataset.prepare_data()
+
+        self.mock_loader.prepare_data.assert_called_once()
+
+    def test_setup(self):
+        dataset = cmapss.CMAPSSDataModule(self.mock_loader, batch_size=16)
         dataset.setup()
-        self.assertGreater(
-            len(full_dataset.data["dev"][0]), len(dataset.data["dev"][0])
-        )
-        self.assertEqual(len(full_dataset.data["val"][0]), len(dataset.data["val"][0]))
-        self.assertEqual(
-            len(full_dataset.data["test"][0]), len(dataset.data["test"][0])
-        )
 
-        dataset = cmapss.CMAPSSDataModule(
-            fd=1, batch_size=4, window_size=30, percent_broken=0.2
+        self.mock_loader.load_split.assert_has_calls(
+            [mock.call("dev"), mock.call("val"), mock.call("test")]
         )
-        dataset.prepare_data()
-        dataset.setup()
-        self.assertGreater(
-            len(full_dataset.data["dev"][0]), len(dataset.data["dev"][0])
+        mock_runs = tuple(torch.cat(r) for r in self.mock_runs)
+        self.assertDictEqual(
+            {"dev": mock_runs, "val": mock_runs, "test": mock_runs}, dataset.data
         )
-        self.assertAlmostEqual(
-            0.2,
-            len(dataset.data["dev"][0]) / len(full_dataset.data["dev"][0]),
-            delta=0.01,
-        )
-        self.assertEqual(
-            len(full_dataset.data["val"][0]), len(dataset.data["val"][0])
-        )  # Val dataset_tests not truncated
-        self.assertEqual(
-            len(full_dataset.data["test"][0]), len(dataset.data["test"][0])
-        )  # Test dataset_tests not truncated
-        self.assertFalse(
-            torch.any(dataset.data["dev"][1] == 1)
-        )  # No failure dataset_tests in truncated dataset_tests
-        self.assertEqual(
-            full_dataset.data["dev"][1][0], dataset.data["dev"][1][0]
-        )  # First target has to be equal
-
-    def test_truncation_passed_correctly(self):
-        dataset = cmapss.CMAPSSDataModule(
-            1, 4, percent_broken=0.2, percent_fail_runs=0.5
-        )
-        self.assertEqual(dataset.percent_broken, dataset._loader.percent_broken)
-        self.assertEqual(dataset.percent_fail_runs, dataset._loader.percent_fail_runs)
-
-    def test_from_loader(self):
-        cmapss_loader = loader.CMAPSSLoader(3, 40, 130, 0.2, 0.5, truncate_val=True)
-        cmapss_dataset = cmapss.CMAPSSDataModule.from_loader(cmapss_loader, 128)
-        self.assertEqual(cmapss_loader.fd, cmapss_dataset.fd)
-        self.assertEqual(cmapss_loader.window_size, cmapss_dataset.window_size)
-        self.assertEqual(cmapss_loader.max_rul, cmapss_dataset.max_rul)
-        self.assertEqual(cmapss_loader.percent_broken, cmapss_dataset.percent_broken)
-        self.assertEqual(
-            cmapss_loader.percent_fail_runs, cmapss_dataset.percent_fail_runs
-        )
-        self.assertEqual(cmapss_loader.feature_select, cmapss_dataset.feature_select)
-        self.assertEqual(cmapss_loader.truncate_val, cmapss_dataset.truncate_val)
-        self.assertEqual(128, cmapss_dataset.batch_size)
 
     def test_empty_dataset(self):
-        dataset = cmapss.CMAPSSDataModule(
-            1, 4, percent_broken=0.2, percent_fail_runs=0.0
-        )
-        dataset.setup()
-        dataset = cmapss.CMAPSSDataModule(
-            1, 4, percent_broken=0.0, percent_fail_runs=0.5
-        )
+        self.mock_loader.load_split.return_value = [], []
+        dataset = cmapss.CMAPSSDataModule(self.mock_loader, batch_size=4)
         dataset.setup()
 
+    @mock.patch(
+        "rul_datasets.cmapss.CMAPSSDataModule.to_dataset",
+        return_value=TensorDataset(torch.zeros(1)),
+    )
+    def test_train_dataloader(self, mock_to_dataset):
+        dataset = cmapss.CMAPSSDataModule(self.mock_loader, batch_size=16)
+        dataset.setup()
+        dataloader = dataset.train_dataloader()
 
-class DummyCMAPSS:
+        mock_to_dataset.assert_called_once_with("dev")
+        self.assertIs(mock_to_dataset.return_value, dataloader.dataset)
+        self.assertEqual(16, dataloader.batch_size)
+        self.assertIsInstance(dataloader.sampler, RandomSampler)
+        self.assertTrue(dataloader.pin_memory)
+
+    @mock.patch(
+        "rul_datasets.cmapss.CMAPSSDataModule.to_dataset",
+        return_value=TensorDataset(torch.zeros(1)),
+    )
+    def test_val_dataloader(self, mock_to_dataset):
+        dataset = cmapss.CMAPSSDataModule(self.mock_loader, batch_size=16)
+        dataset.setup()
+        dataloader = dataset.val_dataloader()
+
+        mock_to_dataset.assert_called_once_with("val")
+        self.assertIs(mock_to_dataset.return_value, dataloader.dataset)
+        self.assertEqual(16, dataloader.batch_size)
+        self.assertIsInstance(dataloader.sampler, SequentialSampler)
+        self.assertTrue(dataloader.pin_memory)
+
+    @mock.patch(
+        "rul_datasets.cmapss.CMAPSSDataModule.to_dataset",
+        return_value=TensorDataset(torch.zeros(1)),
+    )
+    def test_test_dataloader(self, mock_to_dataset):
+        dataset = cmapss.CMAPSSDataModule(self.mock_loader, batch_size=16)
+        dataset.setup()
+        dataloader = dataset.test_dataloader()
+
+        mock_to_dataset.assert_called_once_with("test")
+        self.assertIs(mock_to_dataset.return_value, dataloader.dataset)
+        self.assertEqual(16, dataloader.batch_size)
+        self.assertIsInstance(dataloader.sampler, SequentialSampler)
+        self.assertTrue(dataloader.pin_memory)
+
+    def test_train_batch_structure(self):
+        self.mock_loader.load_split.return_value = (
+            [torch.zeros(8, 14, 30)] * 4,
+            [torch.zeros(8)] * 4,
+        )
+        dataset = cmapss.CMAPSSDataModule(self.mock_loader, batch_size=16)
+        dataset.setup()
+        train_loader = dataset.train_dataloader()
+        self._assert_batch_structure(train_loader)
+
+    def test_val_batch_structure(self):
+        self.mock_loader.load_split.return_value = (
+            [torch.zeros(8, 14, 30)] * 4,
+            [torch.zeros(8)] * 4,
+        )
+        dataset = cmapss.CMAPSSDataModule(self.mock_loader, batch_size=16)
+        dataset.setup()
+        val_loader = dataset.val_dataloader()
+        self._assert_batch_structure(val_loader)
+
+    def test_test_batch_structure(self):
+        self.mock_loader.load_split.return_value = (
+            [torch.zeros(8, 14, 30)] * 4,
+            [torch.zeros(8)] * 4,
+        )
+        dataset = cmapss.CMAPSSDataModule(self.mock_loader, batch_size=16)
+        dataset.setup()
+        test_loader = dataset.test_dataloader()
+        self._assert_batch_structure(test_loader)
+
+    def _assert_batch_structure(self, loader):
+        batch = next(iter(loader))
+        self.assertEqual(2, len(batch))
+        features, labels = batch
+        self.assertEqual(torch.Size((16, 14, 30)), features.shape)
+        self.assertEqual(torch.Size((16,)), labels.shape)
+
+    def test_to_dataset(self):
+        dataset = cmapss.CMAPSSDataModule(self.mock_loader, batch_size=16)
+        mock_data = {
+            "dev": [torch.zeros(0)] * 2,
+            "val": [torch.zeros(1)] * 2,
+            "test": [torch.zeros(2)] * 2,
+        }
+        dataset.data = mock_data
+
+        for i, split in enumerate(["dev", "val", "test"]):
+            tensor_dataset = dataset.to_dataset(split)
+            self.assertIsInstance(tensor_dataset, TensorDataset)
+            self.assertEqual(i, len(tensor_dataset.tensors[0]))
+
+    def test_check_compatability(self):
+        dataset = cmapss.CMAPSSDataModule(self.mock_loader, batch_size=16)
+        dataset.check_compatibility(dataset)
+        self.mock_loader.check_compatibility.assert_called_once_with(self.mock_loader)
+        self.assertRaises(
+            ValueError,
+            dataset.check_compatibility,
+            cmapss.CMAPSSDataModule(self.mock_loader, batch_size=8),
+        )
+
+
+class DummyCMAPSS(loader.AbstractLoader):
+    fd: int = 1
+    window_size: int = 30
+    max_rul: int = 125
+
     def __init__(self, length):
-        self.window_size = 30
-        self.max_rul = 125
         self.data = {
             "dev": (
                 [torch.zeros(length, self.window_size, 5)],
@@ -138,35 +166,42 @@ class DummyCMAPSS:
             ),
         }
 
+    def prepare_data(self):
+        pass
+
     def load_split(self, split):
         assert split == "dev", "Can only use dev data."
         return self.data["dev"]
 
 
-class DummyCMAPSSShortRuns:
+@dataclass
+class DummyCMAPSSShortRuns(loader.AbstractLoader):
     """Contains runs that are too short with zero features to distinguish them."""
 
-    def __init__(self):
-        self.window_size = 30
-        self.max_rul = 125
-        self.data = {
-            "dev": (
-                [
-                    torch.ones(100, self.window_size, 5)
-                    * torch.arange(1, 101).view(100, 1, 1),  # normal run
-                    torch.zeros(2, self.window_size, 5),  # too short run
-                    torch.ones(100, self.window_size, 5)
-                    * torch.arange(1, 101).view(100, 1, 1),  # normal run
-                    torch.zeros(1, self.window_size, 5),  # empty run
-                ],
-                [
-                    torch.clamp_max(torch.arange(100, 0, step=-1), 125),
-                    torch.ones(2) * 500,
-                    torch.clamp_max(torch.arange(100, 0, step=-1), 125),
-                    torch.ones(1) * 500,
-                ],
-            ),
-        }
+    fd: int = 1
+    window_size: int = 30
+    max_rul: int = 125
+    data = {
+        "dev": (
+            [
+                torch.ones(100, window_size, 5)
+                * torch.arange(1, 101).view(100, 1, 1),  # normal run
+                torch.zeros(2, window_size, 5),  # too short run
+                torch.ones(100, window_size, 5)
+                * torch.arange(1, 101).view(100, 1, 1),  # normal run
+                torch.zeros(1, window_size, 5),  # empty run
+            ],
+            [
+                torch.clamp_max(torch.arange(100, 0, step=-1), 125),
+                torch.ones(2) * 500,
+                torch.clamp_max(torch.arange(100, 0, step=-1), 125),
+                torch.ones(1) * 500,
+            ],
+        ),
+    }
+
+    def prepare_data(self):
+        pass
 
     def load_split(self, split):
         assert split == "dev", "Can only use dev data."
@@ -174,12 +209,17 @@ class DummyCMAPSSShortRuns:
 
 
 class TestPairedDataset(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        for fd in range(1, 5):
+            loader.CMAPSSLoader(fd).prepare_data()
+        cls.fd1 = loader.CMAPSSLoader(1)
+        cls.fd3 = loader.CMAPSSLoader(3)
+
     def setUp(self):
         self.length = 300
         self.cmapss_normal = DummyCMAPSS(self.length)
         self.cmapss_short = DummyCMAPSSShortRuns()
-        self.fd1 = loader.CMAPSSLoader(1)
-        self.fd3 = loader.CMAPSSLoader(3)
 
     def test_get_pair_idx_piecewise(self):
         data = cmapss.PairedCMAPSS([self.cmapss_normal], "dev", 512, 1, True)
@@ -355,3 +395,13 @@ class TestPairedDataset(unittest.TestCase):
 
     def _is_same_batch(self, b0, b1):
         return all(torch.dist(a, b) == 0.0 for a, b in zip(b0, b1))
+
+    def test_compatability_check(self):
+        self.assertRaises(
+            ValueError,
+            cmapss.PairedCMAPSS,
+            [DummyCMAPSSShortRuns(), DummyCMAPSSShortRuns(window_size=20)],
+            "dev",
+            1000,
+            1,
+        )
