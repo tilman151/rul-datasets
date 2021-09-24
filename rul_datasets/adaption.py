@@ -1,11 +1,100 @@
-from typing import List, Optional, Union
+import warnings
+from copy import deepcopy
+from typing import List, Optional
 
 import numpy as np
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader, Dataset
 
 from rul_datasets.cmapss import CMAPSSDataModule, PairedCMAPSS
-from rul_datasets.loader import CMAPSSLoader
+
+
+class DomainAdaptionDataModule(pl.LightningDataModule):
+    def __init__(
+        self,
+        source: CMAPSSDataModule,
+        target: CMAPSSDataModule,
+    ):
+        super().__init__()
+
+        self.source = source
+        self.target = target
+        self.batch_size = source.batch_size
+
+        self.target_truncated = deepcopy(self.target.loader)
+        self.target_truncated.truncate_val = True
+
+        self._check_compatibility()
+
+        self.save_hyperparameters(
+            {
+                "fd_source": self.source.loader.fd,
+                "fd_target": self.target.loader.fd,
+                "batch_size": self.batch_size,
+                "window_size": self.source.loader.window_size,
+                "max_rul": self.source.loader.max_rul,
+                "percent_broken": self.target.loader.percent_broken,
+                "percent_fail_runs": self.target.loader.percent_fail_runs,
+            }
+        )
+
+    def _check_compatibility(self):
+        self.source.check_compatibility(self.target)
+        self.target.loader.check_compatibility(self.target_truncated)
+        if self.source.loader.fd == self.target.loader.fd:
+            raise ValueError(
+                f"FD of source and target has to be different for "
+                f"domain adaption, but is {self.source.loader.fd} bot times."
+            )
+
+    def prepare_data(self, *args, **kwargs):
+        self.source.prepare_data(*args, **kwargs)
+        self.target.prepare_data(*args, **kwargs)
+
+    def setup(self, stage: Optional[str] = None):
+        self.source.setup(stage)
+        self.target.setup(stage)
+
+    def train_dataloader(self, *args, **kwargs) -> DataLoader:
+        return DataLoader(
+            self._to_dataset("dev"),
+            batch_size=self.batch_size,
+            shuffle=True,
+            pin_memory=True,
+        )
+
+    def val_dataloader(self, *args, **kwargs) -> List[DataLoader]:
+        return [
+            self.source.val_dataloader(*args, **kwargs),
+            self.target.val_dataloader(*args, **kwargs),
+            DataLoader(
+                self._get_paired_dataset(), batch_size=self.batch_size, pin_memory=True
+            ),
+        ]
+
+    def test_dataloader(self, *args, **kwargs) -> List[DataLoader]:
+        return [
+            self.source.test_dataloader(*args, **kwargs),
+            self.target.test_dataloader(*args, **kwargs),
+        ]
+
+    def _to_dataset(self, split: str) -> "AdaptionDataset":
+        source = self.source.to_dataset(split)
+        target = self.target.to_dataset(split)
+        dataset = AdaptionDataset(source, target)
+
+        return dataset
+
+    def _get_paired_dataset(self) -> PairedCMAPSS:
+        paired = PairedCMAPSS(
+            [self.target_truncated],
+            "val",
+            num_samples=25000,
+            min_distance=1,
+            deterministic=True,
+        )
+
+        return paired
 
 
 class AdaptionDataset(Dataset):
@@ -42,188 +131,72 @@ class AdaptionDataset(Dataset):
         return len(self.source)
 
 
-class DomainAdaptionDataModule(pl.LightningDataModule):
-    def __init__(
-        self,
-        fd_source: int,
-        fd_target: int,
-        batch_size: int,
-        window_size: int = None,
-        max_rul: int = 125,
-        percent_fail_runs: float = None,
-        percent_broken: float = None,
-        feature_select: Optional[List[int]] = None,
-    ):
-        super().__init__()
-
-        self.fd_source = fd_source
-        self.fd_target = fd_target
-        self.batch_size = batch_size
-        self.max_rul = max_rul
-        self.percent_broken = percent_broken
-        self.percent_fail_runs = percent_fail_runs
-        self.feature_select = feature_select
-
-        self.target = CMAPSSDataModule(
-            self.fd_target,
-            self.batch_size,
-            window_size,
-            self.max_rul,
-            self.percent_broken,
-            self.percent_fail_runs,
-            self.feature_select,
-        )
-        self.window_size = self.target.window_size
-
-        self.source = CMAPSSDataModule(
-            self.fd_source,
-            self.batch_size,
-            self.window_size,
-            self.max_rul,
-            None,
-            None,
-            self.feature_select,
-        )
-        self.target_truncated = CMAPSSLoader(
-            self.fd_target,
-            self.window_size,
-            self.max_rul,
-            self.percent_broken,
-            self.percent_fail_runs,
-            self.feature_select,
-            truncate_val=True,
-        )
-
-        self.save_hyperparameters(
-            {
-                "fd_source": self.fd_source,
-                "fd_target": self.fd_target,
-                "batch_size": self.batch_size,
-                "window_size": self.window_size,
-                "max_rul": self.max_rul,
-                "percent_broken": self.percent_broken,
-                "percent_fail_runs": self.percent_fail_runs,
-            }
-        )
-
-    def prepare_data(self, *args, **kwargs):
-        self.source.prepare_data(*args, **kwargs)
-        self.target.prepare_data(*args, **kwargs)
-
-    def setup(self, stage: Optional[str] = None):
-        self.source.setup(stage)
-        self.target.setup(stage)
-
-    def train_dataloader(self, *args, **kwargs) -> DataLoader:
-        return DataLoader(
-            self._to_dataset("dev"),
-            batch_size=self.batch_size,
-            shuffle=True,
-            pin_memory=True,
-        )
-
-    def val_dataloader(self, *args, **kwargs) -> List[DataLoader]:
-        return [
-            self.source.val_dataloader(*args, **kwargs),
-            self.target.val_dataloader(*args, **kwargs),
-            DataLoader(
-                self._get_paired_dataset(), batch_size=self.batch_size, pin_memory=True
-            ),
-        ]
-
-    def test_dataloader(self, *args, **kwargs) -> List[DataLoader]:
-        return [
-            self.source.test_dataloader(*args, **kwargs),
-            self.target.test_dataloader(*args, **kwargs),
-        ]
-
-    def _to_dataset(self, split: str) -> AdaptionDataset:
-        source = self.source.to_dataset(split)
-        target = self.target.to_dataset(split)
-        dataset = AdaptionDataset(source, target)
-
-        return dataset
-
-    def _get_paired_dataset(self) -> PairedCMAPSS:
-        paired = PairedCMAPSS(
-            [self.target_truncated],
-            "val",
-            num_samples=25000,
-            min_distance=1,
-            deterministic=True,
-        )
-
-        return paired
-
-
 class PretrainingAdaptionDataModule(pl.LightningDataModule):
     def __init__(
         self,
-        fd_source: int,
-        fd_target: int,
+        source: CMAPSSDataModule,
+        target: CMAPSSDataModule,
         num_samples: int,
-        batch_size: int,
-        window_size: int = None,
-        max_rul: int = 125,
         min_distance: int = 1,
-        percent_broken: float = None,
-        percent_fail_runs: Union[float, List[int]] = None,
-        feature_select: List[int] = None,
-        truncate_target_val: bool = False,
         distance_mode: str = "linear",
     ):
         super().__init__()
 
-        self.fd_source = fd_source
-        self.fd_target = fd_target
+        self.source = source
+        self.target = target
         self.num_samples = num_samples
-        self.batch_size = batch_size
+        self.batch_size = source.batch_size
         self.min_distance = min_distance
-        self.max_rul = max_rul
-        self.percent_broken = percent_broken
-        self.percent_fail_runs = percent_fail_runs
-        self.feature_select = feature_select
-        self.truncate_target_val = truncate_target_val
         self.distance_mode = distance_mode
 
-        self.target_loader = CMAPSSLoader(
-            self.fd_target,
-            window_size,
-            self.max_rul,
-            self.percent_broken,
-            self.percent_fail_runs,
-            self.feature_select,
-            self.truncate_target_val,
-        )
-        self.window_size = self.target_loader.window_size
+        self.target_loader = self.target.loader
+        self.source_loader = self.source.loader
 
-        self.source_loader = CMAPSSLoader(
-            self.fd_source,
-            self.window_size,
-            self.max_rul,
-            None,
-            None,
-            self.feature_select,
-        )
-
-        self.source = CMAPSSDataModule.from_loader(self.source_loader, self.batch_size)
-        self.target = CMAPSSDataModule.from_loader(self.target_loader, self.batch_size)
+        self._check_compatibility()
 
         self.save_hyperparameters(
             {
-                "fd_source": self.fd_source,
-                "fd_target": self.fd_target,
+                "fd_source": self.source_loader.fd,
+                "fd_target": self.target_loader.fd,
                 "num_samples": self.num_samples,
                 "batch_size": self.batch_size,
-                "window_size": self.window_size,
-                "max_rul": self.max_rul,
+                "window_size": self.source_loader.window_size,
+                "max_rul": self.source_loader.max_rul,
                 "min_distance": self.min_distance,
-                "percent_broken": self.percent_broken,
-                "percent_fail_runs": self.percent_fail_runs,
-                "truncate_target_val": self.truncate_target_val,
+                "percent_broken": self.target_loader.percent_broken,
+                "percent_fail_runs": self.target_loader.percent_fail_runs,
+                "truncate_target_val": self.target_loader.truncate_val,
                 "distance_mode": self.distance_mode,
             }
         )
+
+    def _check_compatibility(self):
+        self.source.check_compatibility(self.target)
+        if self.source_loader.fd == self.target_loader.fd:
+            raise ValueError(
+                f"FD of source and target has to be different for "
+                f"domain adaption, but is {self.source_loader.fd} bot times."
+            )
+        if (
+            self.target_loader.percent_broken is None
+            or self.target_loader.percent_broken == 1.0
+        ):
+            raise ValueError(
+                "Target data needs a percent_broken smaller than 1 for pre-training."
+            )
+        if (
+            self.source_loader.percent_broken is not None
+            and self.source_loader.percent_broken < 1.0
+        ):
+            raise ValueError(
+                "Source data cannot have a percent_broken smaller than 1, "
+                "otherwise it would not be failed, labeled data."
+            )
+        if not self.target_loader.truncate_val:
+            warnings.warn(
+                "Validation data of unfailed runs is not truncated. "
+                "The validation metrics will not be valid."
+            )
 
     def prepare_data(self, *args, **kwargs):
         self.source_loader.prepare_data()

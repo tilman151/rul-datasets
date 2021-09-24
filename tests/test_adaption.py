@@ -1,47 +1,66 @@
 import unittest
+import warnings
+from unittest import mock
 
 import torch
-from torch.utils.data import TensorDataset
+from torch.utils.data import RandomSampler, TensorDataset
 
-from rul_datasets import adaption
-from tests.templates import (
-    CmapssTestTemplate,
-    PretrainingDataModuleTemplate,
-)
+from rul_datasets import adaption, cmapss
+from tests.templates import PretrainingDataModuleTemplate
 
 
-class TestCMAPSSAdaption(CmapssTestTemplate, unittest.TestCase):
+class TestCMAPSSAdaption(unittest.TestCase):
     def setUp(self):
-        self.dataset = adaption.DomainAdaptionDataModule(3, 2, batch_size=16)
+        source_mock_runs = [torch.randn(16, 14, 1)] * 3, [torch.rand(16)] * 3
+        self.source_loader = mock.MagicMock(name="CMAPSSLoader")
+        self.source_loader.fd = 3
+        self.source_loader.percent_fail_runs = None
+        self.source_loader.percent_broken = None
+        self.source_loader.window_size = 1
+        self.source_loader.max_rul = 125
+        self.source_loader.hparams = {"fd": self.source_loader.fd}
+        self.source_loader.load_split.return_value = source_mock_runs
+        self.source_data = cmapss.CMAPSSDataModule(self.source_loader, batch_size=16)
+
+        target_mock_runs = [torch.randn(16, 14, 1)] * 2, [torch.rand(16)] * 2
+        self.target_loader = mock.MagicMock(name="CMAPSSLoader")
+        self.target_loader.fd = 1
+        self.target_loader.percent_fail_runs = 0.8
+        self.target_loader.percent_broken = 0.8
+        self.target_loader.window_size = 1
+        self.target_loader.max_rul = 125
+        self.target_loader.hparams = {"fd": self.target_loader.fd}
+        self.target_loader.load_split.return_value = target_mock_runs
+        self.target_data = cmapss.CMAPSSDataModule(self.target_loader, batch_size=16)
+
+        self.dataset = adaption.DomainAdaptionDataModule(
+            self.source_data, self.target_data
+        )
         self.dataset.prepare_data()
         self.dataset.setup()
 
-    def test_default_window_size(self):
-        with self.subTest(case="bigger2smaller"):
-            self.assertEqual(self.dataset.target.window_size, self.dataset.window_size)
-            self.assertEqual(
-                self.dataset.target.window_size, self.dataset.source.window_size
-            )
-            self.assertEqual(
-                self.dataset.target.window_size,
-                self.dataset.target_truncated.window_size,
-            )
+    @mock.patch("rul_datasets.cmapss.CMAPSSDataModule.check_compatibility")
+    def test_compatibility_checked(self, _):
+        self.dataset = adaption.DomainAdaptionDataModule(
+            self.source_data, self.target_data
+        )
+        self.source_data.check_compatibility.assert_called_with(self.target_data)
 
-        with self.subTest(case="smaller2bigger"):
-            dataset = adaption.DomainAdaptionDataModule(2, 3, batch_size=16)
-            self.assertEqual(self.dataset.target.window_size, self.dataset.window_size)
-            self.assertEqual(dataset.target.window_size, dataset.source.window_size)
-            self.assertEqual(
-                dataset.target.window_size, dataset.target_truncated.window_size
-            )
+        self.source_loader.fd = 1
+        self.assertRaises(
+            ValueError,
+            adaption.DomainAdaptionDataModule,
+            self.source_data,
+            self.target_data,
+        )
 
-    def test_override_window_size(self):
-        dataset = adaption.DomainAdaptionDataModule(3, 2, batch_size=16, window_size=40)
-        self.assertEqual(self.dataset.target.window_size, self.dataset.window_size)
-        self.assertEqual(40, dataset.target.window_size)
-        self.assertEqual(dataset.target.window_size, dataset.source.window_size)
-        self.assertEqual(
-            dataset.target.window_size, dataset.target_truncated.window_size
+    def test_train_source_target_order(self):
+        train_dataloader = self.dataset.train_dataloader()
+        self._assert_datasets_equal(
+            self.dataset.source.to_dataset("dev"), train_dataloader.dataset.source
+        )
+        self._assert_datasets_equal(
+            self.dataset.target.to_dataset("dev"), train_dataloader.dataset.target
         )
 
     def test_val_source_target_order(self):
@@ -73,136 +92,206 @@ class TestCMAPSSAdaption(CmapssTestTemplate, unittest.TestCase):
         for baseline, inner in zip(baseline_data, inner_data):
             self.assertEqual(0, torch.dist(baseline, inner))
 
-    def test_train_batch_structure(self):
-        window_size = self.dataset.target.window_size
-        train_loader = self.dataset.train_dataloader()
-        self.assertIsInstance(train_loader.dataset, adaption.AdaptionDataset)
-        batch = next(iter(train_loader))
-        self.assertEqual(3, len(batch))
-        source, source_labels, target = batch
-        self.assertEqual(torch.Size((16, 14, window_size)), source.shape)
-        self.assertEqual(torch.Size((16,)), source_labels.shape)
-        self.assertEqual(torch.Size((16, 14, window_size)), target.shape)
+    @mock.patch(
+        "rul_datasets.adaption.DomainAdaptionDataModule._to_dataset",
+        return_value=TensorDataset(torch.zeros(1)),
+    )
+    def test_train_dataloader(self, mock_to_dataset):
+        dataloader = self.dataset.train_dataloader()
 
-    def test_val_batch_structure(self):
-        window_size = self.dataset.target.window_size
-        val_source_loader, val_target_loader, _ = self.dataset.val_dataloader()
-        self.assertIsInstance(val_source_loader.dataset, TensorDataset)
-        self.assertIsInstance(val_target_loader.dataset, TensorDataset)
-        self._assert_val_test_batch_structure(val_source_loader, window_size)
-        self._assert_val_test_batch_structure(val_target_loader, window_size)
+        mock_to_dataset.assert_called_once_with("dev")
+        self.assertIs(mock_to_dataset.return_value, dataloader.dataset)
+        self.assertEqual(16, dataloader.batch_size)
+        self.assertIsInstance(dataloader.sampler, RandomSampler)
+        self.assertTrue(dataloader.pin_memory)
 
-    def test_test_batch_structure(self):
-        window_size = self.dataset.target.window_size
-        test_source_loader, test_target_loader = self.dataset.test_dataloader()
-        self.assertIsInstance(test_source_loader.dataset, TensorDataset)
-        self.assertIsInstance(test_target_loader.dataset, TensorDataset)
-        self._assert_val_test_batch_structure(test_source_loader, window_size)
-        self._assert_val_test_batch_structure(test_target_loader, window_size)
+    def test_val_dataloader(self):
+        mock_source_val = mock.MagicMock()
+        mock_target_val = mock.MagicMock()
+        self.dataset.source.val_dataloader = mock_source_val
+        self.dataset.target.val_dataloader = mock_target_val
+        dataloaders = self.dataset.val_dataloader()
 
-    def _assert_val_test_batch_structure(self, loader, window_size):
-        batch = next(iter(loader))
-        self.assertEqual(2, len(batch))
-        features, labels = batch
-        self.assertEqual(torch.Size((16, 14, window_size)), features.shape)
-        self.assertEqual(torch.Size((16,)), labels.shape)
+        self.assertEqual(3, len(dataloaders))
+        mock_source_val.assert_called_once()
+        mock_target_val.assert_called_once()
+        self.assertEqual(16, dataloaders[-1].batch_size)
+        self.assertIsInstance(dataloaders[-1].dataset, cmapss.PairedCMAPSS)
+        self.assertTrue(dataloaders[-1].dataset.deterministic)
+        self.assertTrue(dataloaders[-1].pin_memory)
 
-    def test_truncation_passed_correctly(self):
-        dataset = adaption.DomainAdaptionDataModule(
-            3, 2, 16, percent_broken=0.2, percent_fail_runs=0.5
-        )
-        self.assertIsNone(dataset.source.percent_broken)
-        self.assertIsNone(dataset.source.percent_fail_runs)
-        self.assertEqual(0.2, dataset.target.percent_broken)
-        self.assertEqual(0.5, dataset.target.percent_fail_runs)
-        self.assertEqual(0.2, dataset.target_truncated.percent_broken)
-        self.assertEqual(0.5, dataset.target_truncated.percent_fail_runs)
+    def test_test_dataloader(self):
+        mock_source_test = mock.MagicMock()
+        mock_target_test = mock.MagicMock()
+        self.dataset.source.test_dataloader = mock_source_test
+        self.dataset.target.test_dataloader = mock_target_test
+        dataloaders = self.dataset.test_dataloader()
 
-    def test_distance_mode_passed_correctly(self):
-        dataset = adaption.PretrainingAdaptionDataModule(
-            3, 2, 1000, 16, distance_mode="labeled"
-        )
-        data_loader = dataset.train_dataloader()
-        self.assertEqual(dataset.distance_mode, data_loader.dataset.mode)
+        self.assertEqual(2, len(dataloaders))
+        mock_source_test.assert_called_once()
+        mock_target_test.assert_called_once()
+
+    def test_truncated_loader(self):
+        self.assertIsNot(self.dataset.target.loader, self.dataset.target_truncated)
+        self.assertTrue(self.dataset.target_truncated.truncate_val)
 
     def test_hparams(self):
-        dataset = adaption.PretrainingAdaptionDataModule(3, 2, 1000, 16)
         expected_hparams = {
             "fd_source": 3,
-            "fd_target": 2,
-            "num_samples": 1000,
+            "fd_target": 1,
             "batch_size": 16,
-            "window_size": 20,
+            "window_size": 1,
             "max_rul": 125,
-            "min_distance": 1,
-            "percent_broken": None,
-            "percent_fail_runs": None,
-            "truncate_target_val": False,
-            "distance_mode": "linear",
+            "percent_broken": 0.8,
+            "percent_fail_runs": 0.8,
         }
-        self.assertDictEqual(expected_hparams, dataset.hparams)
+        self.assertDictEqual(expected_hparams, self.dataset.hparams)
 
 
 class TestPretrainingDataModuleFullData(
-    CmapssTestTemplate, PretrainingDataModuleTemplate, unittest.TestCase
+    PretrainingDataModuleTemplate, unittest.TestCase
 ):
     def setUp(self):
+        source_mock_runs = [torch.randn(16, 14, 1)] * 3, [torch.rand(16)] * 3
+        self.source_loader = mock.MagicMock(name="CMAPSSLoader")
+        self.source_loader.fd = 3
+        self.source_loader.percent_fail_runs = None
+        self.source_loader.percent_broken = None
+        self.source_loader.window_size = 1
+        self.source_loader.max_rul = 125
+        self.source_loader.hparams = {"fd": self.source_loader.fd}
+        self.source_loader.load_split.return_value = source_mock_runs
+        self.source_data = cmapss.CMAPSSDataModule(self.source_loader, batch_size=16)
+
+        target_mock_runs = [torch.randn(16, 14, 1)] * 2, [torch.rand(16)] * 2
+        self.target_loader = mock.MagicMock(name="CMAPSSLoader")
+        self.target_loader.fd = 1
+        self.target_loader.percent_fail_runs = 0.8
+        self.target_loader.percent_broken = 0.8
+        self.target_loader.window_size = 1
+        self.target_loader.max_rul = 125
+        self.target_loader.truncate_val = True
+        self.target_loader.hparams = {"fd": self.target_loader.fd}
+        self.target_loader.load_split.return_value = target_mock_runs
+        self.target_data = cmapss.CMAPSSDataModule(self.target_loader, batch_size=16)
+
         self.dataset = adaption.PretrainingAdaptionDataModule(
-            3, 2, num_samples=10000, batch_size=16, min_distance=2
+            self.source_data, self.target_data, num_samples=10000, min_distance=2
         )
         self.dataset.prepare_data()
         self.dataset.setup()
 
         self.expected_num_val_loaders = 3
-        self.window_size = self.dataset.target_loader.window_size
+        self.window_size = self.target_loader.window_size
 
-    def test_target_val_truncation(self):
-        with self.subTest(truncation=False):
-            dataset = adaption.PretrainingAdaptionDataModule(
-                3, 2, num_samples=10000, batch_size=16
-            )
-            self.assertFalse(dataset.target_loader.truncate_val)
-
-        with self.subTest(truncation=True):
-            dataset = adaption.PretrainingAdaptionDataModule(
-                3, 2, num_samples=10000, batch_size=16, truncate_target_val=True
-            )
-            self.assertTrue(dataset.target_loader.truncate_val)
-
-    def test_override_window_size(self):
-        dataset = adaption.PretrainingAdaptionDataModule(
-            3, 2, num_samples=10000, batch_size=16, window_size=40
+    @mock.patch("rul_datasets.cmapss.CMAPSSDataModule.check_compatibility")
+    def test_compatibility_checked(self, mock_check_compat):
+        self.dataset = adaption.PretrainingAdaptionDataModule(
+            self.source_data, self.target_data, num_samples=10000, min_distance=2
         )
-        dataset.prepare_data()
-        dataset.setup()
-        train_loader = dataset.train_dataloader()
+        mock_check_compat.assert_called_with(self.target_data)
 
-        anchors, queries, _, _ = next(iter(train_loader))
-        self.assertEqual(40, anchors.shape[2])
-        self.assertEqual(40, queries.shape[2])
-
-    def test_truncation_passed_correctly(self):
-        dataset = adaption.PretrainingAdaptionDataModule(
-            3, 2, 10000, 16, percent_broken=0.2, percent_fail_runs=0.5
+    def test_error_on_same_fd(self):
+        self.source_loader.fd = 1
+        self.assertRaises(
+            ValueError,
+            adaption.PretrainingAdaptionDataModule,
+            self.source_data,
+            self.target_data,
+            1000,
         )
-        self.assertIsNone(dataset.source.percent_broken)
-        self.assertIsNone(dataset.source.percent_fail_runs)
-        self.assertEqual(0.2, dataset.target.percent_broken)
-        self.assertEqual(0.5, dataset.target.percent_fail_runs)
+
+    def test_error_on_target_data_failed(self):
+        self.target_loader.percent_broken = None
+        self.assertRaises(
+            ValueError,
+            adaption.PretrainingAdaptionDataModule,
+            self.source_data,
+            self.target_data,
+            1000,
+        )
+        self.target_loader.percent_broken = 1.0
+        self.assertRaises(
+            ValueError,
+            adaption.PretrainingAdaptionDataModule,
+            self.source_data,
+            self.target_data,
+            1000,
+        )
+
+    def test_error_on_source_data_unfailed(self):
+        self.source_loader.percent_broken = 0.8
+        self.assertRaises(
+            ValueError,
+            adaption.PretrainingAdaptionDataModule,
+            self.source_data,
+            self.target_data,
+            1000,
+        )
+
+    def test_warning_on_non_truncated_val_data(self):
+        self.target_loader.truncate_val = False
+        with warnings.catch_warnings(record=True) as warn:
+            adaption.PretrainingAdaptionDataModule(
+                self.source_data, self.target_data, 10
+            )
+        self.assertTrue(warn)
+
+    def test_hparams(self):
+        expected_hparams = {
+            "fd_source": 3,
+            "fd_target": 1,
+            "num_samples": 10000,
+            "batch_size": 16,
+            "window_size": 1,
+            "max_rul": 125,
+            "min_distance": 2,
+            "percent_broken": 0.8,
+            "percent_fail_runs": 0.8,
+            "truncate_target_val": True,
+            "distance_mode": "linear",
+        }
+        self.assertDictEqual(expected_hparams, self.dataset.hparams)
 
 
 class TestPretrainingDataModuleLowData(
-    CmapssTestTemplate, PretrainingDataModuleTemplate, unittest.TestCase
+    PretrainingDataModuleTemplate, unittest.TestCase
 ):
     def setUp(self):
+        source_mock_runs = [torch.randn(16, 14, 1)] * 3, [torch.rand(16)] * 3
+        self.source_loader = mock.MagicMock(name="CMAPSSLoader")
+        self.source_loader.fd = 3
+        self.source_loader.percent_fail_runs = None
+        self.source_loader.percent_broken = None
+        self.source_loader.window_size = 1
+        self.source_loader.max_rul = 125
+        self.source_loader.hparams = {"fd": self.source_loader.fd}
+        self.source_loader.load_split.return_value = source_mock_runs
+        self.source_data = cmapss.CMAPSSDataModule(self.source_loader, batch_size=16)
+
+        target_mock_runs = (
+            [torch.randn(3, 14, 1), torch.randn(1, 14, 1)],
+            [torch.rand(3), torch.rand(1)],
+        )
+        self.target_loader = mock.MagicMock(name="CMAPSSLoader")
+        self.target_loader.fd = 1
+        self.target_loader.percent_fail_runs = 0.8
+        self.target_loader.percent_broken = 0.8
+        self.target_loader.window_size = 1
+        self.target_loader.max_rul = 125
+        self.target_loader.truncate_val = True
+        self.target_loader.hparams = {"fd": self.target_loader.fd}
+        self.target_loader.load_split.return_value = target_mock_runs
+        self.target_data = cmapss.CMAPSSDataModule(self.target_loader, batch_size=16)
+
         self.dataset = adaption.PretrainingAdaptionDataModule(
-            1, 3, num_samples=10000, batch_size=16, percent_broken=0.2
+            self.source_data, self.target_data, num_samples=10000, min_distance=2
         )
         self.dataset.prepare_data()
         self.dataset.setup()
 
         self.expected_num_val_loaders = 3
-        self.window_size = self.dataset.target_loader.window_size
+        self.window_size = self.target_loader.window_size
 
 
 class TestAdaptionDataset(unittest.TestCase):
@@ -239,16 +328,3 @@ class TestAdaptionDataset(unittest.TestCase):
             source, labels, _ = self.dataset[i]
             self.assertEqual(i, source.item())
             self.assertEqual(i, labels.item())
-
-    def test_hparams(self):
-        dataset = adaption.DomainAdaptionDataModule(3, 2, 16)
-        expected_hparams = {
-            "fd_source": 3,
-            "fd_target": 2,
-            "batch_size": 16,
-            "window_size": 20,
-            "max_rul": 125,
-            "percent_broken": None,
-            "percent_fail_runs": None,
-        }
-        self.assertDictEqual(expected_hparams, dataset.hparams)

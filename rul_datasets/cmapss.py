@@ -1,4 +1,5 @@
-from typing import Dict, List, Optional, Tuple, Union
+from copy import deepcopy
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pytorch_lightning as pl
@@ -9,82 +10,51 @@ from rul_datasets.loader import CMAPSSLoader
 
 
 class CMAPSSDataModule(pl.LightningDataModule):
-    def __init__(
-        self,
-        fd: int,
-        batch_size: int,
-        window_size: int = None,
-        max_rul: int = 125,
-        percent_broken: float = None,
-        percent_fail_runs: Union[float, List[int]] = None,
-        feature_select: List[int] = None,
-        truncate_val: bool = False,
-    ):
+    data: Dict[str, Tuple[torch.Tensor, torch.Tensor]]
+
+    def __init__(self, loader: CMAPSSLoader, batch_size: int):
         super().__init__()
 
-        self._loader = CMAPSSLoader(
-            fd,
-            window_size,
-            max_rul,
-            percent_broken,
-            percent_fail_runs,
-            feature_select,
-            truncate_val,
-        )
+        self._loader: CMAPSSLoader = loader
+        self.batch_size: int = batch_size
 
-        self.batch_size = batch_size
-        self.fd = self._loader.fd
-        self.window_size = self._loader.window_size
-        self.max_rul = self._loader.max_rul
-        self.percent_broken = self._loader.percent_broken
-        self.percent_fail_runs = self._loader.percent_fail_runs
-        self.feature_select = self._loader.feature_select
-        self.truncate_val = self._loader.truncate_val
+        hparams = deepcopy(self.loader.hparams)
+        hparams["batch_size"] = self.batch_size
+        self.save_hyperparameters(hparams)
 
-        self.save_hyperparameters(
-            {
-                "fd": self.fd,
-                "batch_size": self.batch_size,
-                "window_size": self.window_size,
-                "max_rul": self.max_rul,
-                "percent_broken": self.percent_broken,
-                "percent_fail_runs": self.percent_fail_runs,
-                "truncate_val": self.truncate_val,
-            }
-        )
+    @property
+    def loader(self) -> CMAPSSLoader:
+        return self._loader
 
-        self.data: Dict[str, Tuple[torch.Tensor, torch.Tensor]] = {}
+    def check_compatibility(self, other: "CMAPSSDataModule") -> None:
+        try:
+            self.loader.check_compatibility(other.loader)
+        except ValueError:
+            raise ValueError("CMAPSSDataModules incompatible on loader level.")
 
-    @classmethod
-    def from_loader(cls, loader: CMAPSSLoader, batch_size: int):
-        return cls(
-            loader.fd,
-            batch_size,
-            loader.window_size,
-            loader.max_rul,
-            loader.percent_broken,
-            loader.percent_fail_runs,
-            loader.feature_select,
-            loader.truncate_val,
-        )
+        if not self.batch_size == other.batch_size:
+            raise ValueError(
+                f"The batch size of both data modules has to be the same, "
+                f"{self.batch_size} vs. {other.batch_size}"
+            )
 
     def prepare_data(self, *args, **kwargs):
-        self._loader.prepare_data()
+        self.loader.prepare_data()
 
     def setup(self, stage: Optional[str] = None):
-        self.data["dev"] = self._setup_split("dev")
-        self.data["val"] = self._setup_split("val")
-        self.data["test"] = self._setup_split("test")
+        self.data = {
+            "dev": self._setup_split("dev"),
+            "val": self._setup_split("val"),
+            "test": self._setup_split("test"),
+        }
 
     def _setup_split(self, split):
-        features, targets = self._loader.load_split(split)
+        features, targets = self.loader.load_split(split)
         if features:
             features = torch.cat(features)
             targets = torch.cat(targets)
         else:
-            features = torch.empty(
-                0, len(self._loader.feature_select), self.window_size
-            )
+            features = torch.empty(0, 0, 0)
             targets = torch.empty(0)
 
         return features, targets
@@ -144,12 +114,8 @@ class PairedCMAPSS(IterableDataset):
         self.deterministic = deterministic
         self.mode = mode
 
-        if not all(d.window_size == self.loaders[0].window_size for d in self.loaders):
-            window_sizes = [d.window_size for d in self.loaders]
-            raise ValueError(
-                f"Datasets to be paired do not have "
-                f"the same window size, but {window_sizes}"
-            )
+        for loader in self.loaders:
+            loader.check_compatibility(self.loaders[0])
 
         self._run_domain_idx: np.ndarray
         self._features: List[torch.Tensor]
