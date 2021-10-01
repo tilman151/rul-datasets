@@ -6,14 +6,14 @@ import numpy as np
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader, Dataset
 
-from rul_datasets.cmapss import CMAPSSDataModule, PairedCMAPSS
+from rul_datasets.core import PairedRulDataset, RulDataModule
 
 
 class DomainAdaptionDataModule(pl.LightningDataModule):
     def __init__(
         self,
-        source: CMAPSSDataModule,
-        target: CMAPSSDataModule,
+        source: RulDataModule,
+        target: RulDataModule,
     ):
         super().__init__()
 
@@ -85,8 +85,8 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
 
         return dataset
 
-    def _get_paired_dataset(self) -> PairedCMAPSS:
-        paired = PairedCMAPSS(
+    def _get_paired_dataset(self) -> PairedRulDataset:
+        paired = PairedRulDataset(
             [self.target_truncated],
             "val",
             num_samples=25000,
@@ -134,8 +134,8 @@ class AdaptionDataset(Dataset):
 class PretrainingAdaptionDataModule(pl.LightningDataModule):
     def __init__(
         self,
-        source: CMAPSSDataModule,
-        target: CMAPSSDataModule,
+        source: RulDataModule,
+        target: RulDataModule,
         num_samples: int,
         min_distance: int = 1,
         distance_mode: str = "linear",
@@ -220,11 +220,11 @@ class PretrainingAdaptionDataModule(pl.LightningDataModule):
 
         return [combined_loader, source_loader, target_loader]
 
-    def _get_paired_dataset(self, split: str) -> PairedCMAPSS:
+    def _get_paired_dataset(self, split: str) -> PairedRulDataset:
         deterministic = split == "val"
         min_distance = 1 if split == "val" else self.min_distance
         num_samples = 50000 if split == "val" else self.num_samples
-        paired = PairedCMAPSS(
+        paired = PairedRulDataset(
             [self.source_loader, self.target_loader],
             split,
             num_samples,

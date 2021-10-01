@@ -8,6 +8,7 @@ import numpy as np
 import torch
 
 from rul_datasets import loader
+from tests.templates import LoaderInterfaceTemplate
 
 
 @dataclass
@@ -35,23 +36,23 @@ class TestAbstractLoader(unittest.TestCase):
 
 
 class TestCMAPSSLoader(unittest.TestCase):
-    NUM_CHANNELS = len(loader.CMAPSSLoader.DEFAULT_CHANNELS)
+    NUM_CHANNELS = len(loader.CmapssLoader._DEFAULT_CHANNELS)
 
     @classmethod
     def setUpClass(cls):
         for fd in range(1, 5):
-            loader.CMAPSSLoader(fd).prepare_data()
+            loader.CmapssLoader(fd).prepare_data()
 
     def test_run_shape_and_dtype(self):
         window_sizes = [30, 20, 30, 15]
         for n, win in enumerate(window_sizes, start=1):
-            cmapss_loader = loader.CMAPSSLoader(n)
+            rul_loader = loader.CmapssLoader(n)
             for split in ["dev", "val", "test"]:
                 with self.subTest(fd=n, split=split):
-                    self._check_split(cmapss_loader, split, win)
+                    self._check_split(rul_loader, split, win)
 
-    def _check_split(self, cmapss_loader, split, window_size):
-        features, targets = cmapss_loader.load_split(split)
+    def _check_split(self, rul_loader, split, window_size):
+        features, targets = rul_loader.load_split(split)
         for run, run_target in zip(features, targets):
             self._assert_run_correct(run, run_target, window_size)
 
@@ -65,13 +66,13 @@ class TestCMAPSSLoader(unittest.TestCase):
     def test_default_window_size(self):
         window_sizes = [30, 20, 30, 15]
         for n, win in enumerate(window_sizes, start=1):
-            cmapss_loader = loader.CMAPSSLoader(n)
-            self.assertEqual(win, cmapss_loader.window_size)
+            rul_loader = loader.CmapssLoader(n)
+            self.assertEqual(win, rul_loader.window_size)
 
     def test_override_window_size(self):
         window_size = 40
         for n in range(1, 5):
-            dataset = loader.CMAPSSLoader(n, window_size=window_size)
+            dataset = loader.CmapssLoader(n, window_size=window_size)
             for split in ["dev", "val", "test"]:
                 with self.subTest(fd=n, split=split):
                     features, targets = dataset.load_split(split)
@@ -79,25 +80,23 @@ class TestCMAPSSLoader(unittest.TestCase):
                         self.assertEqual(window_size, run.shape[2])
 
     def test_default_feature_select(self):
-        cmapss_loader = loader.CMAPSSLoader(1)
-        self.assertListEqual(
-            cmapss_loader.DEFAULT_CHANNELS, cmapss_loader.feature_select
-        )
+        rul_loader = loader.CmapssLoader(1)
+        self.assertListEqual(rul_loader._DEFAULT_CHANNELS, rul_loader.feature_select)
 
     def test_feature_select(self):
-        dataset = loader.CMAPSSLoader(1, feature_select=[4, 9, 10, 13, 14, 15, 22])
+        dataset = loader.CmapssLoader(1, feature_select=[4, 9, 10, 13, 14, 15, 22])
         for split in ["dev", "val", "test"]:
             features, _ = dataset.load_split(split)
             for run in features:
                 self.assertEqual(7, run.shape[1])
 
     def test_percent_fail_runs(self):
-        full_dataset = loader.CMAPSSLoader(fd=1, window_size=30)
+        full_dataset = loader.CmapssLoader(fd=1, window_size=30)
         full_dev, full_dev_targets = full_dataset.load_split("dev")
         full_val = full_dataset.load_split("val")[0]
         full_test = full_dataset.load_split("test")[0]
 
-        dataset = loader.CMAPSSLoader(fd=1, window_size=30, percent_fail_runs=0.8)
+        dataset = loader.CmapssLoader(fd=1, window_size=30, percent_fail_runs=0.8)
         trunc_dev, trunc_dev_targets = dataset.load_split("dev")
 
         self.assertGreater(len(full_dev), len(trunc_dev))
@@ -111,12 +110,12 @@ class TestCMAPSSLoader(unittest.TestCase):
             self.assertEqual(0.0, torch.dist(trunc_targets, full_targets))
 
     def test_percent_broken(self):
-        full_dataset = loader.CMAPSSLoader(fd=1, window_size=30)
+        full_dataset = loader.CmapssLoader(fd=1, window_size=30)
         full_dev, full_dev_targets = full_dataset.load_split("dev")
         full_val = full_dataset.load_split("val")[0]
         full_test = full_dataset.load_split("test")[0]
 
-        dataset = loader.CMAPSSLoader(fd=1, window_size=30, percent_broken=0.2)
+        dataset = loader.CmapssLoader(fd=1, window_size=30, percent_broken=0.2)
         truncated_dev, truncated_dev_targets = dataset.load_split("dev")
 
         full_length = sum(len(r) for r in full_dev)
@@ -143,11 +142,11 @@ class TestCMAPSSLoader(unittest.TestCase):
             self.assertEqual(len(full_run), len(trunc_run))
 
     @mock.patch(
-        "rul_datasets.loader.CMAPSSLoader._truncate_runs",
+        "rul_datasets.loader.CmapssLoader._truncate_runs",
         wraps=lambda x, y, *args: (x, y),
     )
     def test_val_truncation(self, mock_truncate):
-        dataset = loader.CMAPSSLoader(fd=1, window_size=30)
+        dataset = loader.CmapssLoader(fd=1, window_size=30)
         with self.subTest(truncate_val=False):
             dataset.load_split("dev")
             mock_truncate.assert_called_once()
@@ -155,7 +154,7 @@ class TestCMAPSSLoader(unittest.TestCase):
             dataset.load_split("val")
             mock_truncate.assert_not_called()
 
-        dataset = loader.CMAPSSLoader(fd=1, window_size=30, truncate_val=True)
+        dataset = loader.CmapssLoader(fd=1, window_size=30, truncate_val=True)
         with self.subTest(truncate_val=True):
             dataset.load_split("dev")
             mock_truncate.assert_called_once()
@@ -166,13 +165,13 @@ class TestCMAPSSLoader(unittest.TestCase):
     def test_normalization_min_max(self):
         for i in range(1, 5):
             with self.subTest(fd=i):
-                full_dataset = loader.CMAPSSLoader(fd=i, window_size=30)
+                full_dataset = loader.CmapssLoader(fd=i, window_size=30)
                 full_dev, full_dev_targets = full_dataset.load_split("dev")
 
                 self.assertAlmostEqual(max(torch.max(r).item() for r in full_dev), 1.0)
                 self.assertAlmostEqual(min(torch.min(r).item() for r in full_dev), -1.0)
 
-                truncated_dataset = loader.CMAPSSLoader(
+                truncated_dataset = loader.CmapssLoader(
                     fd=i, window_size=30, percent_fail_runs=0.8
                 )
                 trunc_dev, trunc_dev_targets = truncated_dataset.load_split("dev")
@@ -181,7 +180,7 @@ class TestCMAPSSLoader(unittest.TestCase):
                     min(torch.min(r).item() for r in trunc_dev), -1.0
                 )
 
-                truncated_dataset = loader.CMAPSSLoader(
+                truncated_dataset = loader.CmapssLoader(
                     fd=i, window_size=30, percent_broken=0.2
                 )
                 trunc_dev, trunc_dev_targets = truncated_dataset.load_split("dev")
@@ -191,10 +190,10 @@ class TestCMAPSSLoader(unittest.TestCase):
                 )
 
     def test_truncation_by_index(self):
-        full_dataset = loader.CMAPSSLoader(1)
+        full_dataset = loader.CmapssLoader(1)
         full_train, full_train_targets = full_dataset.load_split("dev")
         indices = [50, 60, 70]
-        truncated_dataset = loader.CMAPSSLoader(1, percent_fail_runs=indices)
+        truncated_dataset = loader.CmapssLoader(1, percent_fail_runs=indices)
         trunc_train, trunc_train_targets = truncated_dataset.load_split("dev")
 
         self.assertEqual(len(indices), len(trunc_train))
@@ -213,8 +212,8 @@ class TestCMAPSSLoader(unittest.TestCase):
 
 def _raw_csv_exist():
     csv_path = os.path.join(
-        loader.FEMTOLoader.DATA_ROOT,
-        loader.FEMTOPreparator.SPLIT_FOLDERS["train"],
+        loader.FemtoLoader._FEMTO_ROOT,
+        loader.FemtoPreparator.SPLIT_FOLDERS["dev"],
         "Bearing1_1",
     )
     csv_exists = os.path.exists(csv_path)
@@ -229,13 +228,13 @@ class TestFEMTOLoader(unittest.TestCase):
         window_sizes = [2560, 1500, 1000, 100]
         for win in window_sizes:
             for fd in range(1, 4):
-                femto_loader = loader.FEMTOLoader(fd, window_size=win)
-                for split in ["train", "test"]:
+                femto_loader = loader.FemtoLoader(fd, window_size=win)
+                for split in ["dev", "test"]:
                     with self.subTest(fd=fd, split=split):
                         self._check_split(femto_loader, split, win)
 
-    def _check_split(self, cmapss_loader, split, window_size):
-        features, targets = cmapss_loader.load_split(split)
+    def _check_split(self, rul_loader, split, window_size):
+        features, targets = rul_loader.load_split(split)
         for run, run_target in zip(features, targets):
             self._assert_run_correct(run, run_target, window_size)
 
@@ -247,12 +246,12 @@ class TestFEMTOLoader(unittest.TestCase):
         self.assertEqual(torch.float32, run_target.dtype)
 
     def test_percent_fail_runs(self):
-        full_dataset = loader.FEMTOLoader(fd=1)
-        full_train, full_train_targets = full_dataset.load_split("train")
+        full_dataset = loader.FemtoLoader(fd=1)
+        full_train, full_train_targets = full_dataset.load_split("dev")
         full_test = full_dataset.load_split("test")[0]
 
-        dataset = loader.FEMTOLoader(fd=1, percent_fail_runs=0.5)
-        trunc_train, trunc_train_targets = dataset.load_split("train")
+        dataset = loader.FemtoLoader(fd=1, percent_fail_runs=0.5)
+        trunc_train, trunc_train_targets = dataset.load_split("dev")
 
         self.assertGreater(len(full_train), len(trunc_train))
         self.assertAlmostEqual(0.5, len(trunc_train) / len(full_train), delta=0.01)
@@ -264,12 +263,12 @@ class TestFEMTOLoader(unittest.TestCase):
             self.assertEqual(0.0, torch.dist(trunc_targets, full_targets))
 
     def test_percent_broken(self):
-        full_dataset = loader.FEMTOLoader(fd=1)
-        full_train, full_train_targets = full_dataset.load_split("train")
+        full_dataset = loader.FemtoLoader(fd=1)
+        full_train, full_train_targets = full_dataset.load_split("dev")
         full_test = full_dataset.load_split("test")[0]
 
-        dataset = loader.FEMTOLoader(fd=1, percent_broken=0.2)
-        truncated_train, truncated_train_targets = dataset.load_split("train")
+        dataset = loader.FemtoLoader(fd=1, percent_broken=0.2)
+        truncated_train, truncated_train_targets = dataset.load_split("dev")
 
         full_length = sum(len(r) for r in full_train)
         truncated_length = sum(len(r) for r in truncated_train)
@@ -295,7 +294,7 @@ class TestFEMTOLoader(unittest.TestCase):
         "rul_datasets.loader.FEMTOLoader._truncate_runs", wraps=lambda x, y: (x, y)
     )
     def test_val_truncation(self, mock_truncate):
-        dataset = loader.FEMTOLoader(fd=1, window_size=30)
+        dataset = loader.FemtoLoader(fd=1, window_size=30)
         with self.subTest(truncate_val=False):
             dataset.load_split("dev")
             mock_truncate.assert_called_once()
@@ -303,7 +302,7 @@ class TestFEMTOLoader(unittest.TestCase):
             dataset.load_split("val")
             mock_truncate.assert_not_called()
 
-        dataset = loader.FEMTOLoader(fd=1, window_size=30, truncate_val=True)
+        dataset = loader.FemtoLoader(fd=1, window_size=30, truncate_val=True)
         with self.subTest(truncate_val=True):
             dataset.load_split("dev")
             mock_truncate.assert_called_once()
@@ -314,8 +313,8 @@ class TestFEMTOLoader(unittest.TestCase):
     def test_standardization(self):
         for i in range(1, 3):
             with self.subTest(fd=i):
-                full_dataset = loader.FEMTOLoader(fd=i)
-                full_train, full_train_targets = full_dataset.load_split("train")
+                full_dataset = loader.FemtoLoader(fd=i)
+                full_train, full_train_targets = full_dataset.load_split("dev")
 
                 self.assertAlmostEqual(
                     0.0, torch.mean(torch.cat(full_train)).item(), delta=0.0001
@@ -324,8 +323,8 @@ class TestFEMTOLoader(unittest.TestCase):
                     1.0, torch.std(torch.cat(full_train)).item(), delta=0.0001
                 )
 
-                truncated_dataset = loader.FEMTOLoader(fd=i, percent_fail_runs=0.8)
-                trunc_train, trunc_train_targets = truncated_dataset.load_split("train")
+                truncated_dataset = loader.FemtoLoader(fd=i, percent_fail_runs=0.8)
+                trunc_train, trunc_train_targets = truncated_dataset.load_split("dev")
                 self.assertAlmostEqual(
                     0.0, torch.mean(torch.cat(trunc_train)).item(), delta=0.1
                 )
@@ -334,17 +333,17 @@ class TestFEMTOLoader(unittest.TestCase):
                 )
 
                 # percent_broken is supposed to change the std but not the mean
-                truncated_dataset = loader.FEMTOLoader(fd=i, percent_broken=0.2)
-                trunc_train, trunc_train_targets = truncated_dataset.load_split("train")
+                truncated_dataset = loader.FemtoLoader(fd=i, percent_broken=0.2)
+                trunc_train, trunc_train_targets = truncated_dataset.load_split("dev")
                 self.assertAlmostEqual(
                     0.0, torch.mean(torch.cat(trunc_train)).item(), delta=0.1
                 )
 
     def test_truncation_by_index(self):
-        full_dataset = loader.FEMTOLoader(1)
-        full_train, full_train_targets = full_dataset.load_split("train")
-        truncated_dataset = loader.FEMTOLoader(1, percent_fail_runs=[1])
-        trunc_train, trunc_train_targets = truncated_dataset.load_split("train")
+        full_dataset = loader.FemtoLoader(1)
+        full_train, full_train_targets = full_dataset.load_split("dev")
+        truncated_dataset = loader.FemtoLoader(1, percent_fail_runs=[1])
+        trunc_train, trunc_train_targets = truncated_dataset.load_split("dev")
 
         self.assertEqual(1, len(trunc_train))
         self.assertEqual(1, len(trunc_train_targets))
@@ -354,16 +353,16 @@ class TestFEMTOLoader(unittest.TestCase):
 
 class TestFEMTOPreperator(unittest.TestCase):
     NUM_SAMPLES = {
-        1: {"train": 3674, "test": 10973},
-        2: {"train": 1708, "test": 5948},
-        3: {"train": 2152, "test": 434},
+        1: {"dev": 3674, "test": 10973},
+        2: {"dev": 1708, "test": 5948},
+        3: {"dev": 2152, "test": 434},
     }
 
     @unittest.skipIf(not _raw_csv_exist(), "Raw CSV files not found.")
     def test_file_discovery(self):
         for fd in range(1, 4):
-            preparator = loader.FEMTOPreparator(fd, loader.FEMTOLoader.DATA_ROOT)
-            for split in ["train", "test"]:
+            preparator = loader.FemtoPreparator(fd, loader.FemtoLoader._FEMTO_ROOT)
+            for split in ["dev", "test"]:
                 csv_paths = preparator._get_csv_file_paths(split)
                 expected_num_files = self.NUM_SAMPLES[fd][split]
                 actual_num_files = len(sum(csv_paths, []))
@@ -371,16 +370,16 @@ class TestFEMTOPreperator(unittest.TestCase):
 
     @unittest.skipIf(not _raw_csv_exist(), "Raw CSV files not found.")
     def test_loading_one_file(self):
-        preparator = loader.FEMTOPreparator(1, loader.FEMTOLoader.DATA_ROOT)
-        csv_paths = preparator._get_csv_file_paths("train")
+        preparator = loader.FemtoPreparator(1, loader.FemtoLoader._FEMTO_ROOT)
+        csv_paths = preparator._get_csv_file_paths("dev")
         features = preparator._load_feature_file(csv_paths[0][0])
         self.assertIsInstance(features, np.ndarray)
         self.assertEqual(features.shape, (preparator.DEFAULT_WINDOW_SIZE, 2))
 
     @unittest.skipIf(not _raw_csv_exist(), "Raw CSV files not found.")
     def test_target_generation(self):
-        preparator = loader.FEMTOPreparator(1, loader.FEMTOLoader.DATA_ROOT)
-        csv_paths = preparator._get_csv_file_paths("train")
+        preparator = loader.FemtoPreparator(1, loader.FemtoLoader._FEMTO_ROOT)
+        csv_paths = preparator._get_csv_file_paths("dev")
         targets = preparator._targets_from_file_paths(csv_paths)
         for run_targets, run_files in zip(targets, csv_paths):
             self.assertIsInstance(run_targets, np.ndarray)
@@ -391,8 +390,8 @@ class TestFEMTOPreperator(unittest.TestCase):
     @unittest.skip("Takes a lot of time.")
     def test_preparation(self):
         for fd in range(1, 4):
-            preparator = loader.FEMTOPreparator(fd, loader.FEMTOLoader.DATA_ROOT)
-            for split in ["train", "test"]:
+            preparator = loader.FemtoPreparator(fd, loader.FemtoLoader._FEMTO_ROOT)
+            for split in ["dev", "test"]:
                 preparator.prepare_split(split)
                 expected_file_path = preparator._get_run_file_path(split)
                 self.assertTrue(os.path.exists(expected_file_path))
@@ -401,8 +400,8 @@ class TestFEMTOPreperator(unittest.TestCase):
 
     def test_converted_files(self):
         for fd in range(1, 4):
-            preparator = loader.FEMTOPreparator(fd, loader.FEMTOLoader.DATA_ROOT)
-            for split in ["train", "test"]:
+            preparator = loader.FemtoPreparator(fd, loader.FemtoLoader._FEMTO_ROOT)
+            for split in ["dev", "test"]:
                 features, targets = preparator.load_runs(split)
                 expected_num_time_steps = self.NUM_SAMPLES[fd][split]
                 actual_num_target_steps = sum(len(f) for f in features)
@@ -412,10 +411,20 @@ class TestFEMTOPreperator(unittest.TestCase):
 
     def test_scaler(self):
         for fd in range(1, 4):
-            preparator = loader.FEMTOPreparator(fd, loader.FEMTOLoader.DATA_ROOT)
+            preparator = loader.FemtoPreparator(fd, loader.FemtoLoader._FEMTO_ROOT)
             scaler = preparator.load_scaler()
             expected_samples = (
-                self.NUM_SAMPLES[fd]["train"] * preparator.DEFAULT_WINDOW_SIZE
+                self.NUM_SAMPLES[fd]["dev"] * preparator.DEFAULT_WINDOW_SIZE
             )
             self.assertEqual(2, scaler.n_features_in_)
             self.assertEqual(expected_samples, scaler.n_samples_seen_)
+
+
+class TestCMAPSSLoaderInterface(unittest.TestCase, LoaderInterfaceTemplate):
+    def setUp(self):
+        self.loader_type = loader.CmapssLoader
+
+
+class TestFEMTOLoaderInterface(unittest.TestCase, LoaderInterfaceTemplate):
+    def setUp(self):
+        self.loader_type = loader.FemtoLoader

@@ -5,21 +5,20 @@ from typing import List, Optional
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 
-from rul_datasets.cmapss import CMAPSSDataModule, PairedCMAPSS
-from rul_datasets.loader import CMAPSSLoader
+from rul_datasets.core import PairedRulDataset, RulDataModule
 
 
 class BaselineDataModule(pl.LightningDataModule):
-    def __init__(self, data_module: CMAPSSDataModule):
+    def __init__(self, data_module: RulDataModule):
         super().__init__()
 
         self.data_module = data_module
         hparams = self.data_module.hparams
         self.save_hyperparameters(hparams)
 
-        self.cmapss = {}
+        self.subsets = {}
         for fd in range(1, 5):
-            self.cmapss[fd] = self._get_cmapss(fd)
+            self.subsets[fd] = self._get_cmapss(fd)
 
     def _get_cmapss(self, fd):
         if fd == self.hparams["fd"]:
@@ -29,16 +28,16 @@ class BaselineDataModule(pl.LightningDataModule):
             loader.fd = fd
             loader.percent_fail_runs = None
             loader.percent_broken = None
-            cmapss = CMAPSSDataModule(loader, self.data_module.batch_size)
+            cmapss = RulDataModule(loader, self.data_module.batch_size)
 
         return cmapss
 
     def prepare_data(self, *args, **kwargs):
-        for cmapss_fd in self.cmapss.values():
+        for cmapss_fd in self.subsets.values():
             cmapss_fd.prepare_data(*args, **kwargs)
 
     def setup(self, stage: Optional[str] = None):
-        for cmapss_fd in self.cmapss.values():
+        for cmapss_fd in self.subsets.values():
             cmapss_fd.setup(stage)
 
     def train_dataloader(self, *args, **kwargs) -> DataLoader:
@@ -50,7 +49,7 @@ class BaselineDataModule(pl.LightningDataModule):
     def test_dataloader(self, *args, **kwargs) -> List[DataLoader]:
         test_dataloaders = []
         for fd_target in range(1, 5):
-            target_dl = self.cmapss[fd_target].test_dataloader()
+            target_dl = self.subsets[fd_target].test_dataloader()
             test_dataloaders.append(target_dl)
 
         return test_dataloaders
@@ -59,8 +58,8 @@ class BaselineDataModule(pl.LightningDataModule):
 class PretrainingBaselineDataModule(pl.LightningDataModule):
     def __init__(
         self,
-        failed_data_module: CMAPSSDataModule,
-        unfailed_data_module: CMAPSSDataModule,
+        failed_data_module: RulDataModule,
+        unfailed_data_module: RulDataModule,
         num_samples: int,
         min_distance: int = 1,
         distance_mode: str = "linear",
@@ -139,15 +138,6 @@ class PretrainingBaselineDataModule(pl.LightningDataModule):
                 "The validation metrics will not be valid."
             )
 
-    def _get_unbroken_runs(self, fail_runs):
-        if fail_runs is None or isinstance(fail_runs, float):
-            unfailed_runs = None
-        else:
-            run_idx = range(CMAPSSLoader.NUM_TRAIN_RUNS[self.fd_source])
-            unfailed_runs = list(set(run_idx).difference(fail_runs))
-
-        return unfailed_runs
-
     def prepare_data(self, *args, **kwargs):
         self.unfailed_loader.prepare_data()
 
@@ -167,11 +157,11 @@ class PretrainingBaselineDataModule(pl.LightningDataModule):
 
         return [combined_loader, source_loader]
 
-    def _get_paired_dataset(self, split: str) -> PairedCMAPSS:
+    def _get_paired_dataset(self, split: str) -> PairedRulDataset:
         deterministic = split == "val"
         min_distance = 1 if split == "val" else self.min_distance
         num_samples = 25000 if split == "val" else self.num_samples
-        paired = PairedCMAPSS(
+        paired = PairedRulDataset(
             [self.unfailed_loader, self.failed_loader],
             split,
             num_samples,

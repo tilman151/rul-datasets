@@ -6,10 +6,10 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, TensorDataset
 
-from rul_datasets import cmapss, loader
+from rul_datasets import core, loader
 
 
-class TestCMAPSS(unittest.TestCase):
+class TestRulDataModule(unittest.TestCase):
     def setUp(self):
         self.mock_loader = mock.MagicMock(name="AbstractLoader")
         self.mock_loader.hparams = {"test": 0}
@@ -17,20 +17,20 @@ class TestCMAPSS(unittest.TestCase):
         self.mock_loader.load_split.return_value = self.mock_runs
 
     def test_created_correctly(self):
-        dataset = cmapss.CMAPSSDataModule(self.mock_loader, batch_size=16)
+        dataset = core.RulDataModule(self.mock_loader, batch_size=16)
 
         self.assertIs(self.mock_loader, dataset.loader)
         self.assertEqual(16, dataset.batch_size)
         self.assertDictEqual({"test": 0, "batch_size": 16}, dataset.hparams)
 
     def test_prepare_data(self):
-        dataset = cmapss.CMAPSSDataModule(self.mock_loader, batch_size=16)
+        dataset = core.RulDataModule(self.mock_loader, batch_size=16)
         dataset.prepare_data()
 
         self.mock_loader.prepare_data.assert_called_once()
 
     def test_setup(self):
-        dataset = cmapss.CMAPSSDataModule(self.mock_loader, batch_size=16)
+        dataset = core.RulDataModule(self.mock_loader, batch_size=16)
         dataset.setup()
 
         self.mock_loader.load_split.assert_has_calls(
@@ -43,15 +43,15 @@ class TestCMAPSS(unittest.TestCase):
 
     def test_empty_dataset(self):
         self.mock_loader.load_split.return_value = [], []
-        dataset = cmapss.CMAPSSDataModule(self.mock_loader, batch_size=4)
+        dataset = core.RulDataModule(self.mock_loader, batch_size=4)
         dataset.setup()
 
     @mock.patch(
-        "rul_datasets.cmapss.CMAPSSDataModule.to_dataset",
+        "rul_datasets.core.RulDataModule.to_dataset",
         return_value=TensorDataset(torch.zeros(1)),
     )
     def test_train_dataloader(self, mock_to_dataset):
-        dataset = cmapss.CMAPSSDataModule(self.mock_loader, batch_size=16)
+        dataset = core.RulDataModule(self.mock_loader, batch_size=16)
         dataset.setup()
         dataloader = dataset.train_dataloader()
 
@@ -62,11 +62,11 @@ class TestCMAPSS(unittest.TestCase):
         self.assertTrue(dataloader.pin_memory)
 
     @mock.patch(
-        "rul_datasets.cmapss.CMAPSSDataModule.to_dataset",
+        "rul_datasets.core.RulDataModule.to_dataset",
         return_value=TensorDataset(torch.zeros(1)),
     )
     def test_val_dataloader(self, mock_to_dataset):
-        dataset = cmapss.CMAPSSDataModule(self.mock_loader, batch_size=16)
+        dataset = core.RulDataModule(self.mock_loader, batch_size=16)
         dataset.setup()
         dataloader = dataset.val_dataloader()
 
@@ -77,11 +77,11 @@ class TestCMAPSS(unittest.TestCase):
         self.assertTrue(dataloader.pin_memory)
 
     @mock.patch(
-        "rul_datasets.cmapss.CMAPSSDataModule.to_dataset",
+        "rul_datasets.core.RulDataModule.to_dataset",
         return_value=TensorDataset(torch.zeros(1)),
     )
     def test_test_dataloader(self, mock_to_dataset):
-        dataset = cmapss.CMAPSSDataModule(self.mock_loader, batch_size=16)
+        dataset = core.RulDataModule(self.mock_loader, batch_size=16)
         dataset.setup()
         dataloader = dataset.test_dataloader()
 
@@ -96,7 +96,7 @@ class TestCMAPSS(unittest.TestCase):
             [torch.zeros(8, 14, 30)] * 4,
             [torch.zeros(8)] * 4,
         )
-        dataset = cmapss.CMAPSSDataModule(self.mock_loader, batch_size=16)
+        dataset = core.RulDataModule(self.mock_loader, batch_size=16)
         dataset.setup()
         train_loader = dataset.train_dataloader()
         self._assert_batch_structure(train_loader)
@@ -106,7 +106,7 @@ class TestCMAPSS(unittest.TestCase):
             [torch.zeros(8, 14, 30)] * 4,
             [torch.zeros(8)] * 4,
         )
-        dataset = cmapss.CMAPSSDataModule(self.mock_loader, batch_size=16)
+        dataset = core.RulDataModule(self.mock_loader, batch_size=16)
         dataset.setup()
         val_loader = dataset.val_dataloader()
         self._assert_batch_structure(val_loader)
@@ -116,7 +116,7 @@ class TestCMAPSS(unittest.TestCase):
             [torch.zeros(8, 14, 30)] * 4,
             [torch.zeros(8)] * 4,
         )
-        dataset = cmapss.CMAPSSDataModule(self.mock_loader, batch_size=16)
+        dataset = core.RulDataModule(self.mock_loader, batch_size=16)
         dataset.setup()
         test_loader = dataset.test_dataloader()
         self._assert_batch_structure(test_loader)
@@ -129,7 +129,7 @@ class TestCMAPSS(unittest.TestCase):
         self.assertEqual(torch.Size((16,)), labels.shape)
 
     def test_to_dataset(self):
-        dataset = cmapss.CMAPSSDataModule(self.mock_loader, batch_size=16)
+        dataset = core.RulDataModule(self.mock_loader, batch_size=16)
         mock_data = {
             "dev": [torch.zeros(0)] * 2,
             "val": [torch.zeros(1)] * 2,
@@ -143,17 +143,17 @@ class TestCMAPSS(unittest.TestCase):
             self.assertEqual(i, len(tensor_dataset.tensors[0]))
 
     def test_check_compatability(self):
-        dataset = cmapss.CMAPSSDataModule(self.mock_loader, batch_size=16)
+        dataset = core.RulDataModule(self.mock_loader, batch_size=16)
         dataset.check_compatibility(dataset)
         self.mock_loader.check_compatibility.assert_called_once_with(self.mock_loader)
         self.assertRaises(
             ValueError,
             dataset.check_compatibility,
-            cmapss.CMAPSSDataModule(self.mock_loader, batch_size=8),
+            core.RulDataModule(self.mock_loader, batch_size=8),
         )
 
 
-class DummyCMAPSS(loader.AbstractLoader):
+class DummyRul(loader.AbstractLoader):
     fd: int = 1
     window_size: int = 30
     max_rul: int = 125
@@ -166,6 +166,9 @@ class DummyCMAPSS(loader.AbstractLoader):
             ),
         }
 
+    def check_compatibility(self, other) -> None:
+        pass
+
     def prepare_data(self):
         pass
 
@@ -175,7 +178,7 @@ class DummyCMAPSS(loader.AbstractLoader):
 
 
 @dataclass
-class DummyCMAPSSShortRuns(loader.AbstractLoader):
+class DummyRulShortRuns(loader.AbstractLoader):
     """Contains runs that are too short with zero features to distinguish them."""
 
     fd: int = 1
@@ -200,6 +203,9 @@ class DummyCMAPSSShortRuns(loader.AbstractLoader):
         ),
     }
 
+    def check_compatibility(self, other) -> None:
+        pass
+
     def prepare_data(self):
         pass
 
@@ -212,17 +218,17 @@ class TestPairedDataset(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         for fd in range(1, 5):
-            loader.CMAPSSLoader(fd).prepare_data()
-        cls.fd1 = loader.CMAPSSLoader(1)
-        cls.fd3 = loader.CMAPSSLoader(3)
+            loader.CmapssLoader(fd).prepare_data()
+        cls.fd1 = loader.CmapssLoader(1)
+        cls.fd3 = loader.CmapssLoader(3)
 
     def setUp(self):
         self.length = 300
-        self.cmapss_normal = DummyCMAPSS(self.length)
-        self.cmapss_short = DummyCMAPSSShortRuns()
+        self.cmapss_normal = DummyRul(self.length)
+        self.cmapss_short = DummyRulShortRuns()
 
     def test_get_pair_idx_piecewise(self):
-        data = cmapss.PairedCMAPSS([self.cmapss_normal], "dev", 512, 1, True)
+        data = core.PairedRulDataset([self.cmapss_normal], "dev", 512, 1, True)
         middle_idx = self.length // 2
         for _ in range(512):
             run_idx, anchor_idx, query_idx, distance, _ = data._get_pair_idx_piecewise()
@@ -234,14 +240,14 @@ class TestPairedDataset(unittest.TestCase):
                 self.assertLessEqual(0, distance)
 
     def test_get_pair_idx_linear(self):
-        data = cmapss.PairedCMAPSS([self.cmapss_normal], "dev", 512, 1, True)
+        data = core.PairedRulDataset([self.cmapss_normal], "dev", 512, 1, True)
         for _ in range(512):
             run, anchor_idx, query_idx, distance, _ = data._get_pair_idx()
             self.assertLess(0, distance)
             self.assertGreaterEqual(125, distance)
 
     def test_get_labeled_pair_idx(self):
-        data = cmapss.PairedCMAPSS([self.cmapss_normal], "dev", 512, 1, True)
+        data = core.PairedRulDataset([self.cmapss_normal], "dev", 512, 1, True)
         for _ in range(512):
             run_idx, anchor_idx, query_idx, distance, _ = data._get_labeled_pair_idx()
             run = data._features[run_idx]
@@ -252,27 +258,27 @@ class TestPairedDataset(unittest.TestCase):
 
     def test_pair_func_selection(self):
         with self.subTest("default"):
-            data = cmapss.PairedCMAPSS([self.cmapss_normal], "dev", 512, 1, True)
+            data = core.PairedRulDataset([self.cmapss_normal], "dev", 512, 1, True)
             self.assertEqual(data._get_pair_idx, data._get_pair_func)
         with self.subTest("piecewise"):
-            data = cmapss.PairedCMAPSS(
+            data = core.PairedRulDataset(
                 [self.cmapss_normal], "dev", 512, 1, True, mode="linear"
             )
             self.assertEqual(data._get_pair_idx, data._get_pair_func)
         with self.subTest("piecewise"):
-            data = cmapss.PairedCMAPSS(
+            data = core.PairedRulDataset(
                 [self.cmapss_normal], "dev", 512, 1, True, mode="piecewise"
             )
             self.assertEqual(data._get_pair_idx_piecewise, data._get_pair_func)
         with self.subTest("labeled"):
-            data = cmapss.PairedCMAPSS(
+            data = core.PairedRulDataset(
                 [self.cmapss_normal], "dev", 512, 1, True, mode="labeled"
             )
             self.assertEqual(data._get_labeled_pair_idx, data._get_pair_func)
 
     def test_sampled_data(self):
         fixed_idx = [0, 60, 80, 1, 55, 99]  # two samples with run, anchor and query idx
-        data = cmapss.PairedCMAPSS([self.cmapss_short], "dev", 2, 2)
+        data = core.PairedRulDataset([self.cmapss_short], "dev", 2, 2)
         data._rng = mock.MagicMock()
         data._rng.integers = mock.MagicMock(side_effect=fixed_idx)
         for i, sample in enumerate(data):
@@ -288,7 +294,7 @@ class TestPairedDataset(unittest.TestCase):
             self.assertEqual(expected_domain_idx, sample[3].item())
 
     def test_discarding_too_short_runs(self):
-        data = cmapss.PairedCMAPSS([self.cmapss_short], "dev", 512, 2)
+        data = core.PairedRulDataset([self.cmapss_short], "dev", 512, 2)
         for run, labels in zip(data._features, data._labels):
             self.assertTrue((run >= 1).all())
             self.assertTrue((labels < 500).all())
@@ -296,10 +302,10 @@ class TestPairedDataset(unittest.TestCase):
 
     def test_determinisim(self):
         with self.subTest("non-deterministic"):
-            data = cmapss.PairedCMAPSS([self.cmapss_short], "dev", 512, 2)
+            data = core.PairedRulDataset([self.cmapss_short], "dev", 512, 2)
             self.assertTrue(self._two_epochs_different(data))
         with self.subTest("non-deterministic"):
-            data = cmapss.PairedCMAPSS(
+            data = core.PairedRulDataset(
                 [self.cmapss_short], "dev", 512, 2, deterministic=True
             )
             self.assertFalse(self._two_epochs_different(data))
@@ -318,7 +324,7 @@ class TestPairedDataset(unittest.TestCase):
     def test_min_distance(self):
         for mode in ["linear", "piecewise", "labeled"]:
             with self.subTest(mode):
-                dataset = cmapss.PairedCMAPSS(
+                dataset = core.PairedRulDataset(
                     [self.cmapss_short], "dev", 512, min_distance=30, mode=mode
                 )
                 pairs = self._all_get_pairs(dataset)
@@ -330,7 +336,7 @@ class TestPairedDataset(unittest.TestCase):
         for split in ["dev", "val"]:
             for mode in ["linear", "piecewise", "labeled"]:
                 with self.subTest(split=split, mode=mode):
-                    paired_dataset = cmapss.PairedCMAPSS(
+                    paired_dataset = core.PairedRulDataset(
                         [self.fd1, self.fd3], split, 1000, 1, mode=mode
                     )
                     pairs = self._all_get_pairs(paired_dataset)
@@ -352,7 +358,7 @@ class TestPairedDataset(unittest.TestCase):
         return np.array(pairs)
 
     def test_domain_labels(self):
-        dataset = cmapss.PairedCMAPSS(
+        dataset = core.PairedRulDataset(
             [self.cmapss_normal, self.cmapss_short], "dev", 512, min_distance=30
         )
         for _ in range(512):
@@ -364,7 +370,7 @@ class TestPairedDataset(unittest.TestCase):
                 self.assertEqual(1, domain_idx)  # Second is not
 
     def test_no_determinism_in_multiprocessing(self):
-        dataset = cmapss.PairedCMAPSS(
+        dataset = core.PairedRulDataset(
             [self.cmapss_normal, self.cmapss_short], "dev", 100, 1, deterministic=True
         )
         dataloader = DataLoader(dataset, num_workers=2)
@@ -373,7 +379,7 @@ class TestPairedDataset(unittest.TestCase):
                 pass
 
     def test_no_duplicate_batches_in_multiprocessing(self):
-        dataset = cmapss.PairedCMAPSS(
+        dataset = core.PairedRulDataset(
             [self.cmapss_normal, self.cmapss_short], "dev", 100, 1
         )
         dataloader = DataLoader(dataset, batch_size=10, num_workers=2)
@@ -384,7 +390,7 @@ class TestPairedDataset(unittest.TestCase):
         self.assertFalse(all(are_duplicated))
 
     def test_no_repeating_epochs_in_multiprocessing(self):
-        dataset = cmapss.PairedCMAPSS(
+        dataset = core.PairedRulDataset(
             [self.cmapss_normal, self.cmapss_short], "dev", 100, 1
         )
         dataloader = DataLoader(dataset, batch_size=10, num_workers=2)
@@ -397,11 +403,11 @@ class TestPairedDataset(unittest.TestCase):
         return all(torch.dist(a, b) == 0.0 for a, b in zip(b0, b1))
 
     def test_compatability_check(self):
-        self.assertRaises(
-            ValueError,
-            cmapss.PairedCMAPSS,
-            [DummyCMAPSSShortRuns(), DummyCMAPSSShortRuns(window_size=20)],
-            "dev",
-            1000,
-            1,
-        )
+        mock_check_compat = mock.MagicMock(name="check_compatibility")
+        loaders = [DummyRulShortRuns(), DummyRulShortRuns(window_size=20)]
+        for lod in loaders:
+            lod.check_compatibility = mock_check_compat
+
+        core.PairedRulDataset(loaders, "dev", 1000, 1)
+
+        self.assertEqual(2, mock_check_compat.call_count)
