@@ -5,7 +5,7 @@ from unittest import mock
 import torch
 from torch.utils.data import RandomSampler, TensorDataset
 
-from rul_datasets import adaption, cmapss
+from rul_datasets import adaption, core
 from tests.templates import PretrainingDataModuleTemplate
 
 
@@ -20,7 +20,7 @@ class TestCMAPSSAdaption(unittest.TestCase):
         self.source_loader.max_rul = 125
         self.source_loader.hparams = {"fd": self.source_loader.fd}
         self.source_loader.load_split.return_value = source_mock_runs
-        self.source_data = cmapss.CMAPSSDataModule(self.source_loader, batch_size=16)
+        self.source_data = core.RulDataModule(self.source_loader, batch_size=16)
 
         target_mock_runs = [torch.randn(16, 14, 1)] * 2, [torch.rand(16)] * 2
         self.target_loader = mock.MagicMock(name="CMAPSSLoader")
@@ -31,7 +31,7 @@ class TestCMAPSSAdaption(unittest.TestCase):
         self.target_loader.max_rul = 125
         self.target_loader.hparams = {"fd": self.target_loader.fd}
         self.target_loader.load_split.return_value = target_mock_runs
-        self.target_data = cmapss.CMAPSSDataModule(self.target_loader, batch_size=16)
+        self.target_data = core.RulDataModule(self.target_loader, batch_size=16)
 
         self.dataset = adaption.DomainAdaptionDataModule(
             self.source_data, self.target_data
@@ -39,7 +39,7 @@ class TestCMAPSSAdaption(unittest.TestCase):
         self.dataset.prepare_data()
         self.dataset.setup()
 
-    @mock.patch("rul_datasets.cmapss.CMAPSSDataModule.check_compatibility")
+    @mock.patch("rul_datasets.core.RulDataModule.check_compatibility")
     def test_compatibility_checked(self, _):
         self.dataset = adaption.DomainAdaptionDataModule(
             self.source_data, self.target_data
@@ -116,7 +116,7 @@ class TestCMAPSSAdaption(unittest.TestCase):
         mock_source_val.assert_called_once()
         mock_target_val.assert_called_once()
         self.assertEqual(16, dataloaders[-1].batch_size)
-        self.assertIsInstance(dataloaders[-1].dataset, cmapss.PairedCMAPSS)
+        self.assertIsInstance(dataloaders[-1].dataset, core.PairedRulDataset)
         self.assertTrue(dataloaders[-1].dataset.deterministic)
         self.assertTrue(dataloaders[-1].pin_memory)
 
@@ -161,7 +161,7 @@ class TestPretrainingDataModuleFullData(
         self.source_loader.max_rul = 125
         self.source_loader.hparams = {"fd": self.source_loader.fd}
         self.source_loader.load_split.return_value = source_mock_runs
-        self.source_data = cmapss.CMAPSSDataModule(self.source_loader, batch_size=16)
+        self.source_data = core.RulDataModule(self.source_loader, batch_size=16)
 
         target_mock_runs = [torch.randn(16, 14, 1)] * 2, [torch.rand(16)] * 2
         self.target_loader = mock.MagicMock(name="CMAPSSLoader")
@@ -173,7 +173,7 @@ class TestPretrainingDataModuleFullData(
         self.target_loader.truncate_val = True
         self.target_loader.hparams = {"fd": self.target_loader.fd}
         self.target_loader.load_split.return_value = target_mock_runs
-        self.target_data = cmapss.CMAPSSDataModule(self.target_loader, batch_size=16)
+        self.target_data = core.RulDataModule(self.target_loader, batch_size=16)
 
         self.dataset = adaption.PretrainingAdaptionDataModule(
             self.source_data, self.target_data, num_samples=10000, min_distance=2
@@ -184,7 +184,7 @@ class TestPretrainingDataModuleFullData(
         self.expected_num_val_loaders = 3
         self.window_size = self.target_loader.window_size
 
-    @mock.patch("rul_datasets.cmapss.CMAPSSDataModule.check_compatibility")
+    @mock.patch("rul_datasets.core.RulDataModule.check_compatibility")
     def test_compatibility_checked(self, mock_check_compat):
         self.dataset = adaption.PretrainingAdaptionDataModule(
             self.source_data, self.target_data, num_samples=10000, min_distance=2
@@ -267,7 +267,7 @@ class TestPretrainingDataModuleLowData(
         self.source_loader.max_rul = 125
         self.source_loader.hparams = {"fd": self.source_loader.fd}
         self.source_loader.load_split.return_value = source_mock_runs
-        self.source_data = cmapss.CMAPSSDataModule(self.source_loader, batch_size=16)
+        self.source_data = core.RulDataModule(self.source_loader, batch_size=16)
 
         target_mock_runs = (
             [torch.randn(3, 14, 1), torch.randn(1, 14, 1)],
@@ -282,7 +282,7 @@ class TestPretrainingDataModuleLowData(
         self.target_loader.truncate_val = True
         self.target_loader.hparams = {"fd": self.target_loader.fd}
         self.target_loader.load_split.return_value = target_mock_runs
-        self.target_data = cmapss.CMAPSSDataModule(self.target_loader, batch_size=16)
+        self.target_data = core.RulDataModule(self.target_loader, batch_size=16)
 
         self.dataset = adaption.PretrainingAdaptionDataModule(
             self.source_data, self.target_data, num_samples=10000, min_distance=2

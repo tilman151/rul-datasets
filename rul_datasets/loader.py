@@ -9,6 +9,8 @@ import sklearn.preprocessing as scalers  # type: ignore
 import torch
 from tqdm import tqdm  # type: ignore
 
+DATA_ROOT = os.path.join(os.path.dirname(__file__), "..", "data")
+
 
 class AbstractLoader:
     fd: int
@@ -20,15 +22,26 @@ class AbstractLoader:
 
     @property
     def hparams(self) -> Dict[str, Any]:
-        raise NotImplementedError
+        return {
+            "fd": self.fd,
+            "window_size": self.window_size,
+            "max_rul": self.max_rul,
+            "percent_broken": self.percent_broken,
+            "percent_fail_runs": self.percent_fail_runs,
+            "truncate_val": self.truncate_val,
+        }
 
-    def prepare_data(self):
+    def prepare_data(self) -> None:
         raise NotImplementedError
 
     def load_split(self, split: str) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
         raise NotImplementedError
 
     def check_compatibility(self, other: "AbstractLoader") -> None:
+        if not isinstance(other, type(self)):
+            raise ValueError(
+                f"The other loader is not of class {type(self)} but {type(other)}."
+            )
         if not self.window_size == other.window_size:
             raise ValueError(
                 f"Window sizes are not compatible "
@@ -44,51 +57,61 @@ class AbstractLoader:
         features: List[np.ndarray],
         targets: List[np.ndarray],
         percent_broken: float = None,
-        percent_fail_runs: Union[float, List[int]] = None,
+        included_runs: Union[float, Iterable[int]] = None,
     ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-        # Truncate the number of runs to failure
-        if percent_fail_runs is not None:
-            if isinstance(percent_fail_runs, float):
-                features, targets = self._trunc_fail_runs_by_percentage(
-                    features, targets, percent_fail_runs
-                )
-            elif isinstance(percent_fail_runs, Iterable):
-                features, targets = self._trunc_fail_runs_by_index(
-                    features, targets, percent_fail_runs
-                )
+        # Truncate the number of runs
+        if included_runs is not None:
+            features, targets = self._truncate_included(
+                features, targets, included_runs
+            )
 
         # Truncate the number of samples per run, starting at failure
         if percent_broken is not None and percent_broken < 1:
-            features, targets = self._trunc_broken_by_percentage(
-                features, targets, percent_broken
+            features, targets = self._truncate_broken(features, targets, percent_broken)
+
+        return features, targets
+
+    def _truncate_included(
+        self,
+        features: List[np.ndarray],
+        targets: List[np.ndarray],
+        included_runs: Union[float, Iterable[int]],
+    ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+        if isinstance(included_runs, float):
+            features, targets = self._truncate_included_by_percentage(
+                features, targets, included_runs
+            )
+        elif isinstance(included_runs, Iterable):
+            features, targets = self._truncate_included_by_index(
+                features, targets, included_runs
             )
 
         return features, targets
 
-    def _trunc_fail_runs_by_percentage(
+    def _truncate_included_by_percentage(
         self,
         features: List[np.ndarray],
         targets: List[np.ndarray],
-        percent_fail_runs: float,
+        percent_included: float,
     ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-        num_runs = int(percent_fail_runs * len(features))
+        num_runs = int(percent_included * len(features))
         features = features[:num_runs]
         targets = targets[:num_runs]
 
         return features, targets
 
-    def _trunc_fail_runs_by_index(
+    def _truncate_included_by_index(
         self,
         features: List[np.ndarray],
         targets: List[np.ndarray],
-        percent_fail_runs: Iterable[int],
+        included_idx: Iterable[int],
     ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-        features = [features[i] for i in percent_fail_runs]
-        targets = [targets[i] for i in percent_fail_runs]
+        features = [features[i] for i in included_idx]
+        targets = [targets[i] for i in included_idx]
 
         return features, targets
 
-    def _trunc_broken_by_percentage(
+    def _truncate_broken(
         self,
         features: List[np.ndarray],
         targets: List[np.ndarray],
@@ -111,15 +134,16 @@ class AbstractLoader:
         return tensor_feats, tensor_targets
 
 
-class CMAPSSLoader(AbstractLoader):
+class CmapssLoader(AbstractLoader):
     _FMT = (
-        "%d %d %.4f %.4f %.1f %.2f %.2f %.2f %.2f %.2f %.2f %.2f "
-        "%.2f %.2f %.2f %.2f %.2f %.2f %.2f %.4f %.2f %d %d %.2f %.2f %.4f"
+        "%d %d %.4f %.4f %.1f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f "
+        "%.2f %.2f %.2f %.2f %.2f %.2f %.4f %.2f %d %d %.2f %.2f %.4f"
     )
     _TRAIN_PERCENTAGE = 0.8
-    WINDOW_SIZES = {1: 30, 2: 20, 3: 30, 4: 15}
-    DEFAULT_CHANNELS = [4, 5, 6, 9, 10, 11, 13, 14, 15, 16, 17, 19, 22, 23]
-    NUM_TRAIN_RUNS = {1: 80, 2: 208, 3: 80, 4: 199}
+    _WINDOW_SIZES = {1: 30, 2: 20, 3: 30, 4: 15}
+    _DEFAULT_CHANNELS = [4, 5, 6, 9, 10, 11, 13, 14, 15, 16, 17, 19, 22, 23]
+    _NUM_TRAIN_RUNS = {1: 80, 2: 208, 3: 80, 4: 199}
+    _CMAPSS_ROOT = os.path.join(DATA_ROOT, "CMAPSS")
 
     def __init__(
         self,
@@ -131,32 +155,17 @@ class CMAPSSLoader(AbstractLoader):
         feature_select: List[int] = None,
         truncate_val: bool = False,
     ):
-        super().__init__()
-
         # Select features according to https://doi.org/10.1016/j.ress.2017.11.021
         if feature_select is None:
-            feature_select = self.DEFAULT_CHANNELS
+            feature_select = self._DEFAULT_CHANNELS
 
         self.fd = fd
-        self.window_size = window_size or self.WINDOW_SIZES[self.fd]
+        self.window_size = window_size or self._WINDOW_SIZES[self.fd]
         self.max_rul = max_rul
         self.feature_select = feature_select
         self.truncate_val = truncate_val
         self.percent_broken = percent_broken
         self.percent_fail_runs = percent_fail_runs
-
-        self.DATA_ROOT = os.path.join(os.path.dirname(__file__), "..", "data", "CMAPSS")
-
-    @property
-    def hparams(self) -> Dict[str, Any]:
-        return {
-            "fd": self.fd,
-            "window_size": self.window_size,
-            "max_rul": self.max_rul,
-            "percent_broken": self.percent_broken,
-            "percent_fail_runs": self.percent_fail_runs,
-            "truncate_val": self.truncate_val,
-        }
 
     def prepare_data(self):
         # Check if training data was already split
@@ -189,7 +198,7 @@ class CMAPSSLoader(AbstractLoader):
         np.savetxt(val_file, val_data, fmt=self._FMT)
 
     def _file_path(self, split: str) -> str:
-        return os.path.join(self.DATA_ROOT, self._file_name(split))
+        return os.path.join(self._CMAPSS_ROOT, self._file_name(split))
 
     def _file_name(self, split: str) -> str:
         return f"{split}_FD{self.fd:03d}.txt"
@@ -201,7 +210,7 @@ class CMAPSSLoader(AbstractLoader):
         features = self._normalize(features)
         features, time_steps = self._remove_time_steps_from_features(features)
 
-        if split == "dev" or split == "val":
+        if split in ["dev", "val"]:
             features, targets = self._process_dev_or_val_split(
                 split, features, time_steps
             )
@@ -286,7 +295,7 @@ class CMAPSSLoader(AbstractLoader):
     def _load_targets(self) -> List[np.ndarray]:
         """Load target file."""
         file_name = f"RUL_FD{self.fd:03d}.txt"
-        file_path = os.path.join(self.DATA_ROOT, file_name)
+        file_path = os.path.join(self._CMAPSS_ROOT, file_name)
         targets = np.loadtxt(file_path)
 
         targets = np.minimum(self.max_rul, targets)
@@ -301,16 +310,20 @@ class CMAPSSLoader(AbstractLoader):
         new_features = []
         new_targets = []
         for seq, target in zip(features, targets):
-            num_frames = seq.shape[0] - self.window_size + 1
-            feature_windows = [
-                seq[i : (i + self.window_size)] for i in range(0, num_frames)
-            ]
-            target = target[-num_frames:]
-            stacked_windows = np.stack(feature_windows)
-            new_features.append(stacked_windows)
+            windows = self.extract_windows(seq, self.window_size)
+            target = target[self.window_size - 1 :]
+            new_features.append(windows)
             new_targets.append(target)
 
         return new_features, new_targets
+
+    def extract_windows(self, seq, window_size):
+        num_frames = seq.shape[0] - window_size + 1
+        window_idx = np.expand_dims(np.arange(window_size), 0)
+        window_idx = window_idx + np.expand_dims(np.arange(num_frames), 0).T
+        windows = seq[window_idx]
+
+        return windows
 
     def _crop_data(self, features: List[np.ndarray]) -> List[np.ndarray]:
         """Crop length of features to specified window size."""
@@ -326,10 +339,8 @@ class CMAPSSLoader(AbstractLoader):
         return cropped_features
 
 
-class FEMTOLoader(AbstractLoader):
-    DATA_ROOT = os.path.normpath(
-        os.path.join(os.path.dirname(__file__), "..", "data", "FEMTOBearingDataSet")
-    )
+class FemtoLoader(AbstractLoader):
+    _FEMTO_ROOT = os.path.join(DATA_ROOT, "FEMTOBearingDataSet")
 
     def __init__(
         self,
@@ -341,25 +352,23 @@ class FEMTOLoader(AbstractLoader):
         feature_select: List[int] = None,
         truncate_val: bool = False,
     ):
-        super().__init__()
-
         self.fd = fd
-        self.window_size = window_size or FEMTOPreparator.DEFAULT_WINDOW_SIZE
+        self.window_size = window_size or FemtoPreparator.DEFAULT_WINDOW_SIZE
         self.max_rul = max_rul
         self.feature_select = feature_select
         self.truncate_val = truncate_val
         self.percent_broken = percent_broken
         self.percent_fail_runs = percent_fail_runs
 
-        self._preparator = FEMTOPreparator(self.fd, self.DATA_ROOT)
+        self._preparator = FemtoPreparator(self.fd, self._FEMTO_ROOT)
 
     def prepare_data(self):
-        self._preparator.prepare_split("train")
+        self._preparator.prepare_split("dev")
         self._preparator.prepare_split("test")
 
     def load_split(self, split: str) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
         features, targets = self._load_runs(split)
-        if split == "train":
+        if split == "dev":
             features, targets = self._truncate_runs(
                 features, targets, self.percent_broken, self.percent_fail_runs
             )
@@ -384,9 +393,9 @@ class FEMTOLoader(AbstractLoader):
         return runs
 
 
-class FEMTOPreparator:
+class FemtoPreparator:
     DEFAULT_WINDOW_SIZE = 2560
-    SPLIT_FOLDERS = {"train": "Learning_set", "test": "Full_Test_Set"}
+    SPLIT_FOLDERS = {"dev": "Learning_set", "test": "Full_Test_Set"}
 
     def __init__(self, fd, data_root):
         self.fd = fd
@@ -397,12 +406,15 @@ class FEMTOPreparator:
             print(f"Prepare FEMTO {split} data of condition {self.fd}...")
             features, targets = self._load_raw_runs(split)
             self._save_efficient(split, features, targets)
-        if split == "train" and not os.path.exists(self._get_scaler_path()):
+        if split == "dev" and not os.path.exists(self._get_scaler_path()):
             features, _ = self.load_runs(split)
             scaler = self._fit_scaler(features)
             self._save_scaler(scaler)
 
     def load_runs(self, split: str) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+        if split == "val":
+            raise ValueError("FEMTO does not define a validation set.")
+
         save_path = self._get_run_file_path(split)
         with open(save_path, mode="rb") as f:
             features, targets = pickle.load(f)
@@ -512,7 +524,7 @@ class FEMTOPreparator:
         return scaler
 
     def _get_scaler_path(self):
-        return os.path.join(self._get_split_folder("train"), f"scaler_{self.fd}.pkl")
+        return os.path.join(self._get_split_folder("dev"), f"scaler_{self.fd}.pkl")
 
     def _save_efficient(
         self, split: str, features: List[np.ndarray], targets: List[np.ndarray]

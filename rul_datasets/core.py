@@ -6,16 +6,16 @@ import pytorch_lightning as pl
 import torch
 from torch.utils.data import DataLoader, IterableDataset, TensorDataset, get_worker_info
 
-from rul_datasets.loader import CMAPSSLoader
+from rul_datasets.loader import AbstractLoader
 
 
-class CMAPSSDataModule(pl.LightningDataModule):
+class RulDataModule(pl.LightningDataModule):
     data: Dict[str, Tuple[torch.Tensor, torch.Tensor]]
 
-    def __init__(self, loader: CMAPSSLoader, batch_size: int):
+    def __init__(self, loader: AbstractLoader, batch_size: int):
         super().__init__()
 
-        self._loader: CMAPSSLoader = loader
+        self._loader: AbstractLoader = loader
         self.batch_size: int = batch_size
 
         hparams = deepcopy(self.loader.hparams)
@@ -23,10 +23,10 @@ class CMAPSSDataModule(pl.LightningDataModule):
         self.save_hyperparameters(hparams)
 
     @property
-    def loader(self) -> CMAPSSLoader:
+    def loader(self) -> AbstractLoader:
         return self._loader
 
-    def check_compatibility(self, other: "CMAPSSDataModule") -> None:
+    def check_compatibility(self, other: "RulDataModule") -> None:
         try:
             self.loader.check_compatibility(other.loader)
         except ValueError:
@@ -95,10 +95,10 @@ class CMAPSSDataModule(pl.LightningDataModule):
         return split_dataset
 
 
-class PairedCMAPSS(IterableDataset):
+class PairedRulDataset(IterableDataset):
     def __init__(
         self,
-        loaders: List[CMAPSSLoader],
+        loaders: List[AbstractLoader],
         split: str,
         num_samples: int,
         min_distance: int,

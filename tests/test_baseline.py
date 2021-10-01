@@ -6,7 +6,7 @@ import torch
 import torch.utils.data
 
 import rul_datasets
-from rul_datasets import cmapss
+from rul_datasets import core
 from tests.templates import PretrainingDataModuleTemplate
 
 
@@ -18,20 +18,20 @@ class TestCMAPSSBaseline(unittest.TestCase):
         self.mock_runs = [torch.zeros(1, 1, 1)], [torch.zeros(1)]
         self.mock_loader.load_split.return_value = self.mock_runs
 
-        self.base_module = cmapss.CMAPSSDataModule(self.mock_loader, batch_size=16)
+        self.base_module = core.RulDataModule(self.mock_loader, batch_size=16)
         self.dataset = rul_datasets.BaselineDataModule(self.base_module)
         self.dataset.prepare_data()
         self.dataset.setup()
 
     def test_test_sets_created_correctly(self):
         for fd in range(1, 5):
-            self.assertIn(fd, self.dataset.cmapss)
-            self.assertEqual(fd, self.dataset.cmapss[fd].loader.fd)
+            self.assertIn(fd, self.dataset.subsets)
+            self.assertEqual(fd, self.dataset.subsets[fd].loader.fd)
             if fd == self.dataset.hparams["fd"]:
-                self.assertIs(self.dataset.data_module, self.dataset.cmapss[fd])
+                self.assertIs(self.dataset.data_module, self.dataset.subsets[fd])
             else:
-                self.assertIsNone(self.dataset.cmapss[fd].loader.percent_fail_runs)
-                self.assertIsNone(self.dataset.cmapss[fd].loader.percent_broken)
+                self.assertIsNone(self.dataset.subsets[fd].loader.percent_fail_runs)
+                self.assertIsNone(self.dataset.subsets[fd].loader.percent_broken)
 
     def test_selected_source_on_train(self):
         baseline_train_dataset = self.dataset.train_dataloader().dataset
@@ -47,7 +47,7 @@ class TestCMAPSSBaseline(unittest.TestCase):
         baseline_test_loaders = self.dataset.test_dataloader()
         for fd, baseline_test_loader in enumerate(baseline_test_loaders, start=1):
             baseline_test_dataset = baseline_test_loader.dataset
-            test_dataset = self.dataset.cmapss[fd].test_dataloader().dataset
+            test_dataset = self.dataset.subsets[fd].test_dataloader().dataset
             self._assert_datasets_equal(baseline_test_dataset, test_dataset)
 
     def _assert_datasets_equal(self, baseline_dataset, inner_dataset):
@@ -75,7 +75,7 @@ class TestPretrainingBaselineDataModuleFullData(
         self.failed_loader.max_rul = 125
         self.failed_loader.hparams = {"fd": self.failed_loader.fd}
         self.failed_loader.load_split.return_value = self.mock_runs
-        self.failed_data = cmapss.CMAPSSDataModule(self.failed_loader, batch_size=16)
+        self.failed_data = core.RulDataModule(self.failed_loader, batch_size=16)
 
         self.unfailed_loader = mock.MagicMock(name="CMAPSSLoader")
         self.unfailed_loader.fd = 1
@@ -85,9 +85,7 @@ class TestPretrainingBaselineDataModuleFullData(
         self.unfailed_loader.max_rul = 125
         self.unfailed_loader.hparams = {"fd": self.unfailed_loader.fd}
         self.unfailed_loader.load_split.return_value = self.mock_runs
-        self.unfailed_data = cmapss.CMAPSSDataModule(
-            self.unfailed_loader, batch_size=16
-        )
+        self.unfailed_data = core.RulDataModule(self.unfailed_loader, batch_size=16)
 
         self.dataset = rul_datasets.PretrainingBaselineDataModule(
             self.failed_data,
@@ -219,7 +217,7 @@ class TestPretrainingBaselineDataModuleLowData(
         self.failed_loader.max_rul = 125
         self.failed_loader.hparams = {"fd": self.failed_loader.fd}
         self.failed_loader.load_split.return_value = self.mock_runs
-        self.failed_data = cmapss.CMAPSSDataModule(self.failed_loader, batch_size=16)
+        self.failed_data = core.RulDataModule(self.failed_loader, batch_size=16)
 
         self.unfailed_loader = mock.MagicMock(name="CMAPSSLoader")
         self.unfailed_loader.fd = 1
@@ -229,9 +227,7 @@ class TestPretrainingBaselineDataModuleLowData(
         self.unfailed_loader.max_rul = 125
         self.unfailed_loader.hparams = {"fd": self.unfailed_loader.fd}
         self.unfailed_loader.load_split.return_value = self.mock_runs
-        self.unfailed_data = cmapss.CMAPSSDataModule(
-            self.unfailed_loader, batch_size=16
-        )
+        self.unfailed_data = core.RulDataModule(self.unfailed_loader, batch_size=16)
 
         self.dataset = rul_datasets.PretrainingBaselineDataModule(
             self.failed_data,
