@@ -1,0 +1,11 @@
+defaults:
+    - /loader@source.loader: cmapss
+    - /loader@target.loader: cmapss
+
+_target_: rul_datasets.DomainAdaptionDataModule
+source:
+  _target_: rul_datasets.RulDataModule
+  batch_size: ???
+target:
+  _target_: ${..source._target_}
+  batch_size: ${..source.batch_size}

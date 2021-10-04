@@ -1,0 +1,13 @@
+# @package __global__
+
+dm_pre:
+  source:
+    loader:
+      fd: 2
+      window_size: 15
+    batch_size: 64
+  target:
+    loader:
+      fd: 4
+      window_size: 15
+      percent_broken: 0.8

@@ -1,0 +1,7 @@
+# @package __global__
+
+dm:
+  data_module:
+    loader:
+      fd: 4
+    batch_size: 64

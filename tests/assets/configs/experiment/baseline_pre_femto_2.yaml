@@ -1,0 +1,16 @@
+# @package __global__
+defaults:
+  - override /loader@dm_pre.failed_data_module.loader: femto
+  - override /loader@dm_pre.unfailed_data_module.loader: femto
+
+dm_pre:
+  failed_data_module:
+    loader:
+      fd: 4
+      percent_fail_runs: [1, 2, 3]
+    batch_size: 64
+  unfailed_data_module:
+    loader:
+      fd: 4
+      percent_broken: 0.8
+      percent_fail_runs: [4, 5, 6]
