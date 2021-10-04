@@ -1,0 +1,14 @@
+defaults:
+    - /loader@failed_data_module.loader: cmapss
+    - /loader@unfailed_data_module.loader: cmapss
+
+_target_: rul_datasets.PretrainingBaselineDataModule
+num_samples: 1000
+failed_data_module:
+  _target_: rul_datasets.RulDataModule
+  batch_size: ???
+unfailed_data_module:
+  _target_: ${..failed_data_module._target_}
+  batch_size: ${..failed_data_module.batch_size}
+  loader:
+    truncate_val: True

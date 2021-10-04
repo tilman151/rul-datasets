@@ -1,0 +1,7 @@
+defaults:
+    - /loader@data_module.loader: cmapss
+
+_target_: rul_datasets.BaselineDataModule
+data_module:
+  _target_: rul_datasets.RulDataModule
+  batch_size: ???

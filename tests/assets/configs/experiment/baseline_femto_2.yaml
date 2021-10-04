@@ -1,0 +1,10 @@
+# @package __global__
+
+defaults:
+  - override /loader@dm.data_module.loader: femto
+
+dm:
+  data_module:
+    loader:
+      fd: 2
+    batch_size: 64
