@@ -2,6 +2,7 @@ import os
 import pickle
 import re
 import warnings
+from copy import deepcopy
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
@@ -20,6 +21,8 @@ class AbstractLoader:
     percent_fail_runs: Union[float, List[int], None]
     truncate_val: bool
 
+    _NUM_TRAIN_RUNS: Dict[int, int]
+
     @property
     def hparams(self) -> Dict[str, Any]:
         return {
@@ -30,6 +33,59 @@ class AbstractLoader:
             "percent_fail_runs": self.percent_fail_runs,
             "truncate_val": self.truncate_val,
         }
+
+    def get_compatible(
+        self,
+        fd: Optional[int] = None,
+        percent_broken: Optional[float] = None,
+        percent_fail_runs: Union[float, List[int], None] = None,
+        truncate_val: Optional[bool] = None,
+    ) -> "AbstractLoader":
+        other = deepcopy(self)
+        if percent_broken is not None:
+            other.percent_broken = percent_broken
+        if percent_fail_runs is not None:
+            other.percent_fail_runs = percent_fail_runs
+        if truncate_val is not None:
+            other.truncate_val = truncate_val
+
+        if fd is not None:
+            other.fd = fd
+            window_size = min(self.window_size, self._default_window_size(other.fd))
+        else:
+            window_size = self.window_size
+        self.window_size = window_size
+        other.window_size = window_size
+
+        return other
+
+    def get_complement(
+        self,
+        percent_broken: Optional[float] = None,
+        truncate_val: Optional[bool] = None,
+    ) -> "AbstractLoader":
+        complement_idx = self._get_complement_idx()
+        other = self.get_compatible(
+            percent_broken=percent_broken,
+            percent_fail_runs=complement_idx,
+            truncate_val=truncate_val,
+        )
+
+        return other
+
+    def _get_complement_idx(self) -> List[int]:
+        num_runs = self._NUM_TRAIN_RUNS[self.fd]
+        run_idx = list(range(num_runs))
+        if isinstance(self.percent_fail_runs, float):
+            split_idx = int(self.percent_fail_runs * num_runs)
+            complement_idx = run_idx[split_idx:]
+        else:
+            complement_idx = list(set(run_idx).difference(self.percent_fail_runs))
+
+        return complement_idx
+
+    def _default_window_size(self, fd: int) -> int:
+        raise NotImplementedError
 
     def prepare_data(self) -> None:
         raise NotImplementedError
@@ -160,12 +216,15 @@ class CmapssLoader(AbstractLoader):
             feature_select = self._DEFAULT_CHANNELS
 
         self.fd = fd
-        self.window_size = window_size or self._WINDOW_SIZES[self.fd]
+        self.window_size = window_size or self._default_window_size(self.fd)
         self.max_rul = max_rul
         self.feature_select = feature_select
         self.truncate_val = truncate_val
         self.percent_broken = percent_broken
         self.percent_fail_runs = percent_fail_runs
+
+    def _default_window_size(self, fd: int) -> int:
+        return self._WINDOW_SIZES[fd]
 
     def prepare_data(self):
         # Check if training data was already split
@@ -341,6 +400,7 @@ class CmapssLoader(AbstractLoader):
 
 class FemtoLoader(AbstractLoader):
     _FEMTO_ROOT = os.path.join(DATA_ROOT, "FEMTOBearingDataSet")
+    _NUM_TRAIN_RUNS = {1: 2, 2: 2, 3: 2}
 
     def __init__(
         self,
@@ -353,7 +413,7 @@ class FemtoLoader(AbstractLoader):
         truncate_val: bool = False,
     ):
         self.fd = fd
-        self.window_size = window_size or FemtoPreparator.DEFAULT_WINDOW_SIZE
+        self.window_size = window_size or self._default_window_size(self.fd)
         self.max_rul = max_rul
         self.feature_select = feature_select
         self.truncate_val = truncate_val
@@ -361,6 +421,9 @@ class FemtoLoader(AbstractLoader):
         self.percent_fail_runs = percent_fail_runs
 
         self._preparator = FemtoPreparator(self.fd, self._FEMTO_ROOT)
+
+    def _default_window_size(self, fd: int) -> int:
+        return FemtoPreparator.DEFAULT_WINDOW_SIZE
 
     def prepare_data(self):
         self._preparator.prepare_split("dev")

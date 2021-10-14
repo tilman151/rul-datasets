@@ -158,6 +158,7 @@ class LoaderInterfaceTemplate:
         self.assertTrue(hasattr(tested_loader, "percent_broken"))
         self.assertTrue(hasattr(tested_loader, "percent_fail_runs"))
         self.assertTrue(hasattr(tested_loader, "truncate_val"))
+        self.assertTrue(hasattr(tested_loader, "_NUM_TRAIN_RUNS"))
 
     def test_hparams_is_property(self):
         self.assertTrue(hasattr(self.loader_type, "hparams"))
@@ -171,6 +172,8 @@ class LoaderInterfaceTemplate:
         self.assertTrue(inspect.ismethod(tested_loader.load_split))
         self.assertTrue(hasattr(tested_loader, "check_compatibility"))
         self.assertTrue(inspect.ismethod(tested_loader.check_compatibility))
+        self.assertTrue(hasattr(tested_loader, "_default_window_size"))
+        self.assertTrue(inspect.ismethod(tested_loader._default_window_size))
 
     def test_load_split(self):
         tested_loader = self.loader_type(1)

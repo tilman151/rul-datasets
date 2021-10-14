@@ -20,6 +20,11 @@ class DummyLoader(loader.AbstractLoader):
     percent_fail_runs: Optional[Union[float, List[int]]] = None
     truncate_val: bool = True
 
+    _NUM_TRAIN_RUNS = {1: 100}
+
+    def _default_window_size(self, fd):
+        return 15
+
     def prepare_data(self):
         pass
 
@@ -33,6 +38,43 @@ class TestAbstractLoader(unittest.TestCase):
         this.check_compatibility(DummyLoader(1, 30, 125))
         self.assertRaises(ValueError, this.check_compatibility, DummyLoader(1, 20, 125))
         self.assertRaises(ValueError, this.check_compatibility, DummyLoader(1, 30, 120))
+
+    def test_get_compatible(self):
+        this = DummyLoader(1, 30, 125)
+        with self.subTest("get same"):
+            other = this.get_compatible()
+            this.check_compatibility(other)
+            self.assertEqual(this.fd, other.fd)
+            self.assertEqual(30, other.window_size)
+            self.assertEqual(30, this.window_size)
+            self.assertEqual(this.max_rul, other.max_rul)
+            self.assertEqual(this.percent_broken, other.percent_broken)
+            self.assertEqual(this.percent_fail_runs, other.percent_fail_runs)
+            self.assertEqual(this.truncate_val, other.truncate_val)
+        with self.subTest("get different"):
+            other = this.get_compatible(2, 0.2, 0.8, False)
+            this.check_compatibility(other)
+            self.assertEqual(2, other.fd)
+            self.assertEqual(15, other.window_size)
+            self.assertEqual(15, this.window_size)  # original loader is made compatible
+            self.assertEqual(this.max_rul, other.max_rul)
+            self.assertEqual(0.2, other.percent_broken)
+            self.assertEqual(0.8, other.percent_fail_runs)
+            self.assertEqual(False, other.truncate_val)
+
+    def test_get_complement(self):
+        with self.subTest("float percent_fail_runs"):
+            this = DummyLoader(1, 30, 125, percent_fail_runs=0.8)
+            other = this.get_complement(0.8, False)
+            self.assertListEqual(other.percent_fail_runs, list(range(80, 100)))
+            self.assertEqual(0.8, other.percent_broken)
+            self.assertEqual(False, other.truncate_val)
+        with self.subTest("list percent_fail_runs"):
+            this = DummyLoader(1, 30, 125, percent_fail_runs=list(range(80)))
+            other = this.get_complement(0.8, False)
+            self.assertListEqual(other.percent_fail_runs, list(range(80, 100)))
+            self.assertEqual(0.8, other.percent_broken)
+            self.assertEqual(False, other.truncate_val)
 
 
 class TestCMAPSSLoader(unittest.TestCase):
