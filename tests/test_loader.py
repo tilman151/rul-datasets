@@ -75,6 +75,12 @@ class TestAbstractLoader(unittest.TestCase):
             self.assertListEqual(other.percent_fail_runs, list(range(80, 100)))
             self.assertEqual(0.8, other.percent_broken)
             self.assertEqual(False, other.truncate_val)
+        with self.subTest("empty complement"):
+            this = DummyLoader(1, 30, 125)  # Uses all runs
+            other = this.get_complement(0.8, False)
+            self.assertFalse(other.percent_fail_runs)  # Complement is empty
+            self.assertEqual(0.8, other.percent_broken)
+            self.assertEqual(False, other.truncate_val)
 
 
 class TestCMAPSSLoader(unittest.TestCase):

@@ -79,8 +79,10 @@ class AbstractLoader:
         if isinstance(self.percent_fail_runs, float):
             split_idx = int(self.percent_fail_runs * num_runs)
             complement_idx = run_idx[split_idx:]
-        else:
+        elif isinstance(self.percent_fail_runs, Iterable):
             complement_idx = list(set(run_idx).difference(self.percent_fail_runs))
+        else:
+            complement_idx = []
 
         return complement_idx
 
