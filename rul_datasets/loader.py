@@ -525,7 +525,7 @@ class FemtoPreparator:
         return run_folders
 
     def _get_run_folder_pattern(self) -> re.Pattern:
-        return re.compile(fr"Bearing{self.fd}_\d")
+        return re.compile(rf"Bearing{self.fd}_\d")
 
     def _get_csv_files_in_path(self, run_path):
         feature_files = [f for f in os.listdir(run_path) if f.startswith("acc")]
