@@ -5,6 +5,7 @@ from typing import List, Optional, Tuple, Union
 from unittest import mock
 
 import numpy as np
+import pytest
 import torch
 
 from rul_datasets import loader
@@ -83,6 +84,7 @@ class TestAbstractLoader(unittest.TestCase):
             self.assertEqual(False, other.truncate_val)
 
 
+@pytest.mark.needs_data
 class TestCMAPSSLoader(unittest.TestCase):
     NUM_CHANNELS = len(loader.CmapssLoader._DEFAULT_CHANNELS)
 
@@ -269,6 +271,7 @@ def _raw_csv_exist():
     return csv_exists
 
 
+@pytest.mark.needs_data
 class TestFEMTOLoader(unittest.TestCase):
     NUM_CHANNELS = 2
 
@@ -398,7 +401,7 @@ class TestFEMTOLoader(unittest.TestCase):
         self.assertEqual(0, torch.dist(full_train[1], trunc_train[0]))
         self.assertEqual(0, torch.dist(full_train_targets[1], trunc_train_targets[0]))
 
-
+@pytest.mark.needs_data
 class TestFEMTOPreperator(unittest.TestCase):
     NUM_SAMPLES = {
         1: {"dev": 3674, "test": 10973},

@@ -2,6 +2,7 @@ import inspect
 from typing import Type
 from unittest import mock
 
+import pytest
 import torch
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import TensorDataset
@@ -175,6 +176,7 @@ class LoaderInterfaceTemplate:
         self.assertTrue(hasattr(tested_loader, "_default_window_size"))
         self.assertTrue(inspect.ismethod(tested_loader._default_window_size))
 
+    @pytest.mark.needs_data
     def test_load_split(self):
         tested_loader = self.loader_type(1)
         for split in ["dev", "test"]:

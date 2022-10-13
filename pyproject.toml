@@ -16,6 +16,10 @@ black = {extras = ["d"], version = "^22.8.0"}
 flake8 = "^5.0.4"
 mypy = "^0.981"
 hydra-core = "^1.1.1"
+pytest = "^7.1.3"
+
+[tool.pytest.ini_options]
+markers = ["needs_data: needs the dataset on disk to run"]
 
 [tool.mypy]
 plugins = "numpy.typing.mypy_plugin"
