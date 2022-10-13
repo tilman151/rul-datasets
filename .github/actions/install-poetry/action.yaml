@@ -7,10 +7,11 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - uses: actions/setup-python@v4
-      with:
-        cache: "poetry"
     - run: pipx install poetry==${{ inputs.poetry-version }}
       shell: "bash"
+    - uses: actions/setup-python@v4
+      with:
+        python-version-file: ".python-version"
+        cache: "poetry"
     - run: poetry install
       shell: "bash"
