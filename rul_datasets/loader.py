@@ -460,7 +460,7 @@ class FemtoLoader(AbstractLoader):
 
 class FemtoPreparator:
     DEFAULT_WINDOW_SIZE = 2560
-    SPLIT_FOLDERS = {"dev": "Learning_set", "test": "Full_Test_Set"}
+    SPLIT_FOLDERS = {"dev": "Learning_set", "test": "Test_set"}
 
     def __init__(self, fd, data_root):
         self.fd = fd

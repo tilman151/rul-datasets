@@ -401,74 +401,73 @@ class TestFEMTOLoader(unittest.TestCase):
         self.assertEqual(0, torch.dist(full_train[1], trunc_train[0]))
         self.assertEqual(0, torch.dist(full_train_targets[1], trunc_train_targets[0]))
 
+
 @pytest.mark.needs_data
-class TestFEMTOPreperator(unittest.TestCase):
+class TestFEMTOPreperator:
     NUM_SAMPLES = {
-        1: {"dev": 3674, "test": 10973},
-        2: {"dev": 1708, "test": 5948},
-        3: {"dev": 2152, "test": 434},
+        1: {"dev": 3674, "test": 9047},
+        2: {"dev": 1708, "test": 4560},
+        3: {"dev": 2152, "test": 352},
     }
 
-    @unittest.skipIf(not _raw_csv_exist(), "Raw CSV files not found.")
-    def test_file_discovery(self):
-        for fd in range(1, 4):
-            preparator = loader.FemtoPreparator(fd, loader.FemtoLoader._FEMTO_ROOT)
-            for split in ["dev", "test"]:
-                csv_paths = preparator._get_csv_file_paths(split)
-                expected_num_files = self.NUM_SAMPLES[fd][split]
-                actual_num_files = len(sum(csv_paths, []))
-                self.assertEqual(expected_num_files, actual_num_files)
+    @pytest.mark.skipif(not _raw_csv_exist(), reason="Raw CSV files not found.")
+    @pytest.mark.parametrize("fd", [1, 2, 3])
+    @pytest.mark.parametrize("split", ["dev", "test"])
+    def test_file_discovery(self, fd, split):
+        preparator = loader.FemtoPreparator(fd, loader.FemtoLoader._FEMTO_ROOT)
+        csv_paths = preparator._get_csv_file_paths(split)
+        expected_num_files = self.NUM_SAMPLES[fd][split]
+        actual_num_files = len(sum(csv_paths, []))
+        assert actual_num_files == expected_num_files
 
-    @unittest.skipIf(not _raw_csv_exist(), "Raw CSV files not found.")
+    @pytest.mark.skipif(not _raw_csv_exist(), reason="Raw CSV files not found.")
     def test_loading_one_file(self):
         preparator = loader.FemtoPreparator(1, loader.FemtoLoader._FEMTO_ROOT)
         csv_paths = preparator._get_csv_file_paths("dev")
         features = preparator._load_feature_file(csv_paths[0][0])
-        self.assertIsInstance(features, np.ndarray)
-        self.assertEqual(features.shape, (preparator.DEFAULT_WINDOW_SIZE, 2))
+        assert isinstance(features, np.ndarray)
+        assert features.shape == (preparator.DEFAULT_WINDOW_SIZE, 2)
 
-    @unittest.skipIf(not _raw_csv_exist(), "Raw CSV files not found.")
+    @pytest.mark.skipif(not _raw_csv_exist(), reason="Raw CSV files not found.")
     def test_target_generation(self):
         preparator = loader.FemtoPreparator(1, loader.FemtoLoader._FEMTO_ROOT)
         csv_paths = preparator._get_csv_file_paths("dev")
         targets = preparator._targets_from_file_paths(csv_paths)
         for run_targets, run_files in zip(targets, csv_paths):
-            self.assertIsInstance(run_targets, np.ndarray)
-            self.assertEqual(run_targets.shape, (len(run_files),))
-            self.assertEqual(len(run_targets), np.max(run_targets))
-            self.assertEqual(1, np.min(run_targets))
+            assert isinstance(run_targets, np.ndarray)
+            assert run_targets.shape == (len(run_files),)
+            assert len(run_targets) == np.max(run_targets)
+            assert 1 == np.min(run_targets)
 
-    @unittest.skip("Takes a lot of time.")
-    def test_preparation(self):
-        for fd in range(1, 4):
-            preparator = loader.FemtoPreparator(fd, loader.FemtoLoader._FEMTO_ROOT)
-            for split in ["dev", "test"]:
-                preparator.prepare_split(split)
-                expected_file_path = preparator._get_run_file_path(split)
-                self.assertTrue(os.path.exists(expected_file_path))
-            expected_scaler_path = preparator._get_scaler_path()
-            self.assertTrue(os.path.exists(expected_scaler_path))
+    @pytest.mark.skip("Takes a lot of time.")
+    @pytest.mark.parametrize("fd", [1, 2, 3])
+    @pytest.mark.parametrize("split", ["dev", "test"])
+    def test_preparation(self, fd, split):
+        preparator = loader.FemtoPreparator(fd, loader.FemtoLoader._FEMTO_ROOT)
+        preparator.prepare_split(split)
+        expected_file_path = preparator._get_run_file_path(split)
+        assert os.path.exists(expected_file_path)
+        expected_scaler_path = preparator._get_scaler_path()
+        assert os.path.exists(expected_scaler_path)
 
-    def test_converted_files(self):
-        for fd in range(1, 4):
-            preparator = loader.FemtoPreparator(fd, loader.FemtoLoader._FEMTO_ROOT)
-            for split in ["dev", "test"]:
-                features, targets = preparator.load_runs(split)
-                expected_num_time_steps = self.NUM_SAMPLES[fd][split]
-                actual_num_target_steps = sum(len(f) for f in features)
-                self.assertEqual(expected_num_time_steps, actual_num_target_steps)
-                actual_num_target_steps = sum(len(t) for t in targets)
-                self.assertEqual(expected_num_time_steps, actual_num_target_steps)
+    @pytest.mark.parametrize("fd", [1, 2, 3])
+    @pytest.mark.parametrize("split", ["dev", "test"])
+    def test_converted_files(self, fd, split):
+        preparator = loader.FemtoPreparator(fd, loader.FemtoLoader._FEMTO_ROOT)
+        features, targets = preparator.load_runs(split)
+        expected_num_time_steps = self.NUM_SAMPLES[fd][split]
+        actual_num_target_steps = sum(len(f) for f in features)
+        assert actual_num_target_steps == expected_num_time_steps
+        actual_num_target_steps = sum(len(t) for t in targets)
+        assert actual_num_target_steps == expected_num_time_steps
 
-    def test_scaler(self):
-        for fd in range(1, 4):
-            preparator = loader.FemtoPreparator(fd, loader.FemtoLoader._FEMTO_ROOT)
-            scaler = preparator.load_scaler()
-            expected_samples = (
-                self.NUM_SAMPLES[fd]["dev"] * preparator.DEFAULT_WINDOW_SIZE
-            )
-            self.assertEqual(2, scaler.n_features_in_)
-            self.assertEqual(expected_samples, scaler.n_samples_seen_)
+    @pytest.mark.parametrize("fd", [1, 2, 3])
+    def test_scaler(self, fd):
+        preparator = loader.FemtoPreparator(fd, loader.FemtoLoader._FEMTO_ROOT)
+        scaler = preparator.load_scaler()
+        expected_samples = self.NUM_SAMPLES[fd]["dev"] * preparator.DEFAULT_WINDOW_SIZE
+        assert 2 == scaler.n_features_in_
+        assert expected_samples == scaler.n_samples_seen_
 
 
 class TestCMAPSSLoaderInterface(unittest.TestCase, LoaderInterfaceTemplate):
