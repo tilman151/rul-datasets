@@ -6,7 +6,6 @@ import torch
 import torch.utils.data
 
 import rul_datasets
-from rul_datasets import core
 from tests.templates import PretrainingDataModuleTemplate
 
 
@@ -18,7 +17,7 @@ class TestCMAPSSBaseline(unittest.TestCase):
         self.mock_runs = [torch.zeros(1, 1, 1)], [torch.zeros(1)]
         self.mock_loader.load_split.return_value = self.mock_runs
 
-        self.base_module = core.RulDataModule(self.mock_loader, batch_size=16)
+        self.base_module = rul_datasets.RulDataModule(self.mock_loader, batch_size=16)
         self.dataset = rul_datasets.BaselineDataModule(self.base_module)
         self.dataset.prepare_data()
         self.dataset.setup()
@@ -75,7 +74,7 @@ class TestPretrainingBaselineDataModuleFullData(
         self.failed_loader.max_rul = 125
         self.failed_loader.hparams = {"fd": self.failed_loader.fd}
         self.failed_loader.load_split.return_value = self.mock_runs
-        self.failed_data = core.RulDataModule(self.failed_loader, batch_size=16)
+        self.failed_data = rul_datasets.RulDataModule(self.failed_loader, batch_size=16)
 
         self.unfailed_loader = mock.MagicMock(name="CMAPSSLoader")
         self.unfailed_loader.fd = 1
@@ -85,7 +84,9 @@ class TestPretrainingBaselineDataModuleFullData(
         self.unfailed_loader.max_rul = 125
         self.unfailed_loader.hparams = {"fd": self.unfailed_loader.fd}
         self.unfailed_loader.load_split.return_value = self.mock_runs
-        self.unfailed_data = core.RulDataModule(self.unfailed_loader, batch_size=16)
+        self.unfailed_data = rul_datasets.RulDataModule(
+            self.unfailed_loader, batch_size=16
+        )
 
         self.dataset = rul_datasets.PretrainingBaselineDataModule(
             self.failed_data,
@@ -217,7 +218,7 @@ class TestPretrainingBaselineDataModuleLowData(
         self.failed_loader.max_rul = 125
         self.failed_loader.hparams = {"fd": self.failed_loader.fd}
         self.failed_loader.load_split.return_value = self.mock_runs
-        self.failed_data = core.RulDataModule(self.failed_loader, batch_size=16)
+        self.failed_data = rul_datasets.RulDataModule(self.failed_loader, batch_size=16)
 
         self.unfailed_loader = mock.MagicMock(name="CMAPSSLoader")
         self.unfailed_loader.fd = 1
@@ -227,7 +228,9 @@ class TestPretrainingBaselineDataModuleLowData(
         self.unfailed_loader.max_rul = 125
         self.unfailed_loader.hparams = {"fd": self.unfailed_loader.fd}
         self.unfailed_loader.load_split.return_value = self.mock_runs
-        self.unfailed_data = core.RulDataModule(self.unfailed_loader, batch_size=16)
+        self.unfailed_data = rul_datasets.RulDataModule(
+            self.unfailed_loader, batch_size=16
+        )
 
         self.dataset = rul_datasets.PretrainingBaselineDataModule(
             self.failed_data,
