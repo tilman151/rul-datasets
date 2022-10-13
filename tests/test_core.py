@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from unittest import mock
 
 import numpy as np
+import numpy.testing as npt
+import pytest
 import torch
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, TensorDataset
 
@@ -164,6 +166,10 @@ class DummyRul(loader.AbstractLoader):
                 [torch.zeros(length, self.window_size, 5)],
                 [torch.clamp_max(torch.arange(length, 0, step=-1), 125)],
             ),
+            "val": (
+                [torch.zeros(100, self.window_size, 5)],
+                [torch.clamp_max(torch.arange(100, 0, step=-1), 125)],
+            ),
         }
 
     def check_compatibility(self, other) -> None:
@@ -173,8 +179,7 @@ class DummyRul(loader.AbstractLoader):
         pass
 
     def load_split(self, split):
-        assert split == "dev", "Can only use dev data."
-        return self.data["dev"]
+        return self.data[split]
 
 
 @dataclass
@@ -210,75 +215,73 @@ class DummyRulShortRuns(loader.AbstractLoader):
         pass
 
     def load_split(self, split):
-        assert split == "dev", "Can only use dev data."
+        if not split == "dev":
+            raise ValueError(f"DummyRulShortRuns does not have a '{split}' split")
+
         return self.data["dev"]
 
 
-class TestPairedDataset(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        for fd in range(1, 5):
-            loader.CmapssLoader(fd).prepare_data()
-        cls.fd1 = loader.CmapssLoader(1)
-        cls.fd3 = loader.CmapssLoader(3)
+@pytest.fixture(scope="module")
+def length():
+    return 300
 
-    def setUp(self):
-        self.length = 300
-        self.cmapss_normal = DummyRul(self.length)
-        self.cmapss_short = DummyRulShortRuns()
 
-    def test_get_pair_idx_piecewise(self):
-        data = core.PairedRulDataset([self.cmapss_normal], "dev", 512, 1, True)
-        middle_idx = self.length // 2
+@pytest.fixture
+def cmapss_normal(length):
+    return DummyRul(length)
+
+
+@pytest.fixture
+def cmapss_short():
+    return DummyRulShortRuns()
+
+
+class TestPairedDataset:
+    def test_get_pair_idx_piecewise(self, cmapss_normal, length):
+        data = core.PairedRulDataset([cmapss_normal], "dev", 512, 1, True)
+        middle_idx = length // 2
         for _ in range(512):
             run_idx, anchor_idx, query_idx, distance, _ = data._get_pair_idx_piecewise()
             run = data._features[run_idx]
-            self.assertEqual(middle_idx, len(run) // 2)
+            assert middle_idx == (len(run) // 2)
             if anchor_idx < middle_idx:
-                self.assertEqual(0, distance)
+                assert 0 == distance
             else:
-                self.assertLessEqual(0, distance)
+                assert 0 <= distance
 
-    def test_get_pair_idx_linear(self):
-        data = core.PairedRulDataset([self.cmapss_normal], "dev", 512, 1, True)
+    def test_get_pair_idx_linear(self, cmapss_normal):
+        data = core.PairedRulDataset([cmapss_normal], "dev", 512, 1, True)
         for _ in range(512):
             run, anchor_idx, query_idx, distance, _ = data._get_pair_idx()
-            self.assertLess(0, distance)
-            self.assertGreaterEqual(125, distance)
+            assert 0 < distance
+            assert 125 >= distance
 
-    def test_get_labeled_pair_idx(self):
-        data = core.PairedRulDataset([self.cmapss_normal], "dev", 512, 1, True)
+    def test_get_labeled_pair_idx(self, cmapss_normal, length):
+        data = core.PairedRulDataset([cmapss_normal], "dev", 512, 1, True)
         for _ in range(512):
             run_idx, anchor_idx, query_idx, distance, _ = data._get_labeled_pair_idx()
             run = data._features[run_idx]
-            self.assertEqual(self.length, len(run))
+            assert length == len(run)
             expected_distance = data._labels[0][anchor_idx] - data._labels[0][query_idx]
-            self.assertLessEqual(0, distance)
-            self.assertEqual(expected_distance, distance)
+            assert 0 <= distance
+            assert expected_distance == distance
 
-    def test_pair_func_selection(self):
-        with self.subTest("default"):
-            data = core.PairedRulDataset([self.cmapss_normal], "dev", 512, 1, True)
-            self.assertEqual(data._get_pair_idx, data._get_pair_func)
-        with self.subTest("piecewise"):
-            data = core.PairedRulDataset(
-                [self.cmapss_normal], "dev", 512, 1, True, mode="linear"
-            )
-            self.assertEqual(data._get_pair_idx, data._get_pair_func)
-        with self.subTest("piecewise"):
-            data = core.PairedRulDataset(
-                [self.cmapss_normal], "dev", 512, 1, True, mode="piecewise"
-            )
-            self.assertEqual(data._get_pair_idx_piecewise, data._get_pair_func)
-        with self.subTest("labeled"):
-            data = core.PairedRulDataset(
-                [self.cmapss_normal], "dev", 512, 1, True, mode="labeled"
-            )
-            self.assertEqual(data._get_labeled_pair_idx, data._get_pair_func)
+    @pytest.mark.parametrize(
+        ["mode", "expected_func"],
+        [
+            ("linear", "_get_pair_idx"),
+            ("piecewise", "_get_pair_idx_piecewise"),
+            ("labeled", "_get_labeled_pair_idx"),
+        ],
+    )
+    def test_pair_func_selection(self, cmapss_normal, mode, expected_func):
+        data = core.PairedRulDataset([cmapss_normal], "dev", 512, 1, True, mode=mode)
+        expected_func = getattr(data, expected_func)
+        assert expected_func == data._get_pair_func
 
-    def test_sampled_data(self):
+    def test_sampled_data(self, cmapss_short):
         fixed_idx = [0, 60, 80, 1, 55, 99]  # two samples with run, anchor and query idx
-        data = core.PairedRulDataset([self.cmapss_short], "dev", 2, 2)
+        data = core.PairedRulDataset([cmapss_short], "dev", 2, 2)
         data._rng = mock.MagicMock()
         data._rng.integers = mock.MagicMock(side_effect=fixed_idx)
         for i, sample in enumerate(data):
@@ -288,29 +291,27 @@ class TestPairedDataset(unittest.TestCase):
             expected_query = expected_run[fixed_idx[idx + 2]]
             expected_distance = min(125, fixed_idx[idx + 2] - fixed_idx[idx + 1]) / 125
             expected_domain_idx = 0
-            self.assertEqual(0, torch.dist(expected_anchor, sample[0]))
-            self.assertEqual(0, torch.dist(expected_query, sample[1]))
-            self.assertAlmostEqual(expected_distance, sample[2].item())
-            self.assertEqual(expected_domain_idx, sample[3].item())
+            assert 0 == torch.dist(expected_anchor, sample[0])
+            assert 0 == torch.dist(expected_query, sample[1])
+            npt.assert_almost_equal(expected_distance, sample[2].item())
+            assert expected_domain_idx == sample[3].item()
 
-    def test_discarding_too_short_runs(self):
-        data = core.PairedRulDataset([self.cmapss_short], "dev", 512, 2)
+    def test_discarding_too_short_runs(self, cmapss_short):
+        data = core.PairedRulDataset([cmapss_short], "dev", 512, 2)
         for run, labels in zip(data._features, data._labels):
-            self.assertTrue((run >= 1).all())
-            self.assertTrue((labels < 500).all())
-            self.assertLess(2, len(run))
+            assert (run >= 1).all()
+            assert (labels < 500).all()
+            assert 2 < len(run)
 
-    def test_determinisim(self):
-        with self.subTest("non-deterministic"):
-            data = core.PairedRulDataset([self.cmapss_short], "dev", 512, 2)
-            self.assertTrue(self._two_epochs_different(data))
-        with self.subTest("non-deterministic"):
-            data = core.PairedRulDataset(
-                [self.cmapss_short], "dev", 512, 2, deterministic=True
-            )
-            self.assertFalse(self._two_epochs_different(data))
+    @pytest.mark.parametrize("deterministic", [True, False])
+    def test_determinisim(self, cmapss_short, deterministic):
+        data = core.PairedRulDataset(
+            [cmapss_short], "dev", 512, 2, deterministic=deterministic
+        )
+        assert deterministic != self._two_epochs_different(data)
 
-    def _two_epochs_different(self, data):
+    @staticmethod
+    def _two_epochs_different(data):
         first_epoch = [samples for samples in data]
         second_epoch = [samples for samples in data]
         different = False
@@ -321,34 +322,33 @@ class TestPairedDataset(unittest.TestCase):
 
         return different
 
-    def test_min_distance(self):
-        for mode in ["linear", "piecewise", "labeled"]:
-            with self.subTest(mode):
-                dataset = core.PairedRulDataset(
-                    [self.cmapss_short], "dev", 512, min_distance=30, mode=mode
-                )
-                pairs = self._all_get_pairs(dataset)
-                distances = pairs[:, 1] - pairs[:, 0]
-                self.assertTrue(np.all(pairs[:, 0] < pairs[:, 1]))
-                self.assertTrue(np.all(distances >= 30))
+    @pytest.mark.parametrize("mode", ["linear", "piecewise", "labeled"])
+    def test_min_distance(self, cmapss_short, mode):
+        dataset = core.PairedRulDataset(
+            [cmapss_short], "dev", 512, min_distance=30, mode=mode
+        )
+        pairs = self._all_get_pairs(dataset)
+        distances = pairs[:, 1] - pairs[:, 0]
+        assert np.all(pairs[:, 0] < pairs[:, 1])
+        assert np.all(distances >= 30)
 
-    def test_get_pairs(self):
-        for split in ["dev", "val"]:
-            for mode in ["linear", "piecewise", "labeled"]:
-                with self.subTest(split=split, mode=mode):
-                    paired_dataset = core.PairedRulDataset(
-                        [self.fd1, self.fd3], split, 1000, 1, mode=mode
-                    )
-                    pairs = self._all_get_pairs(paired_dataset)
-                    self.assertTrue(
-                        np.all(pairs[:, 0] < pairs[:, 1])
-                    )  # query always after anchor
-                    self.assertTrue(
-                        np.all(pairs[:, 3] <= 1)
-                    )  # domain label is either 1
-                    self.assertTrue(np.all(pairs[:, 3] >= 0))  # or zero
+    @pytest.mark.parametrize("split", ["dev", "val"])
+    @pytest.mark.parametrize("mode", ["linear", "piecewise", "labeled"])
+    def test_get_pairs(self, split, mode, cmapss_normal):
+        paired_dataset = core.PairedRulDataset(
+            [cmapss_normal],
+            split,
+            1000,
+            1,
+            mode=mode,
+        )
+        pairs = self._all_get_pairs(paired_dataset)
+        assert np.all(pairs[:, 0] < pairs[:, 1])  # query always after anchor
+        assert np.all(pairs[:, 3] <= 1)  # domain label is either 1
+        assert np.all(pairs[:, 3] >= 0)  # or zero
 
-    def _all_get_pairs(self, paired):
+    @staticmethod
+    def _all_get_pairs(paired):
         pairs = [paired._get_pair_func() for _ in range(paired.num_samples)]
         pairs = [
             (anchor_idx, query_idx, distance, domain_idx)
@@ -357,49 +357,46 @@ class TestPairedDataset(unittest.TestCase):
 
         return np.array(pairs)
 
-    def test_domain_labels(self):
+    def test_domain_labels(self, cmapss_normal, cmapss_short, length):
         dataset = core.PairedRulDataset(
-            [self.cmapss_normal, self.cmapss_short], "dev", 512, min_distance=30
+            [cmapss_normal, cmapss_short], "dev", 512, min_distance=30
         )
         for _ in range(512):
             run_idx, _, _, _, domain_idx = dataset._get_pair_idx_piecewise()
             run = dataset._features[run_idx]
-            if len(run) == self.length:
-                self.assertEqual(0, domain_idx)  # First domain is self.length long
+            if len(run) == length:
+                assert 0 == domain_idx  # First domain is self.length long
             else:
-                self.assertEqual(1, domain_idx)  # Second is not
+                assert 1 == domain_idx  # Second is not
 
-    def test_no_determinism_in_multiprocessing(self):
+    def test_no_determinism_in_multiprocessing(self, cmapss_normal, cmapss_short):
         dataset = core.PairedRulDataset(
-            [self.cmapss_normal, self.cmapss_short], "dev", 100, 1, deterministic=True
+            [cmapss_normal, cmapss_short], "dev", 100, 1, deterministic=True
         )
         dataloader = DataLoader(dataset, num_workers=2)
-        with self.assertRaises(RuntimeError):
+        with pytest.raises(RuntimeError):
             for _ in dataloader:
                 pass
 
-    def test_no_duplicate_batches_in_multiprocessing(self):
-        dataset = core.PairedRulDataset(
-            [self.cmapss_normal, self.cmapss_short], "dev", 100, 1
-        )
+    def test_no_duplicate_batches_in_multiprocessing(self, cmapss_normal, cmapss_short):
+        dataset = core.PairedRulDataset([cmapss_normal, cmapss_short], "dev", 100, 1)
         dataloader = DataLoader(dataset, batch_size=10, num_workers=2)
         batches = [batch for batch in dataloader]
         are_duplicated = []
         for b0, b1 in zip(batches[::2], batches[1::2]):
             are_duplicated.append(self._is_same_batch(b0, b1))
-        self.assertFalse(all(are_duplicated))
+        assert not all(are_duplicated)
 
-    def test_no_repeating_epochs_in_multiprocessing(self):
-        dataset = core.PairedRulDataset(
-            [self.cmapss_normal, self.cmapss_short], "dev", 100, 1
-        )
+    def test_no_repeating_epochs_in_multiprocessing(self, cmapss_normal, cmapss_short):
+        dataset = core.PairedRulDataset([cmapss_normal, cmapss_short], "dev", 100, 1)
         dataloader = DataLoader(dataset, batch_size=10, num_workers=2)
         epoch0 = [batch for batch in dataloader]
         epoch1 = [batch for batch in dataloader]
         for b0, b1 in zip(epoch0, epoch1):
-            self.assertFalse(self._is_same_batch(b0, b1))
+            assert not self._is_same_batch(b0, b1)
 
-    def _is_same_batch(self, b0, b1):
+    @staticmethod
+    def _is_same_batch(b0, b1):
         return all(torch.dist(a, b) == 0.0 for a, b in zip(b0, b1))
 
     def test_compatability_check(self):
@@ -410,4 +407,4 @@ class TestPairedDataset(unittest.TestCase):
 
         core.PairedRulDataset(loaders, "dev", 1000, 1)
 
-        self.assertEqual(2, mock_check_compat.call_count)
+        assert 2 == mock_check_compat.call_count
