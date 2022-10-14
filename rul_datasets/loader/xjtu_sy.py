@@ -112,7 +112,7 @@ class XjtuSyPreparator:
         run_folders = self._get_run_folders(fd_folder_path)
         for run_folder in run_folders:
             run_path = os.path.join(fd_folder_path, run_folder)
-            feature_files = utils.get_csv_files_in_path(run_path)
+            feature_files = utils.get_files_in_path(run_path)
             file_paths.append(feature_files)
 
         return file_paths

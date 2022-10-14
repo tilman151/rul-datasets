@@ -2,6 +2,7 @@ import os
 import random
 
 import numpy as np
+import numpy.testing as npt
 import pytest
 
 from rul_datasets import utils
@@ -47,3 +48,16 @@ def test_get_targets_from_file_paths(file_path_func):
         sorted_targets = run_targets[sorted_idx]
         sorted_steps = np.array(run_steps)[sorted_idx[::-1]]  # reverse sorted
         assert np.all(sorted_targets == sorted_steps)
+
+
+@pytest.mark.parametrize(
+    "window_size", [1, 5, 10, pytest.param(11, marks=pytest.mark.xfail)]
+)
+def test_extract_windows(window_size):
+    inputs = np.arange(10)
+    windows = utils.extract_windows(inputs, window_size)
+
+    expected_num_windows = len(inputs) - window_size + 1
+    for i in range(expected_num_windows):
+        expected_window = inputs[i : (i + window_size)]
+        npt.assert_equal(windows[i], expected_window)

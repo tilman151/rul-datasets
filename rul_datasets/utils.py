@@ -4,7 +4,19 @@ from typing import List, Optional, Callable
 import numpy as np
 
 
-def get_csv_files_in_path(path: str, condition: Optional[Callable] = None) -> List[str]:
+def get_files_in_path(path: str, condition: Optional[Callable] = None) -> List[str]:
+    """
+    Return the paths of all files in a path that satisfy a condition in alphabetical
+    order.
+
+    If the condition is `None` all files are returned.
+
+    Args:
+        path: the path to look into
+        condition: the include-condition for files
+    Returns:
+        all files that satisfy the condition in alphabetical order
+    """
     if condition is None:
         feature_files = [f for f in os.listdir(path)]
     else:
@@ -30,7 +42,6 @@ def get_targets_from_file_paths(
 
     Returns:
         A list of RUL target arrays for each run
-
     """
     targets = []
     for run_files in file_paths:
@@ -43,10 +54,28 @@ def get_targets_from_file_paths(
     return targets
 
 
-def extract_windows(seq, window_size):
+def extract_windows(seq: np.ndarray, window_size: int) -> np.ndarray:
+    """
+    Extract sliding windows from a sequence.
+
+    The step size is considered to be one, which results in `len(seq) - window_size +
+    1` extracted windows. The resulting array has the shape [num_windows, window_size,
+    num_channels].
+
+    Args:
+        seq: sequence to extract windows from
+        window_size: length of the sliding window
+    Returns:
+        array of sliding windows
+    """
+    if window_size > len(seq):
+        raise ValueError(
+            f"Cannot extract windows of size {window_size} "
+            f"from a sequence of length {len(seq)}."
+        )
+
     num_frames = seq.shape[0] - window_size + 1
-    window_idx = np.expand_dims(np.arange(window_size), 0)
-    window_idx = window_idx + np.expand_dims(np.arange(num_frames), 0).T
+    window_idx = np.arange(window_size)[None, :] + np.arange(num_frames)[:, None]
     windows = seq[window_idx]
 
     return windows

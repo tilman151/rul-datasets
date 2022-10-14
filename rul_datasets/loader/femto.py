@@ -98,7 +98,7 @@ class FemtoPreparator:
         file_paths = []
         for run_folder in run_folders:
             run_path = os.path.join(split_path, run_folder)
-            feature_files = utils.get_csv_files_in_path(
+            feature_files = utils.get_files_in_path(
                 run_path, lambda f: f.startswith("acc")
             )
             file_paths.append(feature_files)
