@@ -8,7 +8,9 @@ import sklearn.preprocessing as scalers  # type: ignore
 import torch
 from tqdm import tqdm  # type: ignore
 
+from rul_datasets import utils
 from rul_datasets.loader.abstract import AbstractLoader, DATA_ROOT
+from rul_datasets.loader import scaling
 
 
 class FemtoLoader(AbstractLoader):
@@ -35,9 +37,6 @@ class FemtoLoader(AbstractLoader):
 
         self._preparator = FemtoPreparator(self.fd, self._FEMTO_ROOT)
 
-    def _default_window_size(self, fd: int) -> int:
-        return FemtoPreparator.DEFAULT_WINDOW_SIZE
-
     def prepare_data(self):
         self._preparator.prepare_split("dev")
         self._preparator.prepare_split("test")
@@ -48,7 +47,7 @@ class FemtoLoader(AbstractLoader):
             features, targets = self._truncate_runs(
                 features, targets, self.percent_broken, self.percent_fail_runs
             )
-        features = self._scale_features(features)
+        features = scaling.scale_features(features, self._preparator.load_scaler())
         features, targets = self._to_tensor(features, targets)
 
         return features, targets
@@ -59,19 +58,13 @@ class FemtoLoader(AbstractLoader):
 
         return features, targets
 
-    def _scale_features(self, runs: List[np.ndarray]) -> List[np.ndarray]:
-        scaler = self._preparator.load_scaler()
-        for i, run in enumerate(runs):
-            run = run.reshape(-1, 2)
-            run = scaler.transform(run)
-            runs[i] = run.reshape(-1, self.window_size, 2)
-
-        return runs
+    def _default_window_size(self, fd: int) -> int:
+        return FemtoPreparator.DEFAULT_WINDOW_SIZE
 
 
 class FemtoPreparator:
     DEFAULT_WINDOW_SIZE = 2560
-    SPLIT_FOLDERS = {"dev": "Learning_set", "test": "Test_set"}
+    SPLIT_FOLDERS = {"dev": "Learning_set", "test": "Test_set", "val": None}
 
     def __init__(self, fd, data_root):
         self.fd = fd
@@ -84,15 +77,12 @@ class FemtoPreparator:
             self._save_efficient(split, features, targets)
         if split == "dev" and not os.path.exists(self._get_scaler_path()):
             features, _ = self.load_runs(split)
-            scaler = self._fit_scaler(features)
-            self._save_scaler(scaler)
+            scaler = scaling.fit_scaler(features)
+            scaling.save_scaler(scaler, self._get_scaler_path())
 
     def load_runs(self, split: str) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-        if split == "val":
-            raise ValueError("FEMTO does not define a validation set.")
-
-        save_path = self._get_run_file_path(split)
-        with open(save_path, mode="rb") as f:
+        self._validate_split(split)
+        with open(self._get_run_file_path(split), mode="rb") as f:
             features, targets = pickle.load(f)
 
         return features, targets
@@ -100,7 +90,9 @@ class FemtoPreparator:
     def _load_raw_runs(self, split: str) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         file_paths = self._get_csv_file_paths(split)
         features = self._load_raw_features(file_paths)
-        targets = self._targets_from_file_paths(file_paths)
+        targets = utils.get_targets_from_file_paths(
+            file_paths, self._timestep_from_file_path
+        )
 
         return features, targets
 
@@ -120,13 +112,18 @@ class FemtoPreparator:
         file_paths = []
         for run_folder in run_folders:
             run_path = os.path.join(split_path, run_folder)
-            feature_files = self._get_csv_files_in_path(run_path)
+            feature_files = utils.get_csv_files_in_path(
+                run_path, lambda f: f.startswith("acc")
+            )
             file_paths.append(feature_files)
 
         return file_paths
 
-    def _get_split_folder(self, split: str) -> str:
-        return os.path.join(self._data_root, self.SPLIT_FOLDERS[split])
+    def _validate_split(self, split: str) -> None:
+        if split not in self.SPLIT_FOLDERS:
+            raise ValueError(f"Unsupported split '{split}' supplied.")
+        if split == "val":
+            raise ValueError("FEMTO does not define a validation set.")
 
     def _get_run_folders(self, split_path):
         folder_pattern = self._get_run_folder_pattern()
@@ -137,12 +134,6 @@ class FemtoPreparator:
 
     def _get_run_folder_pattern(self) -> re.Pattern:
         return re.compile(rf"Bearing{self.fd}_\d")
-
-    def _get_csv_files_in_path(self, run_path):
-        feature_files = [f for f in os.listdir(run_path) if f.startswith("acc")]
-        feature_files = sorted(os.path.join(run_path, f) for f in feature_files)
-
-        return feature_files
 
     def _load_feature_file(self, file_path: str) -> np.ndarray:
         try:
@@ -162,45 +153,15 @@ class FemtoPreparator:
             f.write(content)
             f.truncate()
 
-    def _targets_from_file_paths(self, file_paths: List[List[str]]) -> List[np.ndarray]:
-        targets = []
-        for run_files in file_paths:
-            run_targets = np.empty(len(run_files))
-            for i, file_path in enumerate(run_files):
-                run_targets[i] = self._timestep_from_file_path(file_path)
-            run_targets = run_targets[::-1].copy()
-            targets.append(run_targets)
-
-        return targets
-
-    def _timestep_from_file_path(self, file_path: str) -> int:
+    @staticmethod
+    def _timestep_from_file_path(file_path: str) -> int:
         file_name = os.path.basename(file_path)
         time_step = int(file_name[4:9])
 
         return time_step
 
-    def _fit_scaler(self, features):
-        scaler = scalers.StandardScaler()
-        for run in features:
-            run = run.reshape(-1, run.shape[-1])
-            scaler.partial_fit(run)
-
-        return scaler
-
-    def _save_scaler(self, scaler):
-        save_path = self._get_scaler_path()
-        with open(save_path, mode="wb") as f:
-            pickle.dump(scaler, f)
-
     def load_scaler(self) -> scalers.StandardScaler:
-        save_path = self._get_scaler_path()
-        with open(save_path, mode="rb") as f:
-            scaler = pickle.load(f)
-
-        return scaler
-
-    def _get_scaler_path(self):
-        return os.path.join(self._get_split_folder("dev"), f"scaler_{self.fd}.pkl")
+        return scaling.load_scaler(self._get_scaler_path())
 
     def _save_efficient(
         self, split: str, features: List[np.ndarray], targets: List[np.ndarray]
@@ -208,8 +169,11 @@ class FemtoPreparator:
         with open(self._get_run_file_path(split), mode="wb") as f:
             pickle.dump((features, targets), f)
 
-    def _get_run_file_path(self, split: str) -> str:
-        split_folder = self._get_split_folder(split)
-        run_file_path = os.path.join(split_folder, f"runs_{self.fd}.pkl")
+    def _get_scaler_path(self):
+        return os.path.join(self._get_split_folder("dev"), f"scaler_{self.fd}.pkl")
 
-        return run_file_path
+    def _get_run_file_path(self, split: str) -> str:
+        return os.path.join(self._get_split_folder(split), f"runs_{self.fd}.pkl")
+
+    def _get_split_folder(self, split: str) -> str:
+        return os.path.join(self._data_root, self.SPLIT_FOLDERS[split])

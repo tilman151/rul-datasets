@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 import torch
 
-from rul_datasets import loader
+from rul_datasets import loader, utils
 from tests.templates import LoaderInterfaceTemplate
 
 
@@ -427,17 +427,6 @@ class TestFEMTOPreperator:
         features = preparator._load_feature_file(csv_paths[0][0])
         assert isinstance(features, np.ndarray)
         assert features.shape == (preparator.DEFAULT_WINDOW_SIZE, 2)
-
-    @pytest.mark.skipif(not _raw_csv_exist(), reason="Raw CSV files not found.")
-    def test_target_generation(self):
-        preparator = loader.FemtoPreparator(1, loader.FemtoLoader._FEMTO_ROOT)
-        csv_paths = preparator._get_csv_file_paths("dev")
-        targets = preparator._targets_from_file_paths(csv_paths)
-        for run_targets, run_files in zip(targets, csv_paths):
-            assert isinstance(run_targets, np.ndarray)
-            assert run_targets.shape == (len(run_files),)
-            assert len(run_targets) == np.max(run_targets)
-            assert 1 == np.min(run_targets)
 
     @pytest.mark.skip("Takes a lot of time.")
     @pytest.mark.parametrize("fd", [1, 2, 3])
