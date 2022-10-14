@@ -1,11 +1,10 @@
 import os
 import pickle
 import re
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Dict
 
 import numpy as np
 import sklearn.preprocessing as scalers  # type: ignore
-import torch
 from tqdm import tqdm  # type: ignore
 
 from rul_datasets import utils
@@ -14,8 +13,8 @@ from rul_datasets.loader import scaling
 
 
 class FemtoLoader(AbstractLoader):
-    _FEMTO_ROOT = os.path.join(DATA_ROOT, "FEMTOBearingDataSet")
-    _NUM_TRAIN_RUNS = {1: 2, 2: 2, 3: 2}
+    _FEMTO_ROOT: str = os.path.join(DATA_ROOT, "FEMTOBearingDataSet")
+    _NUM_TRAIN_RUNS: Dict[int, int] = {1: 2, 2: 2, 3: 2}
 
     def __init__(
         self,
@@ -25,13 +24,13 @@ class FemtoLoader(AbstractLoader):
         percent_broken: float = None,
         percent_fail_runs: Union[float, List[int]] = None,
         truncate_val: bool = False,
-    ):
+    ) -> None:
         super().__init__(
             fd, window_size, max_rul, percent_broken, percent_fail_runs, truncate_val
         )
         self._preparator = FemtoPreparator(self.fd, self._FEMTO_ROOT)
 
-    def prepare_data(self):
+    def prepare_data(self) -> None:
         self._preparator.prepare_split("dev")
         self._preparator.prepare_split("test")
 
@@ -50,13 +49,13 @@ class FemtoLoader(AbstractLoader):
 
 class FemtoPreparator:
     DEFAULT_WINDOW_SIZE = 2560
-    SPLIT_FOLDERS = {"dev": "Learning_set", "test": "Test_set", "val": None}
+    SPLIT_FOLDERS = {"dev": "Learning_set", "test": "Test_set", "val": ""}
 
-    def __init__(self, fd, data_root):
+    def __init__(self, fd: int, data_root: str) -> None:
         self.fd = fd
         self._data_root = data_root
 
-    def prepare_split(self, split: str):
+    def prepare_split(self, split: str) -> None:
         if not os.path.exists(self._get_run_file_path(split)):
             print(f"Prepare FEMTO {split} data of condition {self.fd}...")
             features, targets = self._load_raw_runs(split)
@@ -111,7 +110,7 @@ class FemtoPreparator:
         if split == "val":
             raise ValueError("FEMTO does not define a validation set.")
 
-    def _get_run_folders(self, split_path):
+    def _get_run_folders(self, split_path: str) -> List[str]:
         folder_pattern = self._get_run_folder_pattern()
         all_folders = sorted(os.listdir(split_path))
         run_folders = [f for f in all_folders if folder_pattern.match(f) is not None]
@@ -131,7 +130,7 @@ class FemtoPreparator:
 
         return features
 
-    def _replace_delimiters(self, file_path: str):
+    def _replace_delimiters(self, file_path: str) -> None:
         with open(file_path, mode="r+t") as f:
             content = f.read()
             f.seek(0)
@@ -151,11 +150,11 @@ class FemtoPreparator:
 
     def _save_efficient(
         self, split: str, features: List[np.ndarray], targets: List[np.ndarray]
-    ):
+    ) -> None:
         with open(self._get_run_file_path(split), mode="wb") as f:
             pickle.dump((features, targets), f)
 
-    def _get_scaler_path(self):
+    def _get_scaler_path(self) -> str:
         return os.path.join(self._get_split_folder("dev"), f"scaler_{self.fd}.pkl")
 
     def _get_run_file_path(self, split: str) -> str:

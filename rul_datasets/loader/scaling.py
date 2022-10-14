@@ -2,7 +2,7 @@ import pickle
 from typing import List
 
 import numpy as np
-from sklearn import preprocessing as scalers
+from sklearn import preprocessing as scalers  # type: ignore
 
 
 def fit_scaler(features: List[np.ndarray]) -> scalers.StandardScaler:
@@ -14,7 +14,7 @@ def fit_scaler(features: List[np.ndarray]) -> scalers.StandardScaler:
     return scaler
 
 
-def save_scaler(scaler, save_path):
+def save_scaler(scaler: scalers.StandardScaler, save_path: str) -> None:
     with open(save_path, mode="wb") as f:
         pickle.dump(scaler, f)
 

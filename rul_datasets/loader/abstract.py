@@ -28,7 +28,7 @@ class AbstractLoader:
         percent_broken: float = None,
         percent_fail_runs: Union[float, List[int]] = None,
         truncate_val: bool = False,
-    ):
+    ) -> None:
         self.fd = fd
         self.window_size = window_size or self._default_window_size(self.fd)
         self.max_rul = max_rul

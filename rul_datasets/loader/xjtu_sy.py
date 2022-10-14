@@ -1,11 +1,10 @@
 import os.path
 import pickle
-from typing import Tuple, List, Union
+from typing import Tuple, List, Union, Dict
 
 import numpy as np
-import torch
-from tqdm import tqdm
-from sklearn import preprocessing as scalers
+from tqdm import tqdm  # type: ignore
+from sklearn import preprocessing as scalers  # type: ignore
 
 from rul_datasets import utils
 from rul_datasets.loader import AbstractLoader, DATA_ROOT
@@ -13,8 +12,8 @@ from rul_datasets.loader import scaling
 
 
 class XjtuSyLoader(AbstractLoader):
-    _XJTU_SY_ROOT = os.path.join(DATA_ROOT, "XJTU-SY")
-    _NUM_TRAIN_RUNS = {1: 5, 2: 5, 3: 5}
+    _XJTU_SY_ROOT: str = os.path.join(DATA_ROOT, "XJTU-SY")
+    _NUM_TRAIN_RUNS: Dict[int, int] = {1: 5, 2: 5, 3: 5}
 
     def __init__(
         self,
@@ -24,7 +23,7 @@ class XjtuSyLoader(AbstractLoader):
         percent_broken: float = None,
         percent_fail_runs: Union[float, List[int]] = None,
         truncate_val: bool = False,
-    ):
+    ) -> None:
         super().__init__(
             fd, window_size, max_rul, percent_broken, percent_fail_runs, truncate_val
         )
@@ -47,8 +46,8 @@ class XjtuSyLoader(AbstractLoader):
 
 
 class XjtuSyPreparator:
-    DEFAULT_WINDOW_SIZE = 32768
-    FD_FOLDERS = {1: "35Hz12kN", 2: "37.5Hz11kN", 3: "40Hz10kN"}
+    DEFAULT_WINDOW_SIZE: int = 32768
+    FD_FOLDERS: Dict[int, str] = {1: "35Hz12kN", 2: "37.5Hz11kN", 3: "40Hz10kN"}
 
     def __init__(self, fd: int, data_root: str) -> None:
         self.fd = fd
@@ -94,7 +93,7 @@ class XjtuSyPreparator:
 
         return features, targets
 
-    def _load_raw_features(self, file_paths):
+    def _load_raw_features(self, file_paths: List[List[str]]) -> List[np.ndarray]:
         runs = []
         for run_files in tqdm(file_paths, desc="Runs"):
             run_features = np.empty((len(run_files), self.DEFAULT_WINDOW_SIZE, 2))
@@ -103,7 +102,7 @@ class XjtuSyPreparator:
             runs.append(run_features)
         return runs
 
-    def _load_feature_file(self, file_path):
+    def _load_feature_file(self, file_path: str) -> np.ndarray:
         return np.loadtxt(file_path, skiprows=1, delimiter=",")
 
     def _get_csv_file_paths(self, split: str) -> List[List[str]]:
@@ -117,7 +116,7 @@ class XjtuSyPreparator:
 
         return file_paths
 
-    def _get_run_folders(self, split_path):
+    def _get_run_folders(self, split_path: str) -> List[str]:
         all_folders = sorted(os.listdir(split_path))
         run_folders = [
             f for f in all_folders if os.path.isdir(os.path.join(split_path, f))
@@ -138,7 +137,7 @@ class XjtuSyPreparator:
         with open(self._get_run_file_path(), mode="wb") as f:
             pickle.dump((features, targets), f)
 
-    def _validate_split(self, split):
+    def _validate_split(self, split: str) -> None:
         if split not in ["dev", "test"]:
             raise ValueError(
                 f"XjtuSy has only a dev split, but you provided '{split}'."

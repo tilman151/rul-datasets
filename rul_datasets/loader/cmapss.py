@@ -1,24 +1,24 @@
 import os
 import warnings
-from typing import Union, List, Tuple
+from typing import Union, List, Tuple, Dict
 
 import numpy as np
-from sklearn import preprocessing as scalers
+from sklearn import preprocessing as scalers  # type: ignore
 
 from rul_datasets.loader.abstract import AbstractLoader, DATA_ROOT
 from rul_datasets import utils
 
 
 class CmapssLoader(AbstractLoader):
-    _FMT = (
+    _FMT: str = (
         "%d %d %.4f %.4f %.1f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f "
         "%.2f %.2f %.2f %.2f %.2f %.2f %.4f %.2f %d %d %.2f %.2f %.4f"
     )
-    _TRAIN_PERCENTAGE = 0.8
-    _WINDOW_SIZES = {1: 30, 2: 20, 3: 30, 4: 15}
-    _DEFAULT_CHANNELS = [4, 5, 6, 9, 10, 11, 13, 14, 15, 16, 17, 19, 22, 23]
-    _NUM_TRAIN_RUNS = {1: 80, 2: 208, 3: 80, 4: 199}
-    _CMAPSS_ROOT = os.path.join(DATA_ROOT, "CMAPSS")
+    _TRAIN_PERCENTAGE: float = 0.8
+    _WINDOW_SIZES: Dict[int, int] = {1: 30, 2: 20, 3: 30, 4: 15}
+    _DEFAULT_CHANNELS: List[int] = [4, 5, 6, 9, 10, 11, 13, 14, 15, 16, 17, 19, 22, 23]
+    _NUM_TRAIN_RUNS: Dict[int, int] = {1: 80, 2: 208, 3: 80, 4: 199}
+    _CMAPSS_ROOT: str = os.path.join(DATA_ROOT, "CMAPSS")
 
     def __init__(
         self,
@@ -29,7 +29,7 @@ class CmapssLoader(AbstractLoader):
         percent_fail_runs: Union[float, List[int]] = None,
         feature_select: List[int] = None,
         truncate_val: bool = False,
-    ):
+    ) -> None:
         super().__init__(
             fd, window_size, max_rul, percent_broken, percent_fail_runs, truncate_val
         )
@@ -41,7 +41,7 @@ class CmapssLoader(AbstractLoader):
     def _default_window_size(self, fd: int) -> int:
         return self._WINDOW_SIZES[fd]
 
-    def prepare_data(self):
+    def prepare_data(self) -> None:
         # Check if training data was already split
         dev_path = self._file_path("dev")
         if not os.path.exists(dev_path):
@@ -51,7 +51,7 @@ class CmapssLoader(AbstractLoader):
             )
             self._split_fd_train(self._file_path("train"))
 
-    def _split_fd_train(self, train_path: str):
+    def _split_fd_train(self, train_path: str) -> None:
         train_data = np.loadtxt(train_path)
 
         # Split into runs
