@@ -1,3 +1,4 @@
+import functools
 import os
 import unittest
 from dataclasses import dataclass
@@ -5,6 +6,7 @@ from typing import List, Optional, Tuple, Union
 from unittest import mock
 
 import numpy as np
+import numpy.testing as npt
 import pytest
 import torch
 
@@ -402,27 +404,95 @@ class TestFEMTOLoader(unittest.TestCase):
         self.assertEqual(0, torch.dist(full_train_targets[1], trunc_train_targets[0]))
 
 
-@pytest.mark.needs_data
-class TestFEMTOPreperator:
-    NUM_SAMPLES = {
-        1: {"dev": 3674, "test": 9047},
-        2: {"dev": 1708, "test": 4560},
-        3: {"dev": 2152, "test": 352},
-    }
+class TestXjtuSyLoader:
+    NUM_CHANNELS = 2
 
+    def test_default_window_size(self):
+        xjtu = loader.XjtuSyLoader(1)
+        assert xjtu.window_size == loader.XjtuSyPreparator.DEFAULT_WINDOW_SIZE
+
+    @pytest.mark.parametrize("fd", [1, 2, 3])
+    def test_standardization(self, fd):
+        full_dataset = loader.XjtuSyLoader(fd)
+        full_train, full_train_targets = full_dataset.load_split("dev")
+
+        npt.assert_almost_equal(
+            0.0, torch.mean(torch.cat(full_train)).item(), decimal=4
+        )
+        npt.assert_almost_equal(1.0, torch.std(torch.cat(full_train)).item(), decimal=4)
+
+        truncated_dataset = loader.XjtuSyLoader(fd, percent_fail_runs=0.8)
+        trunc_train, trunc_train_targets = truncated_dataset.load_split("dev")
+        npt.assert_almost_equal(
+            0.0, torch.mean(torch.cat(trunc_train)).item(), decimal=1
+        )
+
+        # percent_broken is supposed to change the std but not the mean
+        truncated_dataset = loader.XjtuSyLoader(fd, percent_broken=0.2)
+        trunc_train, trunc_train_targets = truncated_dataset.load_split("dev")
+        npt.assert_almost_equal(
+            0.0, torch.mean(torch.cat(trunc_train)).item(), decimal=1
+        )
+
+    @pytest.mark.parametrize("window_size", [1500, 100])
+    @pytest.mark.parametrize("fd", [1, 2, 3])
+    @pytest.mark.parametrize("split", ["dev", "test"])
+    def test_run_shape_and_dtype(self, window_size, fd, split):
+        rul_loader = loader.FemtoLoader(fd, window_size=window_size)
+        features, targets = rul_loader.load_split(split)
+        for run, run_target in zip(features, targets):
+            self._assert_run_correct(run, run_target, window_size)
+
+    def _assert_run_correct(self, run, run_target, win):
+        assert win == run.shape[2]
+        assert self.NUM_CHANNELS == run.shape[1]
+        assert len(run) == len(run_target)
+        assert torch.float32 == run.dtype
+        assert torch.float32 == run_target.dtype
+
+
+def femto_preperator_class(fd):
+    return loader.FemtoPreparator(fd, loader.FemtoLoader._FEMTO_ROOT)
+
+
+def xjtu_sy_preparator_class(fd):
+    return loader.XjtuSyPreparator(fd, loader.XjtuSyLoader._XJTU_SY_ROOT)
+
+
+FEMTO_NUM_SAMPLES = {
+    1: {"dev": 3674, "test": 9047},
+    2: {"dev": 1708, "test": 4560},
+    3: {"dev": 2152, "test": 352},
+}
+XJTU_SY_NUM_SAMPLES = {
+    1: {"dev": 616, "test": 616},
+    2: {"dev": 1566, "test": 1566},
+    3: {"dev": 7034, "test": 7034},
+}
+
+
+@pytest.mark.needs_data
+@pytest.mark.parametrize(
+    ["preperator_class", "num_samples"],
+    [
+        (femto_preperator_class, FEMTO_NUM_SAMPLES),
+        (xjtu_sy_preparator_class, XJTU_SY_NUM_SAMPLES),
+    ],
+)
+class TestPreperators:
     @pytest.mark.skipif(not _raw_csv_exist(), reason="Raw CSV files not found.")
     @pytest.mark.parametrize("fd", [1, 2, 3])
     @pytest.mark.parametrize("split", ["dev", "test"])
-    def test_file_discovery(self, fd, split):
-        preparator = loader.FemtoPreparator(fd, loader.FemtoLoader._FEMTO_ROOT)
+    def test_file_discovery(self, preperator_class, num_samples, fd, split):
+        preparator = preperator_class(fd)
         csv_paths = preparator._get_csv_file_paths(split)
-        expected_num_files = self.NUM_SAMPLES[fd][split]
+        expected_num_files = num_samples[fd][split]
         actual_num_files = len(sum(csv_paths, []))
         assert actual_num_files == expected_num_files
 
     @pytest.mark.skipif(not _raw_csv_exist(), reason="Raw CSV files not found.")
-    def test_loading_one_file(self):
-        preparator = loader.FemtoPreparator(1, loader.FemtoLoader._FEMTO_ROOT)
+    def test_loading_one_file(self, preperator_class, num_samples):
+        preparator = preperator_class(1)
         csv_paths = preparator._get_csv_file_paths("dev")
         features = preparator._load_feature_file(csv_paths[0][0])
         assert isinstance(features, np.ndarray)
@@ -431,8 +501,8 @@ class TestFEMTOPreperator:
     @pytest.mark.skip("Takes a lot of time.")
     @pytest.mark.parametrize("fd", [1, 2, 3])
     @pytest.mark.parametrize("split", ["dev", "test"])
-    def test_preparation(self, fd, split):
-        preparator = loader.FemtoPreparator(fd, loader.FemtoLoader._FEMTO_ROOT)
+    def test_preparation(self, preperator_class, num_samples, fd, split):
+        preparator = preperator_class(fd)
         preparator.prepare_split(split)
         expected_file_path = preparator._get_run_file_path(split)
         assert os.path.exists(expected_file_path)
@@ -441,22 +511,30 @@ class TestFEMTOPreperator:
 
     @pytest.mark.parametrize("fd", [1, 2, 3])
     @pytest.mark.parametrize("split", ["dev", "test"])
-    def test_converted_files(self, fd, split):
-        preparator = loader.FemtoPreparator(fd, loader.FemtoLoader._FEMTO_ROOT)
+    def test_converted_files(self, preperator_class, num_samples, fd, split):
+        preparator = preperator_class(fd)
         features, targets = preparator.load_runs(split)
-        expected_num_time_steps = self.NUM_SAMPLES[fd][split]
+        expected_num_time_steps = num_samples[fd][split]
         actual_num_target_steps = sum(len(f) for f in features)
         assert actual_num_target_steps == expected_num_time_steps
         actual_num_target_steps = sum(len(t) for t in targets)
         assert actual_num_target_steps == expected_num_time_steps
 
     @pytest.mark.parametrize("fd", [1, 2, 3])
-    def test_scaler(self, fd):
-        preparator = loader.FemtoPreparator(fd, loader.FemtoLoader._FEMTO_ROOT)
+    def test_scaler(self, preperator_class, num_samples, fd):
+        preparator = preperator_class(fd)
         scaler = preparator.load_scaler()
-        expected_samples = self.NUM_SAMPLES[fd]["dev"] * preparator.DEFAULT_WINDOW_SIZE
+        expected_samples = num_samples[fd]["dev"] * preparator.DEFAULT_WINDOW_SIZE
         assert 2 == scaler.n_features_in_
         assert expected_samples == scaler.n_samples_seen_
+
+    @pytest.mark.parametrize("fd", [1, 2, 3])
+    @pytest.mark.parametrize("split", ["dev", "test"])
+    def test_runs_are_ordered(self, preperator_class, num_samples, fd, split):
+        preperator = preperator_class(fd)
+        features, targets = preperator.load_runs(split)
+        for targ in targets:
+            npt.assert_equal(targ, np.sort(targ)[::-1])
 
 
 class TestCMAPSSLoaderInterface(unittest.TestCase, LoaderInterfaceTemplate):
@@ -467,3 +545,8 @@ class TestCMAPSSLoaderInterface(unittest.TestCase, LoaderInterfaceTemplate):
 class TestFEMTOLoaderInterface(unittest.TestCase, LoaderInterfaceTemplate):
     def setUp(self):
         self.loader_type = loader.FemtoLoader
+
+
+class TestXjtuSyLoaderInterface(unittest.TestCase, LoaderInterfaceTemplate):
+    def setUp(self):
+        self.loader_type = loader.XjtuSyLoader

@@ -127,7 +127,7 @@ class FemtoPreparator:
 
     def _get_run_folders(self, split_path):
         folder_pattern = self._get_run_folder_pattern()
-        all_folders = os.listdir(split_path)
+        all_folders = sorted(os.listdir(split_path))
         run_folders = [f for f in all_folders if folder_pattern.match(f) is not None]
 
         return run_folders

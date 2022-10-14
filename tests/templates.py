@@ -179,20 +179,22 @@ class LoaderInterfaceTemplate:
     @pytest.mark.needs_data
     def test_load_split(self):
         tested_loader = self.loader_type(1)
-        for split in ["dev", "test"]:
-            with self.subTest(split):
-                loaded_split = tested_loader.load_split(split)
-                self._check_loaded_split(loaded_split)
+        with self.subTest("dev"):
+            loaded_split = tested_loader.load_split("dev")
+            self._check_loaded_split(loaded_split)
 
-        with self.subTest("val"):
-            try:
-                loaded_split = tested_loader.load_split("val")
-            except ValueError:
-                pass
-            except Exception:
-                self.fail("Loader has to throw a ValueError on missing val split.")
-            else:
-                self._check_loaded_split(loaded_split)
+        for split in ["val", "test"]:
+            with self.subTest(split):
+                try:
+                    loaded_split = tested_loader.load_split(split)
+                except ValueError:
+                    pass
+                except Exception:
+                    self.fail(
+                        f"Loader has to throw a ValueError on missing {split} split."
+                    )
+                else:
+                    self._check_loaded_split(loaded_split)
 
     def _check_loaded_split(self, loaded_split):
         self.assertIsInstance(loaded_split, tuple)
