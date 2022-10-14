@@ -3,10 +3,10 @@ import warnings
 from typing import Union, List, Tuple
 
 import numpy as np
-import torch
 from sklearn import preprocessing as scalers
 
 from rul_datasets.loader.abstract import AbstractLoader, DATA_ROOT
+from rul_datasets import utils
 
 
 class CmapssLoader(AbstractLoader):
@@ -30,17 +30,13 @@ class CmapssLoader(AbstractLoader):
         feature_select: List[int] = None,
         truncate_val: bool = False,
     ):
+        super().__init__(
+            fd, window_size, max_rul, percent_broken, percent_fail_runs, truncate_val
+        )
         # Select features according to https://doi.org/10.1016/j.ress.2017.11.021
         if feature_select is None:
             feature_select = self._DEFAULT_CHANNELS
-
-        self.fd = fd
-        self.window_size = window_size or self._default_window_size(self.fd)
-        self.max_rul = max_rul
         self.feature_select = feature_select
-        self.truncate_val = truncate_val
-        self.percent_broken = percent_broken
-        self.percent_fail_runs = percent_fail_runs
 
     def _default_window_size(self, fd: int) -> int:
         return self._WINDOW_SIZES[fd]
@@ -81,47 +77,22 @@ class CmapssLoader(AbstractLoader):
     def _file_name(self, split: str) -> str:
         return f"{split}_FD{self.fd:03d}.txt"
 
-    def load_split(self, split: str) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+    def _load_complete_split(
+        self, split: str
+    ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         file_path = self._file_path(split)
-
         features = self._load_features(file_path)
         features = self._normalize(features)
-        features, time_steps = self._remove_time_steps_from_features(features)
+        features, time_steps = self._split_time_steps_from_features(features)
 
         if split in ["dev", "val"]:
-            features, targets = self._process_dev_or_val_split(
-                split, features, time_steps
-            )
+            targets = self._generate_targets(time_steps)
+            features, targets = self._window_data(features, targets)
         elif split == "test":
-            features, targets = self._process_test_split(features)
+            targets = self._load_targets()
+            features = self._crop_data(features)
         else:
             raise ValueError(f"Unknown split {split}.")
-
-        tensor_feats, tensor_targets = self._to_tensor(features, targets)
-
-        return tensor_feats, tensor_targets
-
-    def _process_dev_or_val_split(self, split, features, time_steps):
-        # Build targets from time steps on training
-        targets = self._generate_targets(time_steps)
-        # Window data to get uniform sequence lengths
-        features, targets = self._window_data(features, targets)
-        if split == "dev":
-            features, targets = self._truncate_runs(
-                features, targets, self.percent_broken, self.percent_fail_runs
-            )
-        elif split == "val" and self.truncate_val:
-            features, targets = self._truncate_runs(
-                features, targets, self.percent_broken
-            )
-
-        return features, targets
-
-    def _process_test_split(self, features):
-        # Load targets from file on test
-        targets = self._load_targets()
-        # Crop data to get uniform sequence lengths
-        features = self._crop_data(features)
 
         return features, targets
 
@@ -154,7 +125,7 @@ class CmapssLoader(AbstractLoader):
         return features
 
     @staticmethod
-    def _remove_time_steps_from_features(
+    def _split_time_steps_from_features(
         features: List[np.ndarray],
     ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         """Extract and return time steps from feature array."""
@@ -188,20 +159,12 @@ class CmapssLoader(AbstractLoader):
         new_features = []
         new_targets = []
         for seq, target in zip(features, targets):
-            windows = self.extract_windows(seq, self.window_size)
+            windows = utils.extract_windows(seq, self.window_size)
             target = target[self.window_size - 1 :]
             new_features.append(windows)
             new_targets.append(target)
 
         return new_features, new_targets
-
-    def extract_windows(self, seq, window_size):
-        num_frames = seq.shape[0] - window_size + 1
-        window_idx = np.expand_dims(np.arange(window_size), 0)
-        window_idx = window_idx + np.expand_dims(np.arange(num_frames), 0).T
-        windows = seq[window_idx]
-
-        return windows
 
     def _crop_data(self, features: List[np.ndarray]) -> List[np.ndarray]:
         """Crop length of features to specified window size."""

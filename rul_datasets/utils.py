@@ -41,3 +41,12 @@ def get_targets_from_file_paths(
         targets.append(run_targets)
 
     return targets
+
+
+def extract_windows(seq, window_size):
+    num_frames = seq.shape[0] - window_size + 1
+    window_idx = np.expand_dims(np.arange(window_size), 0)
+    window_idx = window_idx + np.expand_dims(np.arange(num_frames), 0).T
+    windows = seq[window_idx]
+
+    return windows

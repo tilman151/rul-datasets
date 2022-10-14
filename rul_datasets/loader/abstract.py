@@ -5,6 +5,8 @@ from typing import Optional, Union, List, Dict, Any, Iterable, Tuple
 import numpy as np
 import torch
 
+from rul_datasets.loader import truncating
+
 DATA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data"))
 
 
@@ -18,6 +20,22 @@ class AbstractLoader:
 
     _NUM_TRAIN_RUNS: Dict[int, int]
 
+    def __init__(
+        self,
+        fd: int,
+        window_size: int = None,
+        max_rul: int = 125,
+        percent_broken: float = None,
+        percent_fail_runs: Union[float, List[int]] = None,
+        truncate_val: bool = False,
+    ):
+        self.fd = fd
+        self.window_size = window_size or self._default_window_size(self.fd)
+        self.max_rul = max_rul
+        self.truncate_val = truncate_val
+        self.percent_broken = percent_broken
+        self.percent_fail_runs = percent_fail_runs
+
     @property
     def hparams(self) -> Dict[str, Any]:
         return {
@@ -28,6 +46,27 @@ class AbstractLoader:
             "percent_fail_runs": self.percent_fail_runs,
             "truncate_val": self.truncate_val,
         }
+
+    def prepare_data(self) -> None:
+        raise NotImplementedError
+
+    def _default_window_size(self, fd: int) -> int:
+        raise NotImplementedError
+
+    def _load_complete_split(
+        self, split: str
+    ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+        raise NotImplementedError
+
+    def load_split(self, split: str) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+        features, targets = self._load_complete_split(split)
+        if split == "dev" or (split == "val" and self.truncate_val):
+            features, targets = truncating.truncate_runs(
+                features, targets, self.percent_broken, self.percent_fail_runs
+            )
+        tensor_feats, tensor_targets = self._to_tensor(features, targets)
+
+        return tensor_feats, tensor_targets
 
     def get_compatible(
         self,
@@ -81,15 +120,6 @@ class AbstractLoader:
 
         return complement_idx
 
-    def _default_window_size(self, fd: int) -> int:
-        raise NotImplementedError
-
-    def prepare_data(self) -> None:
-        raise NotImplementedError
-
-    def load_split(self, split: str) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
-        raise NotImplementedError
-
     def check_compatibility(self, other: "AbstractLoader") -> None:
         if not isinstance(other, type(self)):
             raise ValueError(
@@ -104,78 +134,6 @@ class AbstractLoader:
             raise ValueError(
                 f"Max RULs are not compatible " f"{self.max_rul} vs. {other.max_rul}"
             )
-
-    def _truncate_runs(
-        self,
-        features: List[np.ndarray],
-        targets: List[np.ndarray],
-        percent_broken: float = None,
-        included_runs: Union[float, Iterable[int]] = None,
-    ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-        # Truncate the number of runs
-        if included_runs is not None:
-            features, targets = self._truncate_included(
-                features, targets, included_runs
-            )
-
-        # Truncate the number of samples per run, starting at failure
-        if percent_broken is not None and percent_broken < 1:
-            features, targets = self._truncate_broken(features, targets, percent_broken)
-
-        return features, targets
-
-    def _truncate_included(
-        self,
-        features: List[np.ndarray],
-        targets: List[np.ndarray],
-        included_runs: Union[float, Iterable[int]],
-    ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-        if isinstance(included_runs, float):
-            features, targets = self._truncate_included_by_percentage(
-                features, targets, included_runs
-            )
-        elif isinstance(included_runs, Iterable):
-            features, targets = self._truncate_included_by_index(
-                features, targets, included_runs
-            )
-
-        return features, targets
-
-    def _truncate_included_by_percentage(
-        self,
-        features: List[np.ndarray],
-        targets: List[np.ndarray],
-        percent_included: float,
-    ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-        num_runs = int(percent_included * len(features))
-        features = features[:num_runs]
-        targets = targets[:num_runs]
-
-        return features, targets
-
-    def _truncate_included_by_index(
-        self,
-        features: List[np.ndarray],
-        targets: List[np.ndarray],
-        included_idx: Iterable[int],
-    ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-        features = [features[i] for i in included_idx]
-        targets = [targets[i] for i in included_idx]
-
-        return features, targets
-
-    def _truncate_broken(
-        self,
-        features: List[np.ndarray],
-        targets: List[np.ndarray],
-        percent_broken: float,
-    ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-        for i, run in enumerate(features):
-            num_cycles = int(percent_broken * len(run))
-            features[i] = run[:num_cycles]
-            targets[i] = targets[i][:num_cycles]
-
-        return features, targets
 
     def _to_tensor(
         self, features: List[np.ndarray], targets: List[np.ndarray]

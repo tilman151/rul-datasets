@@ -23,36 +23,22 @@ class XjtuSyLoader(AbstractLoader):
         max_rul: int = 125,
         percent_broken: float = None,
         percent_fail_runs: Union[float, List[int]] = None,
-        feature_select: List[int] = None,
         truncate_val: bool = False,
     ):
-        self.fd = fd
-        self.window_size = window_size or self._default_window_size(self.fd)
-        self.max_rul = max_rul
-        self.feature_select = feature_select
-        self.truncate_val = truncate_val
-        self.percent_broken = percent_broken
-        self.percent_fail_runs = percent_fail_runs
-
+        super().__init__(
+            fd, window_size, max_rul, percent_broken, percent_fail_runs, truncate_val
+        )
         self._preparator = XjtuSyPreparator(self.fd, self._XJTU_SY_ROOT)
 
     def prepare_data(self) -> None:
         self._preparator.prepare_split("dev")
 
-    def load_split(self, split: str) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
-        features, targets = self._load_runs(split)
-        if split == "dev":
-            features, targets = self._truncate_runs(
-                features, targets, self.percent_broken, self.percent_fail_runs
-            )
-        features = scaling.scale_features(features, self._preparator.load_scaler())
-        features, targets = self._to_tensor(features, targets)
-
-        return features, targets
-
-    def _load_runs(self, split: str) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+    def _load_complete_split(
+        self, split: str
+    ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         features, targets = self._preparator.load_runs(split)
-        features = [f[:, -self.window_size :, :] for f in features]
+        features = [f[:, -self.window_size :, :] for f in features]  # crop to window
+        features = scaling.scale_features(features, self._preparator.load_scaler())
 
         return features, targets
 
