@@ -12,7 +12,6 @@ def truncate_runs(
     # Truncate the number of runs
     if included_runs is not None:
         features, targets = _truncate_included(features, targets, included_runs)
-
     # Truncate the number of samples per run, starting at failure
     if percent_broken is not None and percent_broken < 1:
         features, targets = _truncate_broken(features, targets, percent_broken)
@@ -40,6 +39,8 @@ def _truncate_included(
 def _truncate_broken(
     features: List[np.ndarray], targets: List[np.ndarray], percent_broken: float
 ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+    features = features.copy()  # avoid mutating original list
+    targets = targets.copy()  # avoid mutating original list
     for i, run in enumerate(features):
         num_cycles = int(percent_broken * len(run))
         features[i] = run[:num_cycles]
