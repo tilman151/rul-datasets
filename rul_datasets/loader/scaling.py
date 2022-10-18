@@ -3,7 +3,7 @@ from typing import List, Optional
 
 import numpy as np
 from sklearn import preprocessing as scalers  # type: ignore
-from sklearn.base import BaseEstimator
+from sklearn.base import BaseEstimator  # type: ignore
 
 
 def fit_scaler(

@@ -2,26 +2,28 @@ import unittest
 
 import pytest
 import torch
+import numpy.testing as npt
 
 from rul_datasets import loader
 
 
+@pytest.fixture(scope="module", autouse=True)
+def prepare_cmapss():
+    for fd in range(1, 5):
+        loader.CmapssLoader(fd).prepare_data()
+
+
 @pytest.mark.needs_data
-class TestCMAPSSLoader(unittest.TestCase):
+class TestCMAPSSLoader:
     NUM_CHANNELS = len(loader.CmapssLoader._DEFAULT_CHANNELS)
 
-    @classmethod
-    def setUpClass(cls):
-        for fd in range(1, 5):
-            loader.CmapssLoader(fd).prepare_data()
-
-    def test_run_shape_and_dtype(self):
-        window_sizes = [30, 20, 30, 15]
-        for n, win in enumerate(window_sizes, start=1):
-            rul_loader = loader.CmapssLoader(n)
-            for split in ["dev", "val", "test"]:
-                with self.subTest(fd=n, split=split):
-                    self._check_split(rul_loader, split, win)
+    @pytest.mark.parametrize(
+        ("fd", "window_size"), [(1, 30), (2, 20), (3, 30), (4, 15)]
+    )
+    def test_run_shape_and_dtype(self, fd, window_size):
+        rul_loader = loader.CmapssLoader(fd)
+        for split in ["dev", "val", "test"]:
+            self._check_split(rul_loader, split, window_size)
 
     def _check_split(self, rul_loader, split, window_size):
         features, targets = rul_loader.load_split(split)
@@ -29,52 +31,50 @@ class TestCMAPSSLoader(unittest.TestCase):
             self._assert_run_correct(run, run_target, window_size)
 
     def _assert_run_correct(self, run, run_target, win):
-        self.assertEqual(win, run.shape[2])
-        self.assertEqual(self.NUM_CHANNELS, run.shape[1])
-        self.assertEqual(len(run), len(run_target))
-        self.assertEqual(torch.float32, run.dtype)
-        self.assertEqual(torch.float32, run_target.dtype)
+        assert win == run.shape[2]
+        assert self.NUM_CHANNELS == run.shape[1]
+        assert len(run) == len(run_target)
+        assert torch.float32 == run.dtype
+        assert torch.float32 == run_target.dtype
 
-    def test_default_window_size(self):
-        window_sizes = [30, 20, 30, 15]
-        for n, win in enumerate(window_sizes, start=1):
-            rul_loader = loader.CmapssLoader(n)
-            self.assertEqual(win, rul_loader.window_size)
+    @pytest.mark.parametrize(
+        ("fd", "window_size"), [(1, 30), (2, 20), (3, 30), (4, 15)]
+    )
+    def test_default_window_size(self, fd, window_size):
+        rul_loader = loader.CmapssLoader(fd)
+        assert window_size == rul_loader.window_size
 
     def test_default_feature_select(self):
         rul_loader = loader.CmapssLoader(1)
-        self.assertListEqual(rul_loader._DEFAULT_CHANNELS, rul_loader.feature_select)
+        assert rul_loader._DEFAULT_CHANNELS == rul_loader.feature_select
 
     def test_feature_select(self):
         dataset = loader.CmapssLoader(1, feature_select=[4, 9, 10, 13, 14, 15, 22])
+        dataset.prepare_data()  # fit new scaler for these features
         for split in ["dev", "val", "test"]:
             features, _ = dataset.load_split(split)
             for run in features:
-                self.assertEqual(7, run.shape[1])
+                assert 7 == run.shape[1]
 
-    def test_normalization_min_max(self):
-        for i in range(1, 5):
-            with self.subTest(fd=i):
-                full_dataset = loader.CmapssLoader(fd=i, window_size=30)
-                full_dev, full_dev_targets = full_dataset.load_split("dev")
+    def test_prepare_data_not_called_for_feature_select(self):
+        dataset = loader.CmapssLoader(1, feature_select=[4])
+        with pytest.raises(RuntimeError):
+            dataset.load_split("dev")
 
-                self.assertAlmostEqual(max(torch.max(r).item() for r in full_dev), 1.0)
-                self.assertAlmostEqual(min(torch.min(r).item() for r in full_dev), -1.0)
+    @pytest.mark.parametrize("fd", [1, 2, 3, 4])
+    def test_normalization_min_max(self, fd):
+        full_dataset = loader.CmapssLoader(fd)
+        full_dev, full_dev_targets = full_dataset.load_split("dev")
 
-                truncated_dataset = loader.CmapssLoader(
-                    fd=i, window_size=30, percent_fail_runs=0.8
-                )
-                trunc_dev, trunc_dev_targets = truncated_dataset.load_split("dev")
-                self.assertLessEqual(max(torch.max(r).item() for r in trunc_dev), 1.0)
-                self.assertGreaterEqual(
-                    min(torch.min(r).item() for r in trunc_dev), -1.0
-                )
+        npt.assert_almost_equal(max(torch.max(r).item() for r in full_dev), 1.0)
+        npt.assert_almost_equal(min(torch.min(r).item() for r in full_dev), -1.0)
 
-                truncated_dataset = loader.CmapssLoader(
-                    fd=i, window_size=30, percent_broken=0.2
-                )
-                trunc_dev, trunc_dev_targets = truncated_dataset.load_split("dev")
-                self.assertLessEqual(max(torch.max(r).item() for r in trunc_dev), 1.0)
-                self.assertGreaterEqual(
-                    min(torch.min(r).item() for r in trunc_dev), -1.0
-                )
+        trunc_dataset = loader.CmapssLoader(fd, percent_fail_runs=0.8)
+        trunc_dev, _ = trunc_dataset.load_split("dev")
+        assert max(torch.max(r).item() for r in trunc_dev) <= 1.0
+        assert min(torch.min(r).item() for r in trunc_dev) >= -1.0
+
+        trunc_dataset = loader.CmapssLoader(fd, percent_broken=0.2)
+        trunc_dev, _ = trunc_dataset.load_split("dev")
+        assert max(torch.max(r).item() for r in trunc_dev) <= 1.0
+        assert min(torch.min(r).item() for r in trunc_dev) >= -1.0

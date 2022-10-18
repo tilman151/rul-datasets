@@ -5,6 +5,7 @@ from typing import Union, List, Tuple, Dict
 import numpy as np
 from sklearn import preprocessing as scalers  # type: ignore
 
+from rul_datasets.loader import scaling
 from rul_datasets.loader.abstract import AbstractLoader, DATA_ROOT
 from rul_datasets import utils
 
@@ -43,13 +44,21 @@ class CmapssLoader(AbstractLoader):
 
     def prepare_data(self) -> None:
         # Check if training data was already split
-        dev_path = self._file_path("dev")
-        if not os.path.exists(dev_path):
+        if not os.path.exists(self._get_feature_path("dev")):
             warnings.warn(
                 f"Training data for FD{self.fd:03d} not "
                 f"yet split into dev and val. Splitting now."
             )
-            self._split_fd_train(self._file_path("train"))
+            self._split_fd_train(self._get_feature_path("train"))
+        if not os.path.exists(self._get_scaler_path()):
+            self._prepare_scaler()
+
+    def _prepare_scaler(self) -> None:
+        dev_features = self._load_features(self._get_feature_path("dev"))
+        dev_features, _ = self._split_time_steps_from_features(dev_features)
+        scaler = scalers.MinMaxScaler(feature_range=(-1, 1))
+        scaler = scaling.fit_scaler(dev_features, scaler)
+        scaling.save_scaler(scaler, self._get_scaler_path())
 
     def _split_fd_train(self, train_path: str) -> None:
         train_data = np.loadtxt(train_path)
@@ -71,19 +80,25 @@ class CmapssLoader(AbstractLoader):
         val_file = os.path.join(data_root, val_file)
         np.savetxt(val_file, val_data, fmt=self._FMT)
 
-    def _file_path(self, split: str) -> str:
-        return os.path.join(self._CMAPSS_ROOT, self._file_name(split))
+    def _get_scaler_path(self) -> str:
+        return os.path.join(self._CMAPSS_ROOT, self._get_scaler_name())
 
-    def _file_name(self, split: str) -> str:
+    def _get_scaler_name(self) -> str:
+        return f"FD{self.fd:03d}_scaler_{self.feature_select}.pkl"
+
+    def _get_feature_path(self, split: str) -> str:
+        return os.path.join(self._CMAPSS_ROOT, self._get_feature_name(split))
+
+    def _get_feature_name(self, split: str) -> str:
         return f"{split}_FD{self.fd:03d}.txt"
 
     def _load_complete_split(
         self, split: str
     ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-        file_path = self._file_path(split)
+        file_path = self._get_feature_path(split)
         features = self._load_features(file_path)
-        features = self._normalize(features)
         features, time_steps = self._split_time_steps_from_features(features)
+        features = self._scale_features(features)
 
         if split in ["dev", "val"]:
             targets = self._generate_targets(time_steps)
@@ -109,18 +124,16 @@ class CmapssLoader(AbstractLoader):
 
         return features
 
-    def _normalize(self, features: List[np.ndarray]) -> List[np.ndarray]:
-        """Normalize features with sklearn transform."""
-        # Fit scaler on corresponding training split
-        train_file = self._file_path("dev")
-        train_features = self._load_features(train_file)
-        full_features = np.concatenate(train_features, axis=0)
-        scaler = scalers.MinMaxScaler(feature_range=(-1, 1))
-        scaler.fit(full_features[:, 2:])
-
-        # Normalize features
-        for i, run in enumerate(features):
-            features[i][:, 2:] = scaler.transform(run[:, 2:])
+    def _scale_features(self, features: List[np.ndarray]) -> List[np.ndarray]:
+        scaler_path = self._get_scaler_path()
+        if not os.path.exists(scaler_path):
+            raise RuntimeError(
+                f"Scaler for FD{self.fd:03d} with features "
+                f"{self.feature_select} does not exist. "
+                f"Did you call prepare_data yet?"
+            )
+        scaler = scaling.load_scaler(scaler_path)
+        features = scaling.scale_features(features, scaler)
 
         return features
 
@@ -128,7 +141,6 @@ class CmapssLoader(AbstractLoader):
     def _split_time_steps_from_features(
         features: List[np.ndarray],
     ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-        """Extract and return time steps from feature array."""
         time_steps = []
         for i, seq in enumerate(features):
             time_steps.append(seq[:, 1])
