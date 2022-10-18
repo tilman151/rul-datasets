@@ -16,24 +16,24 @@ def dummy_file_name_to_timestep(file_path):
 
 
 def ordered_file_paths():
-    file_paths = []
-    time_steps = []
-    for _ in range(2):
+    file_paths = {}
+    time_steps = {}
+    for i in range(2):
         run_steps = list(range(1, random.randint(10, 20)))
-        time_steps.append(run_steps)
-        file_paths.append([f"foo/bar/{i}.csv" for i in run_steps])
+        time_steps[i] = run_steps
+        file_paths[i] = [f"foo/bar/{i}.csv" for i in run_steps]
 
     return file_paths, time_steps
 
 
 def shuffled_file_paths():
-    file_paths = []
-    time_steps = []
-    for _ in range(2):
+    file_paths = {}
+    time_steps = {}
+    for i in range(2):
         run_steps = list(range(1, random.randint(10, 20)))
         random.shuffle(run_steps)
-        time_steps.append(run_steps)
-        file_paths.append([f"foo/bar/{i}.csv" for i in run_steps])
+        time_steps[i] = run_steps
+        file_paths[i] = [f"foo/bar/{i}.csv" for i in run_steps]
 
     return file_paths, time_steps
 
@@ -43,7 +43,7 @@ def test_get_targets_from_file_paths(file_path_func):
     file_paths, time_steps = file_path_func()
     targets = utils.get_targets_from_file_paths(file_paths, dummy_file_name_to_timestep)
 
-    for run_targets, run_steps in zip(targets, time_steps):
+    for run_targets, run_steps in zip(targets.values(), time_steps.values()):
         sorted_idx = np.argsort(run_targets)
         sorted_targets = run_targets[sorted_idx]
         sorted_steps = np.array(run_steps)[sorted_idx[::-1]]  # reverse sorted

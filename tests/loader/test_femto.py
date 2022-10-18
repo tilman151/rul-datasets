@@ -6,6 +6,12 @@ import torch
 from rul_datasets import loader
 
 
+@pytest.fixture(scope="module", autouse=True)
+def prepare_femto():
+    for fd in range(1, 4):
+        loader.FemtoLoader(fd).prepare_data()
+
+
 @pytest.mark.needs_data
 class TestFEMTOLoader(unittest.TestCase):
     NUM_CHANNELS = 2

@@ -1,5 +1,5 @@
 import os
-from typing import List, Optional, Callable
+from typing import List, Optional, Callable, Dict
 
 import numpy as np
 
@@ -27,8 +27,8 @@ def get_files_in_path(path: str, condition: Optional[Callable] = None) -> List[s
 
 
 def get_targets_from_file_paths(
-    file_paths: List[List[str]], timestep_from_file_path: Callable
-) -> List[np.ndarray]:
+    file_paths: Dict[int, List[str]], timestep_from_file_path: Callable
+) -> Dict[int, np.ndarray]:
     """
     Create the RUL targets based on the file paths of the feature files.
 
@@ -37,19 +37,19 @@ def get_targets_from_file_paths(
     calculated by subtracting each time step from the maximum time step plus 1.
 
     Args:
-        file_paths: list of runs represented as lists of feature file paths
+        file_paths: runs represented as dict of feature file paths
         timestep_from_file_path: Function to convert a feature file path to a time step
 
     Returns:
         A list of RUL target arrays for each run
     """
-    targets = []
-    for run_files in file_paths:
+    targets = {}
+    for run_idx, run_files in file_paths.items():
         run_targets = np.empty(len(run_files))
         for i, file_path in enumerate(run_files):
             run_targets[i] = timestep_from_file_path(file_path)
         run_targets = np.max(run_targets) - run_targets + 1
-        targets.append(run_targets)
+        targets[run_idx] = run_targets
 
     return targets
 
