@@ -26,11 +26,15 @@ class RulDataModule(pl.LightningDataModule):
     def loader(self) -> AbstractLoader:
         return self._loader
 
+    @property
+    def fds(self):
+        return self._loader.fds
+
     def check_compatibility(self, other: "RulDataModule") -> None:
         try:
             self.loader.check_compatibility(other.loader)
         except ValueError:
-            raise ValueError("CMAPSSDataModules incompatible on loader level.")
+            raise ValueError("RulDataModules incompatible on loader level.")
 
         if not self.batch_size == other.batch_size:
             raise ValueError(

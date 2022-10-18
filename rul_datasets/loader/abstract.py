@@ -47,6 +47,10 @@ class AbstractLoader:
             "truncate_val": self.truncate_val,
         }
 
+    @property
+    def fds(self) -> List[int]:
+        raise NotImplementedError
+
     def prepare_data(self) -> None:
         raise NotImplementedError
 

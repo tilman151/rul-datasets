@@ -17,28 +17,28 @@ class BaselineDataModule(pl.LightningDataModule):
         self.save_hyperparameters(hparams)
 
         self.subsets = {}
-        for fd in range(1, 5):
-            self.subsets[fd] = self._get_cmapss(fd)
+        for fd in self.data_module.fds:
+            self.subsets[fd] = self._get_fd(fd)
 
-    def _get_cmapss(self, fd):
+    def _get_fd(self, fd):
         if fd == self.hparams["fd"]:
-            cmapss = self.data_module
+            dm = self.data_module
         else:
             loader = deepcopy(self.data_module.loader)
             loader.fd = fd
             loader.percent_fail_runs = None
             loader.percent_broken = None
-            cmapss = RulDataModule(loader, self.data_module.batch_size)
+            dm = RulDataModule(loader, self.data_module.batch_size)
 
-        return cmapss
+        return dm
 
     def prepare_data(self, *args, **kwargs):
-        for cmapss_fd in self.subsets.values():
-            cmapss_fd.prepare_data(*args, **kwargs)
+        for dm in self.subsets.values():
+            dm.prepare_data(*args, **kwargs)
 
     def setup(self, stage: Optional[str] = None):
-        for cmapss_fd in self.subsets.values():
-            cmapss_fd.setup(stage)
+        for dm in self.subsets.values():
+            dm.setup(stage)
 
     def train_dataloader(self, *args, **kwargs) -> DataLoader:
         return self.data_module.train_dataloader()
@@ -48,7 +48,7 @@ class BaselineDataModule(pl.LightningDataModule):
 
     def test_dataloader(self, *args, **kwargs) -> List[DataLoader]:
         test_dataloaders = []
-        for fd_target in range(1, 5):
+        for fd_target in self.data_module.fds:
             target_dl = self.subsets[fd_target].test_dataloader()
             test_dataloaders.append(target_dl)
 

@@ -44,7 +44,7 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
         if self.source.loader.fd == self.target.loader.fd:
             raise ValueError(
                 f"FD of source and target has to be different for "
-                f"domain adaption, but is {self.source.loader.fd} bot times."
+                f"domain adaption, but is {self.source.loader.fd} both times."
             )
 
     def prepare_data(self, *args, **kwargs):

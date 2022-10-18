@@ -39,6 +39,10 @@ class CmapssLoader(AbstractLoader):
             feature_select = self._DEFAULT_CHANNELS
         self.feature_select = feature_select
 
+    @property
+    def fds(self) -> List[int]:
+        return list(self._WINDOW_SIZES)
+
     def _default_window_size(self, fd: int) -> int:
         return self._WINDOW_SIZES[fd]
 

@@ -1,8 +1,6 @@
-import unittest
-
+import numpy.testing as npt
 import pytest
 import torch
-import numpy.testing as npt
 
 from rul_datasets import loader
 

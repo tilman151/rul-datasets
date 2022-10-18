@@ -30,6 +30,10 @@ class FemtoLoader(AbstractLoader):
         )
         self._preparator = FemtoPreparator(self.fd, self._FEMTO_ROOT)
 
+    @property
+    def fds(self) -> List[int]:
+        return list(self._NUM_TRAIN_RUNS)
+
     def prepare_data(self) -> None:
         self._preparator.prepare_split("dev")
         self._preparator.prepare_split("test")

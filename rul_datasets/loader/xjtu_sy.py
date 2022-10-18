@@ -29,6 +29,10 @@ class XjtuSyLoader(AbstractLoader):
         )
         self._preparator = XjtuSyPreparator(self.fd, self._XJTU_SY_ROOT)
 
+    @property
+    def fds(self) -> List[int]:
+        return list(self._NUM_TRAIN_RUNS)
+
     def prepare_data(self) -> None:
         self._preparator.prepare_split("dev")
 

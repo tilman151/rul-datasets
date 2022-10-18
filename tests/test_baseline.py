@@ -9,10 +9,11 @@ import rul_datasets
 from tests.templates import PretrainingDataModuleTemplate
 
 
-class TestCMAPSSBaseline(unittest.TestCase):
+class TestBaselineDataModule(unittest.TestCase):
     def setUp(self):
-        self.mock_loader = mock.MagicMock(name="CMAPSSLoader")
+        self.mock_loader = mock.MagicMock(name="AbstractLoader")
         self.mock_loader.fd = 1
+        self.mock_loader.fds = [1, 2, 3]
         self.mock_loader.hparams = {"fd": self.mock_loader.fd}
         self.mock_runs = [torch.zeros(1, 1, 1)], [torch.zeros(1)]
         self.mock_loader.load_split.return_value = self.mock_runs
@@ -23,7 +24,7 @@ class TestCMAPSSBaseline(unittest.TestCase):
         self.dataset.setup()
 
     def test_test_sets_created_correctly(self):
-        for fd in range(1, 5):
+        for fd in self.mock_loader.fds:
             self.assertIn(fd, self.dataset.subsets)
             self.assertEqual(fd, self.dataset.subsets[fd].loader.fd)
             if fd == self.dataset.hparams["fd"]:
