@@ -1,6 +1,6 @@
 import os.path
 import pickle
-from typing import Tuple, List, Union, Dict
+from typing import Tuple, List, Union, Dict, Optional
 
 import numpy as np
 from tqdm import tqdm  # type: ignore
@@ -23,11 +23,12 @@ class XjtuSyLoader(AbstractLoader):
         percent_broken: float = None,
         percent_fail_runs: Union[float, List[int]] = None,
         truncate_val: bool = False,
+        run_split_dist: Optional[Dict[str, List[int]]] = None,
     ) -> None:
         super().__init__(
             fd, window_size, max_rul, percent_broken, percent_fail_runs, truncate_val
         )
-        self._preparator = XjtuSyPreparator(self.fd, self._XJTU_SY_ROOT)
+        self._preparator = XjtuSyPreparator(self.fd, self._XJTU_SY_ROOT, run_split_dist)
 
     @property
     def fds(self) -> List[int]:
@@ -52,10 +53,21 @@ class XjtuSyLoader(AbstractLoader):
 class XjtuSyPreparator:
     DEFAULT_WINDOW_SIZE: int = 32768
     FD_FOLDERS: Dict[int, str] = {1: "35Hz12kN", 2: "37.5Hz11kN", 3: "40Hz10kN"}
+    _DEFAULT_RUN_SPLIT_DIST: Dict[str, List[int]] = {
+        "dev": [0, 1],
+        "val": [2],
+        "test": [3, 4],
+    }
 
-    def __init__(self, fd: int, data_root: str) -> None:
+    def __init__(
+        self,
+        fd: int,
+        data_root: str,
+        run_split_dist: Optional[Dict[str, List[int]]] = None,
+    ) -> None:
         self.fd = fd
         self.data_root = data_root
+        self.run_split_dist = run_split_dist or self._DEFAULT_RUN_SPLIT_DIST
 
     def prepare_split(self, split: str) -> None:
         self._validate_split(split)
@@ -73,6 +85,8 @@ class XjtuSyPreparator:
         self._validate_split(split)
         with open(self._get_run_file_path(), mode="rb") as f:
             features, targets = pickle.load(f)
+        features = [features[i] for i in self.run_split_dist[split]]
+        targets = [targets[i] for i in self.run_split_dist[split]]
 
         return features, targets
 
@@ -142,9 +156,10 @@ class XjtuSyPreparator:
             pickle.dump((features, targets), f)
 
     def _validate_split(self, split: str) -> None:
-        if split not in ["dev", "test"]:
+        if split not in ["dev", "val", "test"]:
             raise ValueError(
-                f"XjtuSy has only a dev split, but you provided '{split}'."
+                "XJTU-SY provides a dev, val and test split, "
+                f"but you provided '{split}'."
             )
 
     def _get_scaler_path(self) -> str:

@@ -5,6 +5,12 @@ from numpy import testing as npt
 from rul_datasets import loader
 
 
+@pytest.fixture(scope="module", autouse=True)
+def prepare_xjtu_sy():
+    for fd in range(1, 4):
+        loader.XjtuSyLoader(fd).prepare_data()
+
+
 @pytest.mark.needs_data
 class TestXjtuSyLoader:
     NUM_CHANNELS = 2
@@ -38,9 +44,9 @@ class TestXjtuSyLoader:
 
     @pytest.mark.parametrize("window_size", [1500, 100])
     @pytest.mark.parametrize("fd", [1, 2, 3])
-    @pytest.mark.parametrize("split", ["dev", "test"])
+    @pytest.mark.parametrize("split", ["dev", "val", "test"])
     def test_run_shape_and_dtype(self, window_size, fd, split):
-        rul_loader = loader.FemtoLoader(fd, window_size=window_size)
+        rul_loader = loader.XjtuSyLoader(fd, window_size=window_size)
         features, targets = rul_loader.load_split(split)
         for run, run_target in zip(features, targets):
             self._assert_run_correct(run, run_target, window_size)
@@ -51,3 +57,12 @@ class TestXjtuSyLoader:
         assert len(run) == len(run_target)
         assert torch.float32 == run.dtype
         assert torch.float32 == run_target.dtype
+
+    @pytest.mark.parametrize("fd", [1, 2, 3])
+    @pytest.mark.parametrize(
+        ["split", "exp_length"], [("dev", 2), ("val", 1), ("test", 2)]
+    )
+    def test_run_split_dist(self, fd, split, exp_length):
+        rul_loader = loader.XjtuSyLoader(fd)
+        features, targets = rul_loader.load_split(split)
+        assert len(features) == len(targets) == exp_length
