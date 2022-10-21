@@ -3,6 +3,7 @@ import torch
 from numpy import testing as npt
 
 from rul_datasets import loader
+from rul_datasets.loader.xjtu_sy import _download_xjtu_sy
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -66,3 +67,7 @@ class TestXjtuSyLoader:
         rul_loader = loader.XjtuSyLoader(fd)
         features, targets = rul_loader.load_split(split)
         assert len(features) == len(targets) == exp_length
+
+
+def test_download_xjtu_sy():
+    _download_xjtu_sy("")

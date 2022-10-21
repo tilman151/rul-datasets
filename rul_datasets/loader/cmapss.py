@@ -1,5 +1,7 @@
 import os
+import tempfile
 import warnings
+import zipfile
 from typing import Union, List, Tuple, Dict
 
 import numpy as np
@@ -8,6 +10,9 @@ from sklearn import preprocessing as scalers  # type: ignore
 from rul_datasets.loader import scaling
 from rul_datasets.loader.abstract import AbstractLoader, DATA_ROOT
 from rul_datasets import utils
+
+
+CMAPSS_URL = "https://kr0k0tsch.de/rul-datasets/CMAPSSData.zip"
 
 
 class CmapssLoader(AbstractLoader):
@@ -47,6 +52,8 @@ class CmapssLoader(AbstractLoader):
         return self._WINDOW_SIZES[fd]
 
     def prepare_data(self) -> None:
+        if not os.path.exists(self._CMAPSS_ROOT):
+            _download_cmapss(DATA_ROOT)
         # Check if training data was already split
         if not os.path.exists(self._get_feature_path("dev")):
             warnings.warn(
@@ -194,3 +201,13 @@ class CmapssLoader(AbstractLoader):
             cropped_features.append(np.expand_dims(seq, axis=0))
 
         return cropped_features
+
+
+def _download_cmapss(data_root: str) -> None:
+    with tempfile.TemporaryDirectory() as tmp_path:
+        print("Download CMAPSS dataset")
+        download_path = os.path.join(tmp_path, "CMAPSSData.zip")
+        utils.download_file(CMAPSS_URL, download_path)
+        print("Extract CMAPSS dataset")
+        with zipfile.ZipFile(download_path, mode="r") as f:
+            f.extractall(data_root)

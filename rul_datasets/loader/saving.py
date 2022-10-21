@@ -1,8 +1,8 @@
 import os.path
-from typing import Tuple, List, Dict, Optional
+from typing import Tuple, List, Dict
 
 import numpy as np
-from tqdm import tqdm
+from tqdm import tqdm  # type: ignore
 
 
 def save(save_path: str, features: np.ndarray, targets: np.ndarray) -> None:

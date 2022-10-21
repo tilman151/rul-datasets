@@ -2,6 +2,8 @@ import os
 from typing import List, Optional, Callable, Dict
 
 import numpy as np
+import requests
+from tqdm import tqdm  # type: ignore
 
 
 def get_files_in_path(path: str, condition: Optional[Callable] = None) -> List[str]:
@@ -79,3 +81,13 @@ def extract_windows(seq: np.ndarray, window_size: int) -> np.ndarray:
     windows = seq[window_idx]
 
     return windows
+
+
+def download_file(url: str, save_path: str) -> None:
+    response = requests.get(url, stream=True)
+    if not response.status_code == 200:
+        raise RuntimeError(f"Download failed. Server returned {response.status_code}")
+    content_len = int(response.headers["Content-Length"]) // 1024
+    with open(save_path, mode="wb") as f:
+        for data in tqdm(response.iter_content(chunk_size=1024), total=content_len):
+            f.write(data)

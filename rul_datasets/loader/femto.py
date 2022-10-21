@@ -1,16 +1,18 @@
 import os
 import re
+import tempfile
 import warnings
+import zipfile
 from typing import List, Tuple, Union, Dict, Optional
 
 import numpy as np
 import sklearn.preprocessing as scalers  # type: ignore
-from tqdm import tqdm  # type: ignore
 
 from rul_datasets import utils
-from rul_datasets.loader.abstract import AbstractLoader, DATA_ROOT
 from rul_datasets.loader import scaling, saving
-from rul_datasets.loader.saving import load_raw
+from rul_datasets.loader.abstract import AbstractLoader, DATA_ROOT
+
+FEMTO_URL = "https://kr0k0tsch.de/rul-datasets/FEMTOBearingDataSet.zip"
 
 
 class FemtoLoader(AbstractLoader):
@@ -37,7 +39,10 @@ class FemtoLoader(AbstractLoader):
         return list(self._NUM_TRAIN_RUNS)
 
     def prepare_data(self) -> None:
+        if not os.path.exists(self._FEMTO_ROOT):
+            _download_femto(DATA_ROOT)
         self._preparator.prepare_split("dev")
+        self._preparator.prepare_split("val")
         self._preparator.prepare_split("test")
 
     def _load_complete_split(
@@ -160,3 +165,13 @@ class FemtoPreparator:
 
     def _get_split_folder(self, split: str) -> str:
         return os.path.join(self._data_root, self._SPLIT_FOLDERS[split])
+
+
+def _download_femto(data_root: str) -> None:
+    with tempfile.TemporaryDirectory() as tmp_path:
+        print("Download FEMTO dataset")
+        download_path = os.path.join(tmp_path, "FEMTO.zip")
+        utils.download_file(FEMTO_URL, download_path)
+        print("Extract FEMTO dataset")
+        with zipfile.ZipFile(download_path, mode="r") as f:
+            f.extractall(data_root)

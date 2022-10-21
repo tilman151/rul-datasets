@@ -1,12 +1,15 @@
 import os.path
+import tempfile
+import zipfile
 from typing import Tuple, List, Union, Dict, Optional
 
 import numpy as np
 from sklearn import preprocessing as scalers  # type: ignore
-from tqdm import tqdm  # type: ignore
 
 from rul_datasets import utils
 from rul_datasets.loader import AbstractLoader, DATA_ROOT, saving, scaling
+
+XJTU_SY_URL = "https://kr0k0tsch.de/rul-datasets/XJTU-SY.zip"
 
 
 class XjtuSyLoader(AbstractLoader):
@@ -33,7 +36,9 @@ class XjtuSyLoader(AbstractLoader):
         return list(self._NUM_TRAIN_RUNS)
 
     def prepare_data(self) -> None:
-        self._preparator.prepare_split("dev")
+        if not os.path.exists(self._XJTU_SY_ROOT):
+            _download_xjtu_sy(DATA_ROOT)
+        self._preparator.prepare_split()
 
     def _load_complete_split(
         self, split: str
@@ -67,15 +72,14 @@ class XjtuSyPreparator:
         self.data_root = data_root
         self.run_split_dist = run_split_dist or self._DEFAULT_RUN_SPLIT_DIST
 
-    def prepare_split(self, split: str) -> None:
-        self._validate_split(split)
+    def prepare_split(self) -> None:
         run_file_path = self._get_run_file_path(1)
         if not saving.exists(run_file_path):
             runs = self._load_raw_runs()
             runs = self._sort_runs(runs)
             self._save_efficient(runs)
         if not os.path.exists(self._get_scaler_path()):
-            features, _ = self.load_runs(split)
+            features, _ = self.load_runs("dev")
             scaler = scaling.fit_scaler(features)
             scaling.save_scaler(scaler, self._get_scaler_path())
 
@@ -160,3 +164,13 @@ class XjtuSyPreparator:
 
     def _get_fd_folder_path(self) -> str:
         return os.path.join(self.data_root, self._FD_FOLDERS[self.fd])
+
+
+def _download_xjtu_sy(data_root: str) -> None:
+    with tempfile.TemporaryDirectory() as tmp_path:
+        print("Download XJTU-SY dataset")
+        download_path = os.path.join(tmp_path, "XJTU-SY.zip")
+        utils.download_file(XJTU_SY_URL, download_path)
+        print("Extract XJTU-SY dataset")
+        with zipfile.ZipFile(download_path, mode="r") as f:
+            f.extractall(data_root)
