@@ -1,5 +1,4 @@
 import os
-import pickle
 import re
 import warnings
 from typing import List, Tuple, Union, Dict, Optional
@@ -11,6 +10,7 @@ from tqdm import tqdm  # type: ignore
 from rul_datasets import utils
 from rul_datasets.loader.abstract import AbstractLoader, DATA_ROOT
 from rul_datasets.loader import scaling, saving
+from rul_datasets.loader.saving import load_raw
 
 
 class FemtoLoader(AbstractLoader):
@@ -91,17 +91,18 @@ class FemtoPreparator:
 
     def load_runs(self, split: str) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         self._validate_split(split)
-        runs = [
-            saving.load(self._get_run_file_path(split, idx))
-            for idx in self.run_split_dist[split]
-        ]
-        features, targets = [list(x) for x in zip(*runs)]
+        run_idx = self.run_split_dist[split]
+        run_paths = [self._get_run_file_path(split, idx) for idx in run_idx]
+        features, targets = saving.load_multiple(run_paths)
 
         return features, targets
 
+    def load_scaler(self) -> scalers.StandardScaler:
+        return scaling.load_scaler(self._get_scaler_path())
+
     def _load_raw_runs(self, split: str) -> Dict[int, Tuple[np.ndarray, np.ndarray]]:
         file_paths = self._get_csv_file_paths(split)
-        features = self._load_raw_features(file_paths)
+        features = saving.load_raw(file_paths, self.DEFAULT_WINDOW_SIZE, columns=[4, 5])
         targets = utils.get_targets_from_file_paths(
             file_paths, self._timestep_from_file_path
         )
@@ -122,17 +123,18 @@ class FemtoPreparator:
 
         return file_paths
 
-    def _load_raw_features(
-        self, file_paths: Dict[int, List[str]]
-    ) -> Dict[int, np.ndarray]:
-        runs = {}
-        for run_idx, run_files in tqdm(file_paths.items(), desc="Runs"):
-            run_features = np.empty((len(run_files), self.DEFAULT_WINDOW_SIZE, 2))
-            for i, file_path in enumerate(tqdm(run_files, desc="Files", leave=False)):
-                run_features[i] = self._load_feature_file(file_path)
-            runs[run_idx] = run_features
+    @staticmethod
+    def _timestep_from_file_path(file_path: str) -> int:
+        file_name = os.path.basename(file_path)
+        time_step = int(file_name[4:9])
 
-        return runs
+        return time_step
+
+    def _save_efficient(
+        self, split: str, runs: Dict[int, Tuple[np.ndarray, np.ndarray]]
+    ) -> None:
+        for run_idx, (features, targets) in runs.items():
+            saving.save(self._get_run_file_path(split, run_idx), features, targets)
 
     def _validate_split(self, split: str) -> None:
         if split not in self._SPLIT_FOLDERS:
@@ -147,40 +149,6 @@ class FemtoPreparator:
 
     def _get_run_folder_pattern(self) -> re.Pattern:
         return re.compile(rf"Bearing{self.fd}_\d")
-
-    def _load_feature_file(self, file_path: str) -> np.ndarray:
-        try:
-            features = np.loadtxt(file_path, delimiter=",")
-        except ValueError:
-            self._replace_delimiters(file_path)
-            features = np.loadtxt(file_path, delimiter=",")
-        features = features[:, [4, 5]]
-
-        return features
-
-    def _replace_delimiters(self, file_path: str) -> None:
-        with open(file_path, mode="r+t") as f:
-            content = f.read()
-            f.seek(0)
-            content = content.replace(";", ",")
-            f.write(content)
-            f.truncate()
-
-    @staticmethod
-    def _timestep_from_file_path(file_path: str) -> int:
-        file_name = os.path.basename(file_path)
-        time_step = int(file_name[4:9])
-
-        return time_step
-
-    def load_scaler(self) -> scalers.StandardScaler:
-        return scaling.load_scaler(self._get_scaler_path())
-
-    def _save_efficient(
-        self, split: str, runs: Dict[int, Tuple[np.ndarray, np.ndarray]]
-    ) -> None:
-        for run_idx, (features, targets) in runs.items():
-            saving.save(self._get_run_file_path(split, run_idx), features, targets)
 
     def _get_scaler_path(self) -> str:
         return os.path.join(self._get_split_folder("dev"), f"scaler_{self.fd}.pkl")

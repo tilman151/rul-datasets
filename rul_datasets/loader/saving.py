@@ -1,7 +1,8 @@
 import os.path
-from typing import Tuple
+from typing import Tuple, List, Dict, Optional
 
 import numpy as np
+from tqdm import tqdm
 
 
 def save(save_path: str, features: np.ndarray, targets: np.ndarray) -> None:
@@ -49,6 +50,15 @@ def load(save_path: str, memmap: bool = False) -> Tuple[np.ndarray, np.ndarray]:
     return features, targets
 
 
+def load_multiple(
+    save_paths: List[str], memmap: bool = False
+) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+    runs = [load(save_path, memmap) for save_path in save_paths]
+    features, targets = [list(x) for x in zip(*runs)]
+
+    return features, targets
+
+
 def exists(save_path: str) -> bool:
     """
     Return if the files resulting from a `save` call with `save_path` exist.
@@ -78,3 +88,45 @@ def _get_target_path(save_path):
     target_path = f"{save_path}_targets.npy"
 
     return target_path
+
+
+def load_raw(
+    file_paths: Dict[int, List[str]],
+    window_size: int,
+    columns: List[int],
+    skip_rows: int = 0,
+) -> Dict[int, np.ndarray]:
+    features = {}
+    for run_idx, run_files in tqdm(file_paths.items(), desc="Runs"):
+        run_features = np.empty((len(run_files), window_size, len(columns)))
+        for i, file_path in enumerate(tqdm(run_files, desc="Files", leave=False)):
+            run_features[i] = _load_raw_features(file_path, skip_rows, columns)
+        features[run_idx] = run_features
+
+    return features
+
+
+def _load_raw_features(
+    file_path: str, skip_rows: int, columns: List[int]
+) -> np.ndarray:
+    try:
+        features = _load_raw_unsafe(file_path, skip_rows)
+    except ValueError:
+        _replace_delimiters(file_path)
+        features = _load_raw_unsafe(file_path, skip_rows)
+    features = features[:, columns]
+
+    return features
+
+
+def _load_raw_unsafe(file_path: str, skip_rows: int) -> np.ndarray:
+    return np.loadtxt(file_path, skiprows=skip_rows, delimiter=",")
+
+
+def _replace_delimiters(file_path: str) -> None:
+    with open(file_path, mode="r+t") as f:
+        content = f.read()
+        f.seek(0)
+        content = content.replace(";", ",")
+        f.write(content)
+        f.truncate()

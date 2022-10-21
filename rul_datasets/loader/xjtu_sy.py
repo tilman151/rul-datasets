@@ -81,11 +81,9 @@ class XjtuSyPreparator:
 
     def load_runs(self, split: str) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         self._validate_split(split)
-        runs = [
-            saving.load(self._get_run_file_path(idx))
-            for idx in self.run_split_dist[split]
-        ]
-        features, targets = [list(x) for x in zip(*runs)]
+        run_idx = self.run_split_dist[split]
+        run_paths = [self._get_run_file_path(idx) for idx in run_idx]
+        features, targets = saving.load_multiple(run_paths)
 
         return features, targets
 
@@ -94,7 +92,9 @@ class XjtuSyPreparator:
 
     def _load_raw_runs(self) -> Dict[int, Tuple[np.ndarray, np.ndarray]]:
         file_paths = self._get_csv_file_paths()
-        features = self._load_raw_features(file_paths)
+        features = saving.load_raw(
+            file_paths, self.DEFAULT_WINDOW_SIZE, columns=[0, 1], skip_rows=1
+        )
         targets = utils.get_targets_from_file_paths(
             file_paths, self._timestep_from_file_path
         )
@@ -112,21 +112,6 @@ class XjtuSyPreparator:
         }
 
         return runs
-
-    def _load_raw_features(
-        self, file_paths: Dict[int, List[str]]
-    ) -> Dict[int, np.ndarray]:
-        features = {}
-        for run_idx, run_files in tqdm(file_paths.items(), desc="Runs"):
-            run_features = np.empty((len(run_files), self.DEFAULT_WINDOW_SIZE, 2))
-            for i, file_path in enumerate(tqdm(run_files, desc="Files")):
-                run_features[i] = self._load_feature_file(file_path)
-            features[run_idx] = run_features
-
-        return features
-
-    def _load_feature_file(self, file_path: str) -> np.ndarray:
-        return np.loadtxt(file_path, skiprows=1, delimiter=",")
 
     def _get_csv_file_paths(self) -> Dict[int, List[str]]:
         fd_folder_path = self._get_fd_folder_path()

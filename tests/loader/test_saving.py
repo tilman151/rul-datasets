@@ -46,3 +46,20 @@ def test_exists(tmp_path, file_name):
 
     Path(os.path.join(tmp_path, "run_targets.npy")).touch()
     assert saving.exists(save_path)
+
+
+@pytest.mark.parametrize("columns", [[0], [0, 1]])
+@pytest.mark.parametrize(
+    "file_name", ["raw_features.csv", "raw_features_corrupted.csv"]
+)
+def test_load_raw_features(file_name, columns):
+    script_path = os.path.dirname(__file__)
+    file_path = os.path.join(script_path, "..", "assets", file_name)
+    window_size = 2
+    features = saving.load_raw(
+        {0: [file_path]}, window_size, columns=columns, skip_rows=1
+    )
+
+    assert len(features) == 1
+    run = features[0]
+    assert run.shape == (1, window_size, len(columns))

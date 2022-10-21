@@ -36,14 +36,6 @@ XJTU_SY_NUM_SAMPLES = {
     ],
 )
 class TestPreperatorsShared:
-    @pytest.mark.skip
-    def test_loading_one_file(self, preperator_class, num_samples):
-        preparator = preperator_class(1)
-        csv_paths = preparator._get_csv_file_paths("dev")
-        features = preparator._load_feature_file(csv_paths[0][0])
-        assert isinstance(features, np.ndarray)
-        assert features.shape == (preparator.DEFAULT_WINDOW_SIZE, 2)
-
     @pytest.mark.parametrize("fd", [1, 2, 3])
     @pytest.mark.parametrize("split", ["dev", "test"])
     def test_converted_files(self, preperator_class, num_samples, fd, split):
