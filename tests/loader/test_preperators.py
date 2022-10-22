@@ -71,6 +71,7 @@ FEMTO_NUM_FILES = {
 }
 
 
+@pytest.mark.needs_data
 @pytest.mark.parametrize("fd", [1, 2, 3])
 @pytest.mark.parametrize("split", ["dev", "val", "test"])
 def test_file_discovery_femto(fd, split):
