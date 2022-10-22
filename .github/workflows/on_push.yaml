@@ -7,7 +7,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: ./.github/actions/install-poetry
         with:
-          poetry-version: "1.1.14"
+          poetry-version: "1.2.2"
       - run: poetry run black --check rul_datasets
 
   lint-flake8:
@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: ./.github/actions/install-poetry
         with:
-          poetry-version: "1.1.14"
+          poetry-version: "1.2.2"
       - run: poetry run flake8 rul_datasets
 
   lint-mypy:
@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: ./.github/actions/install-poetry
         with:
-          poetry-version: "1.1.14"
+          poetry-version: "1.2.2"
       - run: poetry run mypy rul_datasets
 
   unit-test:
@@ -35,5 +35,5 @@ jobs:
       - uses: actions/checkout@v3
       - uses: ./.github/actions/install-poetry
         with:
-          poetry-version: "1.1.14"
+          poetry-version: "1.2.2"
       - run: poetry run pytest -m "not needs_data" tests

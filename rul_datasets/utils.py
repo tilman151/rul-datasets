@@ -2,7 +2,7 @@ import os
 from typing import List, Optional, Callable, Dict
 
 import numpy as np
-import requests
+import requests  # type: ignore
 from tqdm import tqdm  # type: ignore
 
 
