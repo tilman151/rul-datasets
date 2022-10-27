@@ -1,5 +1,5 @@
 import os.path
-from typing import Tuple, List, Dict
+from typing import Tuple, List, Dict, Literal, Optional
 
 import numpy as np
 from tqdm import tqdm  # type: ignore
@@ -41,7 +41,7 @@ def load(save_path: str, memmap: bool = False) -> Tuple[np.ndarray, np.ndarray]:
     Returns:
         The feature and targets arrays saved in `save_path`
     """
-    memmap_mode = "r" if memmap else None
+    memmap_mode: Optional[Literal["r"]] = "r" if memmap else None
     feature_path = _get_feature_path(save_path)
     features = np.load(feature_path, memmap_mode, allow_pickle=False)
     target_path = _get_target_path(save_path)
