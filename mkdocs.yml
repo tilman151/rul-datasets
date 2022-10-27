@@ -1,3 +1,30 @@
 site_name: RUL Datasets
+site_url: https://krokotsch.eu/rul-datasets
+repo_name: tilman151/rul_datasets
+repo_url: https://github.com/tilman151/rul-datasets
 theme:
   name: material
+
+nav:
+  - Introduction: index.md
+  - API Reference: api/
+
+watch: [rul_datasets]
+
+plugins:
+  - search
+  - autorefs
+  - section-index
+  - gen-files:
+      scripts: [docs/gen_ref_pages.py]
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          import:
+            - https://pytorch-lightning.readthedocs.io/en/stable/objects.inv
+            - https://pytorch.org/docs/stable/objects.inv
+          options:
+            show_source: false
