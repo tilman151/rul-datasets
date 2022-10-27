@@ -1,5 +1,8 @@
+"""Basic data modules for experiments involving only a single subset of any RUL
+dataset. """
+
 from copy import deepcopy
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 
 import numpy as np
 import pytorch_lightning as pl
@@ -10,9 +13,36 @@ from rul_datasets.loader import AbstractLoader
 
 
 class RulDataModule(pl.LightningDataModule):
-    data: Dict[str, Tuple[torch.Tensor, torch.Tensor]]
+    """
+    A [data module][pytorch_lightning.core.LightningDataModule] to provide windowed
+    time series features with RUL targets. It exposes the splits of the underlying
+    dataset for easy usage with PyTorch and PyTorch Lightning.
+
+    The data module implements the `hparams` property used by PyTorch Lightning to
+    save hyperparameters to checkpoints. It retrieves the hyperparameters of its
+    underlying loader and adds the batch size to them.
+
+    Examples:
+        >>> import rul_datasets
+        >>> cmapss = rul_datasets.loader.CmapssLoader(fd=1)
+        >>> dm = rul_datasets.RulDataModule(cmapss, batch_size=32)
+    """
+
+    _data: Dict[str, Tuple[torch.Tensor, torch.Tensor]]
 
     def __init__(self, loader: AbstractLoader, batch_size: int):
+        """
+        Create a new RUL data module from a loader.
+
+        This data module exposes a training, validation and test data loader for the
+        underlying dataset. First, `prepare_data` is called to download and
+        pre-process the dataset. Afterwards, `setup_data` is called to load all
+        splits into memory.
+
+        Args:
+            loader: The dataset loader for the desired dataset, e.g. CmapssLoader.
+            batch_size: The size of the batches build by the data loaders
+        """
         super().__init__()
 
         self._loader: AbstractLoader = loader
@@ -23,14 +53,40 @@ class RulDataModule(pl.LightningDataModule):
         self.save_hyperparameters(hparams)
 
     @property
+    def data(self) -> Dict[str, Tuple[torch.Tensor, torch.Tensor]]:
+        """
+        A dictionary of the training, validation and test splits.
+
+        Each split is a tuple of feature and target tensors.
+        The keys are `dev` (training split), `val` (validation split) and `test`
+        (test split).
+        """
+        return self._data
+
+    @property
     def loader(self) -> AbstractLoader:
+        """The underlying dataset loader."""
         return self._loader
 
     @property
     def fds(self):
+        """Index list of the available subsets of the underlying dataset, i.e.
+        `[1, 2, 3, 4]` for `CMAPSS`."""
         return self._loader.fds
 
     def check_compatibility(self, other: "RulDataModule") -> None:
+        """
+        Check if another RulDataModule is compatible to be used together with this one.
+
+        RulDataModules can be used together in higher-order data modules,
+        e.g. AdaptionDataModule. This function checks if `other` is compatible to
+        this data module to do so. It checks the underlying dataset loaders and for
+        matching batch size. If anything is incompatible, this function will raise a
+        ValueError.
+
+        Args:
+            other: The RulDataModule to check compatibility with.
+        """
         try:
             self.loader.check_compatibility(other.loader)
         except ValueError:
@@ -42,11 +98,34 @@ class RulDataModule(pl.LightningDataModule):
                 f"{self.batch_size} vs. {other.batch_size}"
             )
 
-    def prepare_data(self, *args, **kwargs):
+    def prepare_data(self, *args: Any, **kwargs: Any) -> None:
+        """
+        Download and pre-process the underlying data.
+
+        This calls the `prepare_data` function of the underlying loader. All
+        previously completed preparation steps are skipped. It is called
+        automatically by `pytorch_lightning` and executed on the first GPU in
+        distributed mode.
+
+        Args:
+            *args: Ignored. Only for adhering to parent class interface.
+            **kwargs: Ignored. Only for adhering to parent class interface.
+        """
         self.loader.prepare_data()
 
-    def setup(self, stage: Optional[str] = None):
-        self.data = {
+    def setup(self, stage: Optional[str] = None) -> None:
+        """
+        Load all splits as tensors into memory.
+
+        The splits are placed inside the [data][rul_datasets.core.RulDataModule.data]
+        property. If a split is empty, a tuple of empty tensors with the correct
+        number of dimensions is created as a placeholder. This ensures compatibility
+        with higher-order data modules.
+
+        Args:
+            stage: Ignored. Only for adhering to parent class interface.
+        """
+        self._data = {
             "dev": self._setup_split("dev"),
             "val": self._setup_split("val"),
             "test": self._setup_split("test"),
@@ -63,7 +142,21 @@ class RulDataModule(pl.LightningDataModule):
 
         return features, targets
 
-    def train_dataloader(self, *args, **kwargs) -> DataLoader:
+    def train_dataloader(self, *args: Any, **kwargs: Any) -> DataLoader:
+        """
+        Create a [data loader][torch.utils.data.DataLoader] for the training split.
+
+        The data loader is configured to shuffle the data. The `pin_memory` option is
+        activated to achieve maximum transfer speed to the GPU. The data loader is also
+        configured to drop the last batch of the data if it would only contain one
+        sample.
+
+        Args:
+            *args: Ignored. Only for adhering to parent class interface.
+            **kwargs: Ignored. Only for adhering to parent class interface.
+        Returns:
+            The training data loader
+        """
         dataset = self.to_dataset("dev")
         drop_last = len(dataset) % self.batch_size == 1
         loader = DataLoader(
@@ -76,7 +169,19 @@ class RulDataModule(pl.LightningDataModule):
 
         return loader
 
-    def val_dataloader(self, *args, **kwargs) -> DataLoader:
+    def val_dataloader(self, *args: Any, **kwargs: Any) -> DataLoader:
+        """
+        Create a [data loader][torch.utils.data.DataLoader] for the validation split.
+
+        The data loader is configured to leave the data unshuffled. The `pin_memory`
+        option is activated to achieve maximum transfer speed to the GPU.
+
+        Args:
+            *args: Ignored. Only for adhering to parent class interface.
+            **kwargs: Ignored. Only for adhering to parent class interface.
+        Returns:
+            The validation data loader
+        """
         return DataLoader(
             self.to_dataset("val"),
             batch_size=self.batch_size,
@@ -84,7 +189,19 @@ class RulDataModule(pl.LightningDataModule):
             pin_memory=True,
         )
 
-    def test_dataloader(self, *args, **kwargs) -> DataLoader:
+    def test_dataloader(self, *args: Any, **kwargs: Any) -> DataLoader:
+        """
+        Create a [data loader][torch.utils.data.DataLoader] for the test split.
+
+        The data loader is configured to leave the data unshuffled. The `pin_memory`
+        option is activated to achieve maximum transfer speed to the GPU.
+
+        Args:
+            *args: Ignored. Only for adhering to parent class interface.
+            **kwargs: Ignored. Only for adhering to parent class interface.
+        Returns:
+            The test data loader
+        """
         return DataLoader(
             self.to_dataset("test"),
             batch_size=self.batch_size,
@@ -92,14 +209,27 @@ class RulDataModule(pl.LightningDataModule):
             pin_memory=True,
         )
 
-    def to_dataset(self, split):
-        features, targets = self.data[split]
+    def to_dataset(self, split: str) -> TensorDataset:
+        """
+        Create a dataset of a split.
+
+        This convenience function creates a plain [tensor dataset]
+        [torch.utils.data.TensorDataset] to use outside the `rul_datasets` library.
+
+        Args:
+            split: The split to place inside the dataset.
+        Returns:
+            A dataset containing the requested split.
+        """
+        features, targets = self._data[split]
         split_dataset = TensorDataset(features, targets)
 
         return split_dataset
 
 
 class PairedRulDataset(IterableDataset):
+    """TODO."""
+
     def __init__(
         self,
         loaders: List[AbstractLoader],

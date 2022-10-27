@@ -1,6 +1,9 @@
+"""Higher-order data modules to establish a baseline for transfer learning and domain
+adaption experiments. """
+
 import warnings
 from copy import deepcopy
-from typing import List, Optional
+from typing import List, Optional, Any
 
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
@@ -9,7 +12,40 @@ from rul_datasets.core import PairedRulDataset, RulDataModule
 
 
 class BaselineDataModule(pl.LightningDataModule):
-    def __init__(self, data_module: RulDataModule):
+    """
+    A higher-order [data module][pytorch_lightning.core.LightningDataModule] that
+    takes a [RulDataModule][rul_datasets.core.RulDataModule]. It provides the
+    training and validation splits of the sub-dataset selected in the underlying data
+    module but provides the test splits of all available subsets of the dataset. This
+    makes it easy to evaluate the generalization of a supervised model on all
+    sub-datasets.
+
+    Examples:
+        >>> import rul_datasets
+        >>> cmapss = rul_datasets.loader.CmapssLoader(fd=1)
+        >>> dm = rul_datasets.RulDataModule(cmapss, batch_size=32)
+        >>> baseline_dm = rul_datasets.BaselineDataModule(dm)
+        >>> train_fd1 = baseline_dm.train_dataloader()
+        >>> val_fd1 = baseline_dm.val_dataloader()
+        >>> test_fd1, test_fd2, test_fd3, test_fd4 = baseline_dm.test_dataloader()
+
+    """
+
+    def __init__(self, data_module: RulDataModule) -> None:
+        """
+        Create a new baseline data module from a [RulDataModule][rul_datasets.RulDataModule].
+
+        It will provide a data loader of the underlying data module's training and
+        validation splits. Additionally, it provides a data loader of the test split
+        of all sub-datasets.
+
+        The data module keeps the configuration made in the underlying data module.
+        The same configuration is then passed on to create RulDataModules for all
+        sub-datasets, beside `percent_fail_runs` and `percent_broken`.
+
+        Args:
+            data_module: the underlying RulDataModule
+        """
         super().__init__()
 
         self.data_module = data_module
@@ -32,24 +68,53 @@ class BaselineDataModule(pl.LightningDataModule):
 
         return dm
 
-    def prepare_data(self, *args, **kwargs):
+    def prepare_data(self, *args: Any, **kwargs: Any) -> None:
+        """
+        Download and pre-process the underlying data.
+
+        This calls the `prepare_data` function for all sub-datasets. All
+        previously completed preparation steps are skipped. It is called
+        automatically by `pytorch_lightning` and executed on the first GPU in
+        distributed mode.
+
+        Args:
+            *args: Passed down to each data module's `prepare_data` function.
+            **kwargs: Passed down to each data module's `prepare_data` function..
+        """
         for dm in self.subsets.values():
             dm.prepare_data(*args, **kwargs)
 
     def setup(self, stage: Optional[str] = None):
+        """
+        Load all splits as tensors into memory.
+
+        Args:
+            stage: Passed down to each data module's `setup` function.
+        """
         for dm in self.subsets.values():
             dm.setup(stage)
 
-    def train_dataloader(self, *args, **kwargs) -> DataLoader:
-        return self.data_module.train_dataloader()
+    def train_dataloader(self, *args: Any, **kwargs: Any) -> DataLoader:
+        """See [rul_datasets.core.RulDataModule.train_dataloader][]."""
+        return self.data_module.train_dataloader(*args, **kwargs)
 
-    def val_dataloader(self, *args, **kwargs) -> DataLoader:
-        return self.data_module.val_dataloader()
+    def val_dataloader(self, *args: Any, **kwargs: Any) -> DataLoader:
+        """See [rul_datasets.core.RulDataModule.val_dataloader][]."""
+        return self.data_module.val_dataloader(*args, **kwargs)
 
-    def test_dataloader(self, *args, **kwargs) -> List[DataLoader]:
+    def test_dataloader(self, *args: Any, **kwargs: Any) -> List[DataLoader]:
+        """
+        Return data loaders for all sub-datasets.
+
+        Args:
+            *args: Passed down to each data module.
+            **kwargs: Passed down to each data module.
+        Returns:
+            The test dataloaders of all sub-datasets.
+        """
         test_dataloaders = []
         for fd_target in self.data_module.fds:
-            target_dl = self.subsets[fd_target].test_dataloader()
+            target_dl = self.subsets[fd_target].test_dataloader(*args, **kwargs)
             test_dataloaders.append(target_dl)
 
         return test_dataloaders

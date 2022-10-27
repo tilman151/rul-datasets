@@ -40,7 +40,7 @@ class TestRulDataModule(unittest.TestCase):
         )
         mock_runs = tuple(torch.cat(r) for r in self.mock_runs)
         self.assertDictEqual(
-            {"dev": mock_runs, "val": mock_runs, "test": mock_runs}, dataset.data
+            {"dev": mock_runs, "val": mock_runs, "test": mock_runs}, dataset._data
         )
 
     def test_empty_dataset(self):
@@ -137,7 +137,7 @@ class TestRulDataModule(unittest.TestCase):
             "val": [torch.zeros(1)] * 2,
             "test": [torch.zeros(2)] * 2,
         }
-        dataset.data = mock_data
+        dataset._data = mock_data
 
         for i, split in enumerate(["dev", "val", "test"]):
             tensor_dataset = dataset.to_dataset(split)

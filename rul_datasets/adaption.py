@@ -1,6 +1,8 @@
+"""Higher-order data modules to run unsupervised domain adaption experiments."""
+
 import warnings
 from copy import deepcopy
-from typing import List, Optional
+from typing import List, Optional, Any
 
 import numpy as np
 import pytorch_lightning as pl
@@ -10,11 +12,42 @@ from rul_datasets.core import PairedRulDataset, RulDataModule
 
 
 class DomainAdaptionDataModule(pl.LightningDataModule):
-    def __init__(
-        self,
-        source: RulDataModule,
-        target: RulDataModule,
-    ):
+    """
+    A higher-order [data module][pytorch_lightning.core.LightningDataModule] used for
+    unsupervised domain adaption of a labeled source to an unlabeled target domain.
+    The training data of both domains is wrapped in a [AdaptionDataset]
+    [rul_datasets.adaption.AdaptionDataset] which provides a random sample of the
+    target domain with each sample of the source domain. It provides the validation and
+    test splits of both domains, and a [paired dataset]
+    [rul_datasets.core.PairedRulDataset] for both.
+
+    Examples:
+        >>> import rul_datasets
+        >>> fd1 = rul_datasets.CmapssLoader(fd=1, window_size=20)
+        >>> fd2 = rul_datasets.CmapssLoader(fd=2, percent_broken=0.8)
+        >>> source = rul_datasets.RulDataModule(fd1, 32)
+        >>> target = rul_datasets.RulDataModule(fd2, 32)
+        >>> dm = rul_datasets.DomainAdaptionDataModule(source, target)
+        >>> train_1_2 = dm.train_dataloader()
+        >>> val_1, val_2, paired_val_1_2 = dm.val_dataloader()
+        >>> test_1, test_2, paired_test_1_2 = dm.test_dataloader()
+    """
+
+    def __init__(self, source: RulDataModule, target: RulDataModule) -> None:
+        """
+        Create a new domain adaption data module from a source and target
+        [RulDataModule][rul_datasets.RulDataModule]. The source domain is considered
+        labeled and the target domain unlabeled.
+
+        The source and target data modules are checked for compatability (see
+        [RulDataModule][rul_datasets.core.RulDataModule.check_compatibility]). These
+        checks include that the `fd` differs between them, as they come from the same
+        domain otherwise.
+
+        Args:
+            source: The data module of the labeled source domain.
+            target: The data module of the unlabeled target domain.
+        """
         super().__init__()
 
         self.source = source
@@ -47,15 +80,46 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
                 f"domain adaption, but is {self.source.loader.fd} both times."
             )
 
-    def prepare_data(self, *args, **kwargs):
+    def prepare_data(self, *args: Any, **kwargs: Any) -> None:
+        """
+        Download and pre-process the underlying data.
+
+        This calls the `prepare_data` function for source and target domain. All
+        previously completed preparation steps are skipped. It is called
+        automatically by `pytorch_lightning` and executed on the first GPU in
+        distributed mode.
+
+        Args:
+            *args: Passed down to each data module's `prepare_data` function.
+            **kwargs: Passed down to each data module's `prepare_data` function..
+        """
         self.source.prepare_data(*args, **kwargs)
         self.target.prepare_data(*args, **kwargs)
 
-    def setup(self, stage: Optional[str] = None):
+    def setup(self, stage: Optional[str] = None) -> None:
+        """
+        Load source and target domain into memory.
+
+        Args:
+            stage: Passed down to each data module's `setup` function.
+        """
         self.source.setup(stage)
         self.target.setup(stage)
 
-    def train_dataloader(self, *args, **kwargs) -> DataLoader:
+    def train_dataloader(self, *args: Any, **kwargs: Any) -> DataLoader:
+        """
+        Create a data loader of an [AdaptionDataset]
+        [rul_datasets.adaption.AdaptionDataset] using source and target domain.
+
+        The data loader is configured to shuffle the data. The `pin_memory` option is
+        activated to achieve maximum transfer speed to the GPU.
+
+        Args:
+            *args: Ignored. Only for adhering to parent class interface.
+            **kwargs: Ignored. Only for adhering to parent class interface.
+        Returns:
+            The training data loader
+        """
         return DataLoader(
             self._to_dataset("dev"),
             batch_size=self.batch_size,
@@ -63,7 +127,21 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
             pin_memory=True,
         )
 
-    def val_dataloader(self, *args, **kwargs) -> List[DataLoader]:
+    def val_dataloader(self, *args: Any, **kwargs: Any) -> List[DataLoader]:
+        """
+        Create a data loader of the source, target and paired validation data.
+
+        The first two data loaders are the return values of `source.val_dataloader`
+        and `target.val_dataloader`. The third is a data loader of a
+        [PairedRulDataset][rul_datasets.core.PairedRulDataset] using both source and
+        target.
+
+        Args:
+            *args: Ignored. Only for adhering to parent class interface.
+            **kwargs: Ignored. Only for adhering to parent class interface.
+        Returns:
+            The source, target and paired validation data loader.
+        """
         return [
             self.source.val_dataloader(*args, **kwargs),
             self.target.val_dataloader(*args, **kwargs),
@@ -72,7 +150,19 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
             ),
         ]
 
-    def test_dataloader(self, *args, **kwargs) -> List[DataLoader]:
+    def test_dataloader(self, *args: Any, **kwargs: Any) -> List[DataLoader]:
+        """
+        Create a data loader of the source and target test data.
+
+        The data loaders are the return values of `source.test_dataloader`
+        and `target.test_dataloader`.
+
+        Args:
+            *args: Ignored. Only for adhering to parent class interface.
+            **kwargs: Ignored. Only for adhering to parent class interface.
+        Returns:
+            The source and target test data loader.
+        """
         return [
             self.source.test_dataloader(*args, **kwargs),
             self.target.test_dataloader(*args, **kwargs),
@@ -98,6 +188,8 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
 
 
 class AdaptionDataset(Dataset):
+    """A torch [dataset][torch.utils.data.Dataset] for unsupervised domain adaption."""
+
     def __init__(self, source, target, deterministic=False):
         self.source = source
         self.target = target
