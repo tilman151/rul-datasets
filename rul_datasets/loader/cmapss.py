@@ -76,12 +76,12 @@ class CmapssLoader(AbstractLoader):
 
         # Split into runs
         _, samples_per_run = np.unique(train_data[:, 0], return_counts=True)
-        split_idx = np.cumsum(samples_per_run)[:-1]
-        train_data = np.split(train_data, split_idx, axis=0)
+        split_indices = np.cumsum(samples_per_run)[:-1]
+        split_train_data = np.split(train_data, split_indices, axis=0)
 
-        split_idx = int(len(train_data) * self._TRAIN_PERCENTAGE)
-        dev_data = np.concatenate(train_data[:split_idx])
-        val_data = np.concatenate(train_data[split_idx:])
+        split_idx = int(len(split_train_data) * self._TRAIN_PERCENTAGE)
+        dev_data = np.concatenate(split_train_data[:split_idx])
+        val_data = np.concatenate(split_train_data[split_idx:])
 
         data_root, train_file = os.path.split(train_path)
         dev_file = train_file.replace("train_", "dev_")
@@ -123,15 +123,15 @@ class CmapssLoader(AbstractLoader):
         return features, targets
 
     def _load_features(self, file_path: str) -> List[np.ndarray]:
-        features = np.loadtxt(file_path)
+        raw_features = np.loadtxt(file_path)
 
         feature_idx = [0, 1] + [idx + 2 for idx in self.feature_select]
-        features = features[:, feature_idx]
+        raw_features = raw_features[:, feature_idx]
 
         # Split into runs
-        _, samples_per_run = np.unique(features[:, 0], return_counts=True)
+        _, samples_per_run = np.unique(raw_features[:, 0], return_counts=True)
         split_idx = np.cumsum(samples_per_run)[:-1]
-        features = np.split(features, split_idx, axis=0)
+        features = np.split(raw_features, split_idx, axis=0)
 
         return features
 
@@ -168,10 +168,10 @@ class CmapssLoader(AbstractLoader):
         """Load target file."""
         file_name = f"RUL_FD{self.fd:03d}.txt"
         file_path = os.path.join(self._CMAPSS_ROOT, file_name)
-        targets = np.loadtxt(file_path)
+        raw_targets = np.loadtxt(file_path)
 
-        targets = np.minimum(self.max_rul, targets)
-        targets = np.split(targets, len(targets))
+        raw_targets = np.minimum(self.max_rul, raw_targets)
+        targets = np.split(raw_targets, len(raw_targets))
 
         return targets
 
