@@ -3,13 +3,13 @@ import unittest
 import pytest
 import torch
 
-from rul_datasets import loader
+from rul_datasets import reader
 
 
 @pytest.fixture(scope="module", autouse=True)
 def prepare_femto():
     for fd in range(1, 4):
-        loader.FemtoLoader(fd).prepare_data()
+        reader.FemtoReader(fd).prepare_data()
 
 
 @pytest.mark.needs_data
@@ -20,7 +20,7 @@ class TestFEMTOLoader(unittest.TestCase):
         window_sizes = [2560, 1500, 1000, 100]
         for win in window_sizes:
             for fd in range(1, 4):
-                femto_loader = loader.FemtoLoader(fd, window_size=win)
+                femto_loader = reader.FemtoReader(fd, window_size=win)
                 for split in ["dev", "test"]:
                     with self.subTest(fd=fd, split=split):
                         self._check_split(femto_loader, split, win)
@@ -40,7 +40,7 @@ class TestFEMTOLoader(unittest.TestCase):
     def test_standardization(self):
         for i in range(1, 3):
             with self.subTest(fd=i):
-                full_dataset = loader.FemtoLoader(fd=i)
+                full_dataset = reader.FemtoReader(fd=i)
                 full_train, full_train_targets = full_dataset.load_split("dev")
 
                 self.assertAlmostEqual(
@@ -50,7 +50,7 @@ class TestFEMTOLoader(unittest.TestCase):
                     1.0, torch.std(torch.cat(full_train)).item(), delta=0.0001
                 )
 
-                truncated_dataset = loader.FemtoLoader(fd=i, percent_fail_runs=0.8)
+                truncated_dataset = reader.FemtoReader(fd=i, percent_fail_runs=0.8)
                 trunc_train, trunc_train_targets = truncated_dataset.load_split("dev")
                 self.assertAlmostEqual(
                     0.0, torch.mean(torch.cat(trunc_train)).item(), delta=0.1
@@ -60,7 +60,7 @@ class TestFEMTOLoader(unittest.TestCase):
                 )
 
                 # percent_broken is supposed to change the std but not the mean
-                truncated_dataset = loader.FemtoLoader(fd=i, percent_broken=0.2)
+                truncated_dataset = reader.FemtoReader(fd=i, percent_broken=0.2)
                 trunc_train, trunc_train_targets = truncated_dataset.load_split("dev")
                 self.assertAlmostEqual(
                     0.0, torch.mean(torch.cat(trunc_train)).item(), delta=0.1

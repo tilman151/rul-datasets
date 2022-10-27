@@ -5,13 +5,13 @@ from typing import Optional, Union, List, Dict, Any, Iterable, Tuple
 import numpy as np
 import torch
 
-from rul_datasets.loader import truncating
+from rul_datasets.reader import truncating
 
 DATA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data"))
 
 
-class AbstractLoader:
-    """The base class of all loaders."""
+class AbstractReader:
+    """The base class of all readers."""
 
     fd: int
     window_size: int
@@ -80,7 +80,7 @@ class AbstractLoader:
         percent_broken: Optional[float] = None,
         percent_fail_runs: Union[float, List[int], None] = None,
         truncate_val: Optional[bool] = None,
-    ) -> "AbstractLoader":
+    ) -> "AbstractReader":
         other = deepcopy(self)
         if percent_broken is not None:
             other.percent_broken = percent_broken
@@ -103,7 +103,7 @@ class AbstractLoader:
         self,
         percent_broken: Optional[float] = None,
         truncate_val: Optional[bool] = None,
-    ) -> "AbstractLoader":
+    ) -> "AbstractReader":
         complement_idx = self._get_complement_idx()
         other = self.get_compatible(
             percent_broken=percent_broken,
@@ -126,7 +126,7 @@ class AbstractLoader:
 
         return complement_idx
 
-    def check_compatibility(self, other: "AbstractLoader") -> None:
+    def check_compatibility(self, other: "AbstractReader") -> None:
         if not isinstance(other, type(self)):
             raise ValueError(
                 f"The other loader is not of class {type(self)} but {type(other)}."

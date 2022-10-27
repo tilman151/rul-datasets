@@ -1,6 +1,6 @@
 defaults:
-    - /loader@source.loader: cmapss
-    - /loader@target.loader: cmapss
+    - /reader@source.reader: cmapss
+    - /reader@target.reader: cmapss
 
 _target_: rul_datasets.DomainAdaptionDataModule
 source:

@@ -8,7 +8,7 @@ import pytest
 import torch
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, TensorDataset
 
-from rul_datasets import core, loader
+from rul_datasets import core, reader
 
 
 class TestRulDataModule(unittest.TestCase):
@@ -21,7 +21,7 @@ class TestRulDataModule(unittest.TestCase):
     def test_created_correctly(self):
         dataset = core.RulDataModule(self.mock_loader, batch_size=16)
 
-        self.assertIs(self.mock_loader, dataset.loader)
+        self.assertIs(self.mock_loader, dataset.reader)
         self.assertEqual(16, dataset.batch_size)
         self.assertDictEqual({"test": 0, "batch_size": 16}, dataset.hparams)
 
@@ -155,7 +155,7 @@ class TestRulDataModule(unittest.TestCase):
         )
 
 
-class DummyRul(loader.AbstractLoader):
+class DummyRul(reader.AbstractReader):
     fd: int = 1
     window_size: int = 30
     max_rul: int = 125
@@ -183,7 +183,7 @@ class DummyRul(loader.AbstractLoader):
 
 
 @dataclass
-class DummyRulShortRuns(loader.AbstractLoader):
+class DummyRulShortRuns(reader.AbstractReader):
     """Contains runs that are too short with zero features to distinguish them."""
 
     fd: int = 1

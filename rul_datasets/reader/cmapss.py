@@ -7,15 +7,15 @@ from typing import Union, List, Tuple, Dict
 import numpy as np
 from sklearn import preprocessing as scalers  # type: ignore
 
-from rul_datasets.loader import scaling
-from rul_datasets.loader.abstract import AbstractLoader, DATA_ROOT
+from rul_datasets.reader import scaling
+from rul_datasets.reader.abstract import AbstractReader, DATA_ROOT
 from rul_datasets import utils
 
 
 CMAPSS_URL = "https://kr0k0tsch.de/rul-datasets/CMAPSSData.zip"
 
 
-class CmapssLoader(AbstractLoader):
+class CmapssReader(AbstractReader):
     _FMT: str = (
         "%d %d %.4f %.4f %.1f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f "
         "%.2f %.2f %.2f %.2f %.2f %.2f %.4f %.2f %d %d %.2f %.2f %.4f"

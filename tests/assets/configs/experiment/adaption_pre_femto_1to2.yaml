@@ -1,16 +1,16 @@
 # @package __global__
 defaults:
-  - override /loader@dm_pre.source.loader: femto
-  - override /loader@dm_pre.target.loader: femto
+  - override /reader@dm_pre.source.reader: femto
+  - override /reader@dm_pre.target.reader: femto
 
 dm_pre:
   source:
-    loader:
+    reader:
       fd: 1
       window_size: null
     batch_size: 64
   target:
-    loader:
+    reader:
       fd: 2
       window_size: null
       percent_broken: 0.8

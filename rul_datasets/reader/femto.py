@@ -9,13 +9,13 @@ import numpy as np
 import sklearn.preprocessing as scalers  # type: ignore
 
 from rul_datasets import utils
-from rul_datasets.loader import scaling, saving
-from rul_datasets.loader.abstract import AbstractLoader, DATA_ROOT
+from rul_datasets.reader import scaling, saving
+from rul_datasets.reader.abstract import AbstractReader, DATA_ROOT
 
 FEMTO_URL = "https://kr0k0tsch.de/rul-datasets/FEMTOBearingDataSet.zip"
 
 
-class FemtoLoader(AbstractLoader):
+class FemtoReader(AbstractReader):
     _FEMTO_ROOT: str = os.path.join(DATA_ROOT, "FEMTOBearingDataSet")
     _NUM_TRAIN_RUNS: Dict[int, int] = {1: 2, 2: 2, 3: 2}
 

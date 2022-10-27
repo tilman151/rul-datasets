@@ -2,10 +2,11 @@
 
 import warnings
 from copy import deepcopy
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Tuple
 
 import numpy as np
 import pytorch_lightning as pl
+import torch
 from torch.utils.data import DataLoader, Dataset
 
 from rul_datasets.core import PairedRulDataset, RulDataModule
@@ -23,8 +24,8 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
 
     Examples:
         >>> import rul_datasets
-        >>> fd1 = rul_datasets.CmapssLoader(fd=1, window_size=20)
-        >>> fd2 = rul_datasets.CmapssLoader(fd=2, percent_broken=0.8)
+        >>> fd1 = rul_datasets.CmapssReader(fd=1, window_size=20)
+        >>> fd2 = rul_datasets.CmapssReader(fd=2, percent_broken=0.8)
         >>> source = rul_datasets.RulDataModule(fd1, 32)
         >>> target = rul_datasets.RulDataModule(fd2, 32)
         >>> dm = rul_datasets.DomainAdaptionDataModule(source, target)
@@ -54,30 +55,30 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
         self.target = target
         self.batch_size = source.batch_size
 
-        self.target_truncated = deepcopy(self.target.loader)
+        self.target_truncated = deepcopy(self.target.reader)
         self.target_truncated.truncate_val = True
 
         self._check_compatibility()
 
         self.save_hyperparameters(
             {
-                "fd_source": self.source.loader.fd,
-                "fd_target": self.target.loader.fd,
+                "fd_source": self.source.reader.fd,
+                "fd_target": self.target.reader.fd,
                 "batch_size": self.batch_size,
-                "window_size": self.source.loader.window_size,
-                "max_rul": self.source.loader.max_rul,
-                "percent_broken": self.target.loader.percent_broken,
-                "percent_fail_runs": self.target.loader.percent_fail_runs,
+                "window_size": self.source.reader.window_size,
+                "max_rul": self.source.reader.max_rul,
+                "percent_broken": self.target.reader.percent_broken,
+                "percent_fail_runs": self.target.reader.percent_fail_runs,
             }
         )
 
     def _check_compatibility(self):
         self.source.check_compatibility(self.target)
-        self.target.loader.check_compatibility(self.target_truncated)
-        if self.source.loader.fd == self.target.loader.fd:
+        self.target.reader.check_compatibility(self.target_truncated)
+        if self.source.reader.fd == self.target.reader.fd:
             raise ValueError(
                 f"FD of source and target has to be different for "
-                f"domain adaption, but is {self.source.loader.fd} both times."
+                f"domain adaption, but is {self.source.reader.fd} both times."
             )
 
     def prepare_data(self, *args: Any, **kwargs: Any) -> None:
@@ -188,9 +189,40 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
 
 
 class AdaptionDataset(Dataset):
-    """A torch [dataset][torch.utils.data.Dataset] for unsupervised domain adaption."""
+    """
+    A torch [dataset][torch.utils.data.Dataset] for unsupervised domain adaption. The
+    dataset takes a source and a target [dataset][torch.utils.data.Dataset] and
+    combines them. For each label/features pair from the source dataset, a random
+    sample of features is drawn from the target data. The target datasets labels are
+    omitted. The datasets length is determined by the source dataset. This setup can
+    be used to train with common unsupervised domain adaption methods like DAN,
+    DANN or JAN.
 
-    def __init__(self, source, target, deterministic=False):
+    Examples:
+        >>> import torch
+        >>> import rul_datasets
+        >>> source = torch.utils.data.TensorDataset(torch.randn(10), torch.randn(10))
+        >>> target = torch.utils.data.TensorDataset(torch.randn(10), torch.randn(10))
+        >>> dataset = rul_datasets.adaption.AdaptionDataset(source, target)
+        >>> source_features, source_label, target_features = dataset[0]
+    """
+
+    def __init__(
+        self, source: Dataset, target: Dataset, deterministic: bool = False
+    ) -> None:
+        """
+        Create a new adaption data set from a source and a target domain dataset.
+
+        By default, a new target sample is drawn when a source sample is accessed.
+        This is the recommended setting for training. To deactivate this behavior and
+        fix the pairing of source and target samples, set `deterministic` to `True`.
+        This is the recommended setting for evaluation.
+
+        Args:
+            source: The dataset from the source domain.
+            target: The dataset from the target domain.
+            deterministic: Return the same target sample for each source sample.
+        """
         self.source = source
         self.target = target
         self.deterministic = deterministic
@@ -206,20 +238,20 @@ class AdaptionDataset(Dataset):
             self._get_target_idx = self._get_random_target_idx
             self._target_idx = None
 
-    def _get_random_target_idx(self, _):
+    def _get_random_target_idx(self, _: int) -> int:
         return self._rng.integers(0, self._target_len)
 
-    def _get_deterministic_target_idx(self, idx):
+    def _get_deterministic_target_idx(self, idx: int) -> int:
         return self._target_idx[idx]
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         target_idx = self._get_target_idx(idx)
         source, source_label = self.source[idx]
         target, _ = self.target[target_idx]
 
         return source, source_label, target
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.source)
 
 
@@ -241,8 +273,8 @@ class PretrainingAdaptionDataModule(pl.LightningDataModule):
         self.min_distance = min_distance
         self.distance_mode = distance_mode
 
-        self.target_loader = self.target.loader
-        self.source_loader = self.source.loader
+        self.target_loader = self.target.reader
+        self.source_loader = self.source.reader
 
         self._check_compatibility()
 

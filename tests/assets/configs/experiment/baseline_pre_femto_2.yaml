@@ -1,16 +1,16 @@
 # @package __global__
 defaults:
-  - override /loader@dm_pre.failed_data_module.loader: femto
-  - override /loader@dm_pre.unfailed_data_module.loader: femto
+  - override /reader@dm_pre.failed_data_module.reader: femto
+  - override /reader@dm_pre.unfailed_data_module.reader: femto
 
 dm_pre:
   failed_data_module:
-    loader:
+    reader:
       fd: 1
       percent_fail_runs: [0]
     batch_size: 64
   unfailed_data_module:
-    loader:
+    reader:
       fd: 1
       percent_broken: 0.8
       percent_fail_runs: [1]

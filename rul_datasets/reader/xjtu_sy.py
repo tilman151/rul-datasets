@@ -7,12 +7,12 @@ import numpy as np
 from sklearn import preprocessing as scalers  # type: ignore
 
 from rul_datasets import utils
-from rul_datasets.loader import AbstractLoader, DATA_ROOT, saving, scaling
+from rul_datasets.reader import AbstractReader, DATA_ROOT, saving, scaling
 
 XJTU_SY_URL = "https://kr0k0tsch.de/rul-datasets/XJTU-SY.zip"
 
 
-class XjtuSyLoader(AbstractLoader):
+class XjtuSyReader(AbstractReader):
     _XJTU_SY_ROOT: str = os.path.join(DATA_ROOT, "XJTU-SY")
     _NUM_TRAIN_RUNS: Dict[int, int] = {1: 5, 2: 5, 3: 5}
 

@@ -5,7 +5,7 @@ import numpy as np
 import numpy.testing as npt
 import pytest
 
-from rul_datasets.loader import saving
+from rul_datasets.reader import saving
 
 
 @pytest.mark.parametrize("file_name", ["run", "run.npy", "run.foo"])

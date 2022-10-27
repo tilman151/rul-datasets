@@ -26,12 +26,12 @@ class TestBaselineDataModule(unittest.TestCase):
     def test_test_sets_created_correctly(self):
         for fd in self.mock_loader.fds:
             self.assertIn(fd, self.dataset.subsets)
-            self.assertEqual(fd, self.dataset.subsets[fd].loader.fd)
+            self.assertEqual(fd, self.dataset.subsets[fd].reader.fd)
             if fd == self.dataset.hparams["fd"]:
                 self.assertIs(self.dataset.data_module, self.dataset.subsets[fd])
             else:
-                self.assertIsNone(self.dataset.subsets[fd].loader.percent_fail_runs)
-                self.assertIsNone(self.dataset.subsets[fd].loader.percent_broken)
+                self.assertIsNone(self.dataset.subsets[fd].reader.percent_fail_runs)
+                self.assertIsNone(self.dataset.subsets[fd].reader.percent_broken)
 
     def test_selected_source_on_train(self):
         baseline_train_dataset = self.dataset.train_dataloader().dataset
@@ -125,7 +125,7 @@ class TestPretrainingBaselineDataModuleFullData(
                 )
 
     def test_error_on_fd_missmatch(self):
-        self.failed_data.loader.fd = 2
+        self.failed_data.reader.fd = 2
         self.assertRaises(
             ValueError,
             rul_datasets.PretrainingBaselineDataModule,
@@ -136,7 +136,7 @@ class TestPretrainingBaselineDataModuleFullData(
 
     def test_error_on_float_fail_runs(self):
         with self.subTest("failed data"):
-            self.failed_data.loader.percent_fail_runs = 0.9
+            self.failed_data.reader.percent_fail_runs = 0.9
             self.assertRaises(
                 ValueError,
                 rul_datasets.PretrainingBaselineDataModule,
@@ -146,8 +146,8 @@ class TestPretrainingBaselineDataModuleFullData(
             )
 
         with self.subTest("failed data"):
-            self.failed_data.loader.percent_fail_runs = list(range(0, 8))
-            self.unfailed_data.loader.percent_fail_runs = 0.9
+            self.failed_data.reader.percent_fail_runs = list(range(0, 8))
+            self.unfailed_data.reader.percent_fail_runs = 0.9
             self.assertRaises(
                 ValueError,
                 rul_datasets.PretrainingBaselineDataModule,
@@ -157,7 +157,7 @@ class TestPretrainingBaselineDataModuleFullData(
             )
 
     def test_error_on_overlapping_runs(self):
-        self.unfailed_data.loader.percent_fail_runs = list(range(6, 14))
+        self.unfailed_data.reader.percent_fail_runs = list(range(6, 14))
         self.assertRaises(
             ValueError,
             rul_datasets.PretrainingBaselineDataModule,
@@ -168,7 +168,7 @@ class TestPretrainingBaselineDataModuleFullData(
 
     def test_error_on_no_percent_broken_for_unfailed_data(self):
         with self.subTest("none"):
-            self.unfailed_data.loader.percent_broken = None
+            self.unfailed_data.reader.percent_broken = None
             self.assertRaises(
                 ValueError,
                 rul_datasets.PretrainingBaselineDataModule,
@@ -177,7 +177,7 @@ class TestPretrainingBaselineDataModuleFullData(
                 10,
             )
         with self.subTest("1.0"):
-            self.unfailed_data.loader.percent_broken = 1.0
+            self.unfailed_data.reader.percent_broken = 1.0
             self.assertRaises(
                 ValueError,
                 rul_datasets.PretrainingBaselineDataModule,
@@ -187,7 +187,7 @@ class TestPretrainingBaselineDataModuleFullData(
             )
 
     def test_error_on_percent_broken_for_failed_data(self):
-        self.failed_data.loader.percent_broken = 0.8
+        self.failed_data.reader.percent_broken = 0.8
         self.assertRaises(
             ValueError,
             rul_datasets.PretrainingBaselineDataModule,
@@ -197,7 +197,7 @@ class TestPretrainingBaselineDataModuleFullData(
         )
 
     def test_warning_on_non_truncated_val_data(self):
-        self.unfailed_data.loader.truncate_val = False
+        self.unfailed_data.reader.truncate_val = False
         with warnings.catch_warnings(record=True) as warn:
             rul_datasets.PretrainingBaselineDataModule(
                 self.failed_data, self.unfailed_data, 10

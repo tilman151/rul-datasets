@@ -4,15 +4,15 @@ import numpy as np
 import pytest
 from numpy import testing as npt
 
-from rul_datasets import loader
+from rul_datasets import reader
 
 
 def femto_preperator_class(fd):
-    return loader.FemtoPreparator(fd, loader.FemtoLoader._FEMTO_ROOT)
+    return reader.FemtoPreparator(fd, reader.FemtoReader._FEMTO_ROOT)
 
 
 def xjtu_sy_preparator_class(fd):
-    return loader.XjtuSyPreparator(fd, loader.XjtuSyLoader._XJTU_SY_ROOT)
+    return reader.XjtuSyPreparator(fd, reader.XjtuSyReader._XJTU_SY_ROOT)
 
 
 FEMTO_NUM_SAMPLES = {
@@ -75,7 +75,7 @@ FEMTO_NUM_FILES = {
 @pytest.mark.parametrize("fd", [1, 2, 3])
 @pytest.mark.parametrize("split", ["dev", "val", "test"])
 def test_file_discovery_femto(fd, split):
-    preparator = loader.FemtoPreparator(fd, loader.FemtoLoader._FEMTO_ROOT)
+    preparator = reader.FemtoPreparator(fd, reader.FemtoReader._FEMTO_ROOT)
     csv_paths = preparator._get_csv_file_paths(split)
     expected_num_files = FEMTO_NUM_FILES[fd][split]
     actual_num_files = len(sum(csv_paths.values(), []))

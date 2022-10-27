@@ -2,6 +2,6 @@
 
 dm:
   data_module:
-    loader:
+    reader:
       fd: 4
     batch_size: 64

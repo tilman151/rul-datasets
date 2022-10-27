@@ -1,5 +1,5 @@
 defaults:
-    - /loader@data_module.loader: cmapss
+    - /reader@data_module.reader: cmapss
 
 _target_: rul_datasets.BaselineDataModule
 data_module:

@@ -8,7 +8,7 @@ import pytest
 import sklearn.preprocessing as scalers
 from sklearn.utils.validation import check_is_fitted
 
-from rul_datasets.loader import scaling
+from rul_datasets.reader import scaling
 
 
 @pytest.fixture

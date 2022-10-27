@@ -31,12 +31,12 @@ def load(save_path: str, memmap: bool = False) -> Tuple[np.ndarray, np.ndarray]:
     Load features and targets of a run from .npy files.
 
     This method is used to restore runs that were saved with
-    `rul_datasets.loader.saving.save`. If the runs are too large for the RAM,
+    `rul_datasets.reader.saving.save`. If the runs are too large for the RAM,
     `memmap` can be set to True to avoid reading them completely to memory. This
     results in slower processing, though.
 
     Args:
-        save_path: path that was supplied to `rul_datasets.loader.saving.save`
+        save_path: path that was supplied to `rul_datasets.reader.saving.save`
         memmap: whether to use memmap to avoid loading the whole run into memory
     Returns:
         The feature and targets arrays saved in `save_path`

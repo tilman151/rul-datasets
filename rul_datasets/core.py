@@ -9,7 +9,7 @@ import pytorch_lightning as pl
 import torch
 from torch.utils.data import DataLoader, IterableDataset, TensorDataset, get_worker_info
 
-from rul_datasets.loader import AbstractLoader
+from rul_datasets.reader import AbstractReader
 
 
 class RulDataModule(pl.LightningDataModule):
@@ -20,19 +20,19 @@ class RulDataModule(pl.LightningDataModule):
 
     The data module implements the `hparams` property used by PyTorch Lightning to
     save hyperparameters to checkpoints. It retrieves the hyperparameters of its
-    underlying loader and adds the batch size to them.
+    underlying reader and adds the batch size to them.
 
     Examples:
         >>> import rul_datasets
-        >>> cmapss = rul_datasets.loader.CmapssLoader(fd=1)
+        >>> cmapss = rul_datasets.reader.CmapssReader(fd=1)
         >>> dm = rul_datasets.RulDataModule(cmapss, batch_size=32)
     """
 
     _data: Dict[str, Tuple[torch.Tensor, torch.Tensor]]
 
-    def __init__(self, loader: AbstractLoader, batch_size: int):
+    def __init__(self, reader: AbstractReader, batch_size: int):
         """
-        Create a new RUL data module from a loader.
+        Create a new RUL data module from a reader.
 
         This data module exposes a training, validation and test data loader for the
         underlying dataset. First, `prepare_data` is called to download and
@@ -40,15 +40,15 @@ class RulDataModule(pl.LightningDataModule):
         splits into memory.
 
         Args:
-            loader: The dataset loader for the desired dataset, e.g. CmapssLoader.
+            reader: The dataset reader for the desired dataset, e.g. CmapssLoader.
             batch_size: The size of the batches build by the data loaders
         """
         super().__init__()
 
-        self._loader: AbstractLoader = loader
+        self._reader: AbstractReader = reader
         self.batch_size: int = batch_size
 
-        hparams = deepcopy(self.loader.hparams)
+        hparams = deepcopy(self.reader.hparams)
         hparams["batch_size"] = self.batch_size
         self.save_hyperparameters(hparams)
 
@@ -64,15 +64,15 @@ class RulDataModule(pl.LightningDataModule):
         return self._data
 
     @property
-    def loader(self) -> AbstractLoader:
-        """The underlying dataset loader."""
-        return self._loader
+    def reader(self) -> AbstractReader:
+        """The underlying dataset reader."""
+        return self._reader
 
     @property
     def fds(self):
         """Index list of the available subsets of the underlying dataset, i.e.
         `[1, 2, 3, 4]` for `CMAPSS`."""
-        return self._loader.fds
+        return self._reader.fds
 
     def check_compatibility(self, other: "RulDataModule") -> None:
         """
@@ -88,9 +88,9 @@ class RulDataModule(pl.LightningDataModule):
             other: The RulDataModule to check compatibility with.
         """
         try:
-            self.loader.check_compatibility(other.loader)
+            self.reader.check_compatibility(other.reader)
         except ValueError:
-            raise ValueError("RulDataModules incompatible on loader level.")
+            raise ValueError("RulDataModules incompatible on reader level.")
 
         if not self.batch_size == other.batch_size:
             raise ValueError(
@@ -102,7 +102,7 @@ class RulDataModule(pl.LightningDataModule):
         """
         Download and pre-process the underlying data.
 
-        This calls the `prepare_data` function of the underlying loader. All
+        This calls the `prepare_data` function of the underlying reader. All
         previously completed preparation steps are skipped. It is called
         automatically by `pytorch_lightning` and executed on the first GPU in
         distributed mode.
@@ -111,7 +111,7 @@ class RulDataModule(pl.LightningDataModule):
             *args: Ignored. Only for adhering to parent class interface.
             **kwargs: Ignored. Only for adhering to parent class interface.
         """
-        self.loader.prepare_data()
+        self.reader.prepare_data()
 
     def setup(self, stage: Optional[str] = None) -> None:
         """
@@ -132,7 +132,7 @@ class RulDataModule(pl.LightningDataModule):
         }
 
     def _setup_split(self, split):
-        features, targets = self.loader.load_split(split)
+        features, targets = self.reader.load_split(split)
         if features:
             features = torch.cat(features)
             targets = torch.cat(targets)
@@ -232,7 +232,7 @@ class PairedRulDataset(IterableDataset):
 
     def __init__(
         self,
-        loaders: List[AbstractLoader],
+        readers: List[AbstractReader],
         split: str,
         num_samples: int,
         min_distance: int,
@@ -241,22 +241,22 @@ class PairedRulDataset(IterableDataset):
     ):
         super().__init__()
 
-        self.loaders = loaders
+        self.readers = readers
         self.split = split
         self.min_distance = min_distance
         self.num_samples = num_samples
         self.deterministic = deterministic
         self.mode = mode
 
-        for loader in self.loaders:
-            loader.check_compatibility(self.loaders[0])
+        for reader in self.readers:
+            reader.check_compatibility(self.readers[0])
 
         self._run_domain_idx: np.ndarray
         self._features: List[torch.Tensor]
         self._labels: List[torch.Tensor]
         self._prepare_datasets()
 
-        self._max_rul = max(loader.max_rul for loader in self.loaders)
+        self._max_rul = max(reader.max_rul for reader in self.readers)
         self._curr_iter = 0
         self._rng = self._reset_rng()
         if mode == "linear":
@@ -270,8 +270,8 @@ class PairedRulDataset(IterableDataset):
         run_domain_idx = []
         features = []
         labels = []
-        for domain_idx, loader in enumerate(self.loaders):
-            run_features, run_labels = loader.load_split(self.split)
+        for domain_idx, reader in enumerate(self.readers):
+            run_features, run_labels = reader.load_split(self.split)
             for feat, lab in zip(run_features, run_labels):
                 if len(feat) > self.min_distance:
                     run_domain_idx.append(domain_idx)

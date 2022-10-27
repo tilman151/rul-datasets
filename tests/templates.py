@@ -8,7 +8,7 @@ from pytorch_lightning import LightningDataModule
 from torch.utils.data import TensorDataset
 
 from rul_datasets.core import PairedRulDataset
-from rul_datasets.loader import AbstractLoader
+from rul_datasets.reader import AbstractReader
 
 
 class PretrainingDataModuleTemplate:

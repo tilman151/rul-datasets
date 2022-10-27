@@ -2,7 +2,7 @@ import numpy as np
 import numpy.testing as npt
 import pytest
 
-from rul_datasets.loader import truncating
+from rul_datasets.reader import truncating
 
 
 @pytest.fixture

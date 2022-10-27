@@ -22,7 +22,7 @@ class BaselineDataModule(pl.LightningDataModule):
 
     Examples:
         >>> import rul_datasets
-        >>> cmapss = rul_datasets.loader.CmapssLoader(fd=1)
+        >>> cmapss = rul_datasets.reader.CmapssReader(fd=1)
         >>> dm = rul_datasets.RulDataModule(cmapss, batch_size=32)
         >>> baseline_dm = rul_datasets.BaselineDataModule(dm)
         >>> train_fd1 = baseline_dm.train_dataloader()
@@ -60,7 +60,7 @@ class BaselineDataModule(pl.LightningDataModule):
         if fd == self.hparams["fd"]:
             dm = self.data_module
         else:
-            loader = deepcopy(self.data_module.loader)
+            loader = deepcopy(self.data_module.reader)
             loader.fd = fd
             loader.percent_fail_runs = None
             loader.percent_broken = None
@@ -131,8 +131,8 @@ class PretrainingBaselineDataModule(pl.LightningDataModule):
     ):
         super().__init__()
 
-        self.failed_loader = failed_data_module.loader
-        self.unfailed_loader = unfailed_data_module.loader
+        self.failed_loader = failed_data_module.reader
+        self.unfailed_loader = unfailed_data_module.reader
         self.num_samples = num_samples
         self.batch_size = failed_data_module.batch_size
         self.min_distance = min_distance

@@ -132,7 +132,7 @@ class TestCMAPSSAdaption(unittest.TestCase):
         mock_target_test.assert_called_once()
 
     def test_truncated_loader(self):
-        self.assertIsNot(self.dataset.target.loader, self.dataset.target_truncated)
+        self.assertIsNot(self.dataset.target.reader, self.dataset.target_truncated)
         self.assertTrue(self.dataset.target_truncated.truncate_val)
 
     def test_hparams(self):

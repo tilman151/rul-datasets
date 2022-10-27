@@ -2,12 +2,12 @@
 
 dm_pre:
   source:
-    loader:
+    reader:
       fd: 2
       window_size: 15
     batch_size: 64
   target:
-    loader:
+    reader:
       fd: 4
       window_size: 15
       percent_broken: 0.8
