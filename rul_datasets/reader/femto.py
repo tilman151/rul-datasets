@@ -52,6 +52,8 @@ class FemtoReader(AbstractReader):
         features, targets = self._preparator.load_runs(split)
         features = [f[:, -self.window_size :, :] for f in features]  # crop to window
         features = scaling.scale_features(features, self._preparator.load_scaler())
+        if self.max_rul is not None:
+            targets = [np.clip(t, a_min=0, a_max=self.max_rul) for t in targets]
 
         return features, targets
 
