@@ -72,7 +72,7 @@ class XjtuSyPreparator:
         self.data_root = data_root
         self.run_split_dist = run_split_dist or self._DEFAULT_RUN_SPLIT_DIST
 
-    def prepare_split(self) -> None:
+    def prepare_split(self, split: Optional[str] = None) -> None:
         run_file_path = self._get_run_file_path(1)
         if not saving.exists(run_file_path):
             runs = self._load_raw_runs()
@@ -157,7 +157,10 @@ class XjtuSyPreparator:
             )
 
     def _get_scaler_path(self) -> str:
-        return os.path.join(self._get_fd_folder_path(), "scaler.pkl")
+        file_name = f"scaler_{self.run_split_dist['dev']}.pkl"
+        file_path = os.path.join(self._get_fd_folder_path(), file_name)
+
+        return file_path
 
     def _get_run_file_path(self, run_idx: int) -> str:
         return os.path.join(self._get_fd_folder_path(), f"run_{run_idx}.npy")

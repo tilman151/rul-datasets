@@ -7,12 +7,26 @@ from numpy import testing as npt
 from rul_datasets import reader
 
 
-def femto_preperator_class(fd):
-    return reader.FemtoPreparator(fd, reader.FemtoReader._FEMTO_ROOT)
+@pytest.fixture(scope="module", autouse=True)
+def prepare_femto():
+    for fd in range(1, 4):
+        reader.FemtoReader(fd).prepare_data()
 
 
-def xjtu_sy_preparator_class(fd):
-    return reader.XjtuSyPreparator(fd, reader.XjtuSyReader._XJTU_SY_ROOT)
+@pytest.fixture(scope="module", autouse=True)
+def prepare_xjtu_sy():
+    for fd in range(1, 4):
+        reader.XjtuSyReader(fd).prepare_data()
+
+
+def femto_preperator_class(fd, run_split_dist=None):
+    return reader.FemtoPreparator(fd, reader.FemtoReader._FEMTO_ROOT, run_split_dist)
+
+
+def xjtu_sy_preparator_class(fd, run_split_dist=None):
+    return reader.XjtuSyPreparator(
+        fd, reader.XjtuSyReader._XJTU_SY_ROOT, run_split_dist
+    )
 
 
 FEMTO_NUM_SAMPLES = {
@@ -54,6 +68,17 @@ class TestPreperatorsShared:
         expected_samples = num_samples[fd]["dev"] * preparator.DEFAULT_WINDOW_SIZE
         assert 2 == scaler.n_features_in_
         assert scaler.n_samples_seen_ == expected_samples
+
+    def test_scaler_refitted_for_custom_split(self, preperator_class, num_samples):
+        custom_split = {"dev": [1], "val": [2], "test": [3]}
+        default_preperator = preperator_class(fd=1)
+        custom_preperator = preperator_class(fd=1, run_split_dist=custom_split)
+        custom_preperator.prepare_split("dev")
+
+        default_scaler = default_preperator.load_scaler()
+        custom_scaler = custom_preperator.load_scaler()
+        assert np.all(default_scaler.mean_ != custom_scaler.mean_)
+        assert np.all(default_scaler.var_ != custom_scaler.var_)
 
     @pytest.mark.parametrize("fd", [1, 2, 3])
     @pytest.mark.parametrize("split", ["dev", "test"])

@@ -23,7 +23,7 @@ class FemtoReader(AbstractReader):
         self,
         fd: int,
         window_size: int = None,
-        max_rul: int = 125,
+        max_rul: int = None,
         percent_broken: float = None,
         percent_fail_runs: Union[float, List[int]] = None,
         truncate_val: bool = False,
@@ -163,7 +163,10 @@ class FemtoPreparator:
         return re.compile(rf"Bearing{self.fd}_\d")
 
     def _get_scaler_path(self) -> str:
-        return os.path.join(self._data_root, f"scaler_{self.fd}.pkl")
+        file_name = f"scaler_{self.fd}_{self.run_split_dist['dev']}.pkl"
+        file_path = os.path.join(self._data_root, file_name)
+
+        return file_path
 
     def _get_run_file_path(self, split: str, run_idx: int) -> str:
         return os.path.join(self._data_root, f"run_{self.fd}_{run_idx}.npy")
