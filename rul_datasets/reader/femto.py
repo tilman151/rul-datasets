@@ -1,3 +1,9 @@
+"""The FEMTO (PRONOSTIA) Bearing dataset is a collection of run-to-failure
+experiments on bearings. Three different operation conditions were used, resulting in
+three sub-datasets. Sub-dataset 1 and 2 contain two training runs and five test runs,
+while sub-dataset 3 contains only one test run. It was part of the 2012 IEEE
+Prognostics Challenge. """
+
 import os
 import re
 import tempfile
@@ -16,6 +22,39 @@ FEMTO_URL = "https://kr0k0tsch.de/rul-datasets/FEMTOBearingDataSet.zip"
 
 
 class FemtoReader(AbstractReader):
+    """
+    This reader represents the FEMTO (PRONOSTIA) Bearing dataset. Each of its three
+    sub-datasets contain a training and a test split. By default, the reader
+    constructs a validation split for sub-datasets 1 and 2 each by taking the first
+    run of the test split. For sub-dataset 3 the second training run is used for
+    validation because only one test run is available. The remaining training data is
+    denoted as the development split. This run to split assignment can be overridden
+    by setting `run_split_dist`.
+
+    The features contain windows with three channels. Only the two acceleration
+    channels are used because the test runs are missing the temperature channel.
+    These features are standardized to zero mean and one standard deviation. The
+    scaler is fitted on the development data.
+
+    Examples:
+        Default splits:
+        >>> import rul_datasets
+        >>> fd1 = rul_datasets.reader.FemtoReader(fd=1)
+        >>> fd1.prepare_data()
+        >>> features, labels = fd1.load_split("dev")
+        >>> features[0].shape
+        torch.Size([2803, 2, 2560])
+
+        Custom splits:
+        >>> import rul_datasets
+        >>> splits = {"dev": [5], "val": [4], "test": [3]}
+        >>> fd1 = rul_datasets.reader.FemtoReader(fd=1, run_split_dist=splits)
+        >>> fd1.prepare_data()
+        >>> features, labels = fd1.load_split("dev")
+        >>> features[0].shape
+        torch.Size([2463, 2, 2560])
+    """
+
     _FEMTO_ROOT: str = os.path.join(DATA_ROOT, "FEMTOBearingDataSet")
     _NUM_TRAIN_RUNS: Dict[int, int] = {1: 2, 2: 2, 3: 2}
 
@@ -29,7 +68,22 @@ class FemtoReader(AbstractReader):
         truncate_val: bool = False,
         run_split_dist: Optional[Dict[str, List[int]]] = None,
     ) -> None:
-        """TODO: Fix FEMTO test labels."""
+        """
+        Create a new FEMTO reader for one of the sub-datasets. By default, the RUL
+        values are not capped. The default window size is 2560.
+
+        For more information about using readers refer to the [reader]
+        [rul_datasets.reader] module page.
+
+        Args:
+            fd: Index of the selected sub-dataset
+            window_size: Size of the sliding window. Defaults to 2560.
+            max_rul: Maximum RUL value of targets.
+            percent_broken: The maximum relative degradation per time series.
+            percent_fail_runs: The percentage or index list of available time series.
+            truncate_val: Truncate the validation data with `percent_broken`, too.
+            run_split_dist: Dictionary that assigns each run idx to each split.
+        """
         super().__init__(
             fd, window_size, max_rul, percent_broken, percent_fail_runs, truncate_val
         )
@@ -37,16 +91,26 @@ class FemtoReader(AbstractReader):
 
     @property
     def fds(self) -> List[int]:
+        """Indices of available sub-datasets."""
         return list(self._NUM_TRAIN_RUNS)
 
     def prepare_data(self) -> None:
+        """
+        Prepare the FEMTO dataset. This function needs to be called before using the
+        dataset and each custom split for the first time.
+
+        The dataset is downloaded from a custom mirror and extracted into the data
+        root directory. The whole dataset is converted com CSV files to NPY files to
+        speed up loading it from disk. Afterwards, a scaler is fit on the development
+        features. Previously completed steps are skipped.
+        """
         if not os.path.exists(self._FEMTO_ROOT):
             _download_femto(DATA_ROOT)
         self._preparator.prepare_split("dev")
         self._preparator.prepare_split("val")
         self._preparator.prepare_split("test")
 
-    def _load_complete_split(
+    def load_complete_split(
         self, split: str
     ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         features, targets = self._preparator.load_runs(split)
@@ -57,7 +121,7 @@ class FemtoReader(AbstractReader):
 
         return features, targets
 
-    def _default_window_size(self, fd: int) -> int:
+    def default_window_size(self, fd: int) -> int:
         return FemtoPreparator.DEFAULT_WINDOW_SIZE
 
 

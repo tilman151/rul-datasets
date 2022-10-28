@@ -1,3 +1,7 @@
+"""The NASA CMAPSS Turbofan Degradation dataset is a collection of simulated
+degradation experiments on jet engines. It contains four sub-datasets named FD1, FD2,
+FD3 and FD4 which differ in operation conditions and possible failure types."""
+
 import os
 import tempfile
 import warnings
@@ -16,6 +20,40 @@ CMAPSS_URL = "https://kr0k0tsch.de/rul-datasets/CMAPSSData.zip"
 
 
 class CmapssReader(AbstractReader):
+    """
+    This reader represents the NASA CMAPSS Turbofan Degradation dataset. Each of its
+    four sub-datasets contain a training and a test split. Upon first usage,
+    the training split will be further divided into a development and a validation
+    split. 20% of the original training split are reserved for validation.
+
+    The features are provided as sliding windows over each time series in the
+    dataset. The label of a window is the label of its last time step. The RUL labels
+    are capped by a maximum value. The original data contains 24 channels per time
+    step. Following the literature, we omit the constant channels and operation
+    condition channels by default. Therefore, the default channel indices are 4, 5,
+    6, 9, 10, 11, 13, 14, 15, 16, 17, 19, 22 and 23.
+
+    The features are min-max scaled between -1 and 1. The scaler is fitted on the
+    development data only.
+
+    Examples:
+        Default channels
+        >>> import rul_datasets
+        >>> fd1 = rul_datasets.reader.CmapssReader(fd=1, window_size=30)
+        >>> fd1.prepare_data()
+        >>> features, labels = fd1.load_split("dev")
+        >>> features[0].shape
+        torch.Size([163, 14, 30])
+
+        Custom channels
+        >>> import rul_datasets
+        >>> fd1 = rul_datasets.reader.CmapssReader(fd=1, feature_select=[1, 2, 3])
+        >>> fd1.prepare_data()
+        >>> features, labels = fd1.load_split("dev")
+        >>> features[0].shape
+        torch.Size([163, 3, 30])
+    """
+
     _FMT: str = (
         "%d %d %.4f %.4f %.1f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f "
         "%.2f %.2f %.2f %.2f %.2f %.2f %.4f %.2f %d %d %.2f %.2f %.4f"
@@ -36,6 +74,25 @@ class CmapssReader(AbstractReader):
         feature_select: List[int] = None,
         truncate_val: bool = False,
     ) -> None:
+        """
+        Create a new CMAPSS reader for one of the sub-datasets. The maximum RUL value
+        is set to 125 by default. The 14 feature channels selected by default can be
+        overridden by passing a list of channel indices to `feature_select`. The
+        default window size is defined per sub-dataset as the minimum time series
+        length in the test set.
+
+        For more information about using readers refer to the [reader]
+        [rul_datasets.reader] module page.
+
+        Args:
+            fd: Index of the selected sub-dataset
+            window_size: Size of the sliding window. Default defined per sub-dataset.
+            max_rul: Maximum RUL value of targets.
+            percent_broken: The maximum relative degradation per time series.
+            percent_fail_runs: The percentage or index list of available time series.
+            feature_select: The index list of selected feature channels.
+            truncate_val: Truncate the validation data with `percent_broken`, too.
+        """
         super().__init__(
             fd, window_size, max_rul, percent_broken, percent_fail_runs, truncate_val
         )
@@ -46,12 +103,22 @@ class CmapssReader(AbstractReader):
 
     @property
     def fds(self) -> List[int]:
+        """Indices of available sub-datasets."""
         return list(self._WINDOW_SIZES)
 
-    def _default_window_size(self, fd: int) -> int:
+    def default_window_size(self, fd: int) -> int:
         return self._WINDOW_SIZES[fd]
 
     def prepare_data(self) -> None:
+        """
+        Prepare the CMAPSS dataset. This function needs to be called before using the
+        dataset for the first time.
+
+        The dataset is downloaded from a custom mirror and extracted into the data
+        root directory. The training data is then split into development and
+        validation set. Afterwards, a scaler is fit on the development features.
+        Previously completed steps are skipped.
+        """
         if not os.path.exists(self._CMAPSS_ROOT):
             _download_cmapss(DATA_ROOT)
         # Check if training data was already split
@@ -103,7 +170,7 @@ class CmapssReader(AbstractReader):
     def _get_feature_name(self, split: str) -> str:
         return f"{split}_FD{self.fd:03d}.txt"
 
-    def _load_complete_split(
+    def load_complete_split(
         self, split: str
     ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         file_path = self._get_feature_path(split)

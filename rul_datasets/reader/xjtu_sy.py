@@ -1,3 +1,8 @@
+"""The XJTU-SY Bearing dataset is a collection of run-to-failure experiments on
+bearings. Three different operation conditions were used, resulting in three
+sub-datasets. Each sub-dataset contains five runs without an official training/test
+split. """
+
 import os.path
 import tempfile
 import zipfile
@@ -13,6 +18,35 @@ XJTU_SY_URL = "https://kr0k0tsch.de/rul-datasets/XJTU-SY.zip"
 
 
 class XjtuSyReader(AbstractReader):
+    """
+    This reader represents the XJTU-SY Bearing dataset. Each of its three
+    sub-datasets contains five runs. By default, the reader assigns the first two to
+    the development, the third to the validation and the remaining two to the test
+    split. This run to split assignment can be overridden by setting `run_split_dist`.
+
+    The features contain windows with two channels of acceleration data which are
+    standardized to zero mean and one standard deviation. The scaler is fitted on the
+    development data.
+
+    Examples:
+        Default splits:
+        >>> import rul_datasets
+        >>> fd1 = rul_datasets.reader.XjtuSyReader(fd=1)
+        >>> fd1.prepare_data()
+        >>> features, labels = fd1.load_split("dev")
+        >>> features[0].shape
+        torch.Size([123, 2, 32768])
+
+        Custom splits:
+        >>> import rul_datasets
+        >>> splits = {"dev": [5], "val": [4], "test": [3]}
+        >>> fd1 = rul_datasets.reader.XjtuSyReader(fd=1, run_split_dist=splits)
+        >>> fd1.prepare_data()
+        >>> features, labels = fd1.load_split("dev")
+        >>> features[0].shape
+        torch.Size([52, 2, 32768])
+    """
+
     _XJTU_SY_ROOT: str = os.path.join(DATA_ROOT, "XJTU-SY")
     _NUM_TRAIN_RUNS: Dict[int, int] = {1: 5, 2: 5, 3: 5}
 
@@ -20,12 +54,28 @@ class XjtuSyReader(AbstractReader):
         self,
         fd: int,
         window_size: int = None,
-        max_rul: int = 125,
+        max_rul: int = None,
         percent_broken: float = None,
         percent_fail_runs: Union[float, List[int]] = None,
         truncate_val: bool = False,
         run_split_dist: Optional[Dict[str, List[int]]] = None,
     ) -> None:
+        """
+        Create a new XJTU-SY reader for one of the sub-datasets. By default, the RUL
+        values are not capped. The default window size is 2560.
+
+        For more information about using readers refer to the [reader]
+        [rul_datasets.reader] module page.
+
+        Args:
+            fd: Index of the selected sub-dataset
+            window_size: Size of the sliding window. Defaults to 2560.
+            max_rul: Maximum RUL value of targets.
+            percent_broken: The maximum relative degradation per time series.
+            percent_fail_runs: The percentage or index list of available time series.
+            truncate_val: Truncate the validation data with `percent_broken`, too.
+            run_split_dist: Dictionary that assigns each run idx to each split.
+        """
         super().__init__(
             fd, window_size, max_rul, percent_broken, percent_fail_runs, truncate_val
         )
@@ -33,14 +83,24 @@ class XjtuSyReader(AbstractReader):
 
     @property
     def fds(self) -> List[int]:
+        """Indices of available sub-datasets."""
         return list(self._NUM_TRAIN_RUNS)
 
     def prepare_data(self) -> None:
+        """
+        Prepare the XJTU-SY dataset. This function needs to be called before using the
+        dataset and each custom split for the first time.
+
+        The dataset is downloaded from a custom mirror and extracted into the data
+        root directory. The whole dataset is converted com CSV files to NPY files to
+        speed up loading it from disk. Afterwards, a scaler is fit on the development
+        features. Previously completed steps are skipped.
+        """
         if not os.path.exists(self._XJTU_SY_ROOT):
             _download_xjtu_sy(DATA_ROOT)
         self._preparator.prepare_split()
 
-    def _load_complete_split(
+    def load_complete_split(
         self, split: str
     ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         features, targets = self._preparator.load_runs(split)
@@ -49,7 +109,7 @@ class XjtuSyReader(AbstractReader):
 
         return features, targets
 
-    def _default_window_size(self, fd: int) -> int:
+    def default_window_size(self, fd: int) -> int:
         return XjtuSyPreparator.DEFAULT_WINDOW_SIZE
 
 

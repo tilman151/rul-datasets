@@ -141,8 +141,12 @@ class AbstractReader(metaclass=abc.ABCMeta):
 
         This function should return the features and targets of the desired split.
         Both should be contained in a list of numpy arrays. Each of the arrays
-        contains one time series. The features should be scaled as desired. This
-        function is used internally in [load_split]
+        contains one time series. The features should have a shape of `[num_windows,
+        num_channels, window_size]` and the targets a shape of `[num_windows]`.
+        The features should be scaled as desired. The targets should be capped by
+        `max_rul`.
+
+        This function is used internally in [load_split]
         [rul_datasets.reader.abstract.AbstractReader.load_split] which takes care of
         truncation and conversion to tensors.
 
@@ -150,7 +154,7 @@ class AbstractReader(metaclass=abc.ABCMeta):
             split: The name of the split to load.
         Returns:
             features: The complete, scaled features of the desired split.
-            targets: The target values corresponding to the features.
+            targets: The capped target values corresponding to the features.
         """
         raise NotImplementedError
 
@@ -161,7 +165,13 @@ class AbstractReader(metaclass=abc.ABCMeta):
         This function loads the scaled features and the targets of a split into
         memory. Afterwards, truncation is applied if the `split` is set to `dev`. The
         validation set is also truncated with `percent_broken` if `truncate_val` is
-        set to `True`.
+        set to `True`. At last, the data is transformed into [tensors][torch.Tensor].
+
+        Args:
+            split: The desired split to load.
+        Returns:
+            features: The scaled, truncated features of the desired split.
+            targets: The truncated targets of the desired split.
         """
         features, targets = self.load_complete_split(split)
         if split == "dev":
@@ -183,6 +193,23 @@ class AbstractReader(metaclass=abc.ABCMeta):
         percent_fail_runs: Union[float, List[int], None] = None,
         truncate_val: Optional[bool] = None,
     ) -> "AbstractReader":
+        """
+        Create a new reader of the desired sub-dataset that is compatible to this one
+        (see [check_compatibility]
+        [rul_datasets.reader.abstract.AbstractReader.check_compatibility]). Useful for
+        domain adaption.
+
+        The values for `percent_broken`, `percent_fail_runs` and `truncate_val` of
+        the new reader can be overridden.
+
+        Args:
+            fd: The index of the sub-dataset for the new reader.
+            percent_broken: Override this value in the new reader.
+            percent_fail_runs: Override this value in the new reader.
+            truncate_val: Override this value in the new reader.
+        Returns:
+            A compatible reader with optional overrides.
+        """
         other = deepcopy(self)
         if percent_broken is not None:
             other.percent_broken = percent_broken
@@ -206,6 +233,26 @@ class AbstractReader(metaclass=abc.ABCMeta):
         percent_broken: Optional[float] = None,
         truncate_val: Optional[bool] = None,
     ) -> "AbstractReader":
+        """
+        Get a compatible reader that contains all development runs that are not in
+        this reader (see [check_compatibility]
+        [rul_datasets.reader.abstract.AbstractReader.check_compatibility]). Useful for
+        semi-supervised learning.
+
+        The new reader will contain the development runs that were discarded in this
+        reader due to truncation through `percent_fail_runs`. If `percent_fail_runs`
+        was not set or this reader contains all development runs, it returns a reader
+        with an empty development set.
+
+        The values for `percent_broken`, and `truncate_val` of the new reader can be
+        overridden.
+
+        Args:
+            percent_broken: Override this value in the new reader.
+            truncate_val: Override this value in the new reader.
+        Returns:
+            A compatible reader with all development runs missing in this one.
+        """
         complement_idx = self._get_complement_idx()
         other = self.get_compatible(
             percent_broken=percent_broken,
@@ -229,6 +276,26 @@ class AbstractReader(metaclass=abc.ABCMeta):
         return complement_idx
 
     def check_compatibility(self, other: "AbstractReader") -> None:
+        """
+        Check if the other reader is compatible with this one.
+
+        Compatibility of two readers ensures that training with both will probably
+        succeed and produce valid results. Two readers are considered compatible, if
+        they:
+
+        * are both children of [AbstractReader]
+        [rul_datasets.reader.abstract.AbstractReader]
+
+        * have the same `window size`
+
+        * have the same `max_rul`
+
+        If any of these conditions is not met, the readers are considered
+        misconfigured and a `ValueError` is thrown.
+
+        Args:
+            other: Another reader object.
+        """
         if not isinstance(other, type(self)):
             raise ValueError(
                 f"The other loader is not of class {type(self)} but {type(other)}."
