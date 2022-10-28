@@ -2,6 +2,7 @@ site_name: RUL Datasets
 site_url: https://krokotsch.eu/rul-datasets
 repo_name: tilman151/rul_datasets
 repo_url: https://github.com/tilman151/rul-datasets
+
 theme:
   name: material
   palette:
@@ -24,6 +25,11 @@ nav:
   - Introduction: index.md
   - API Reference: api/
 
+markdown_extensions:
+  - attr_list
+  - md_in_html
+  - pymdownx.superfences
+
 watch: [rul_datasets]
 
 plugins:
@@ -41,5 +47,7 @@ plugins:
           import:
             - https://pytorch-lightning.readthedocs.io/en/stable/objects.inv
             - https://pytorch.org/docs/stable/objects.inv
+            - https://scikit-learn.org/stable/objects.inv
+            - https://numpy.org/doc/stable/objects.inv
           options:
             show_source: false
