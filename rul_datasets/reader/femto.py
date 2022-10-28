@@ -29,6 +29,7 @@ class FemtoReader(AbstractReader):
         truncate_val: bool = False,
         run_split_dist: Optional[Dict[str, List[int]]] = None,
     ) -> None:
+        """TODO: Fix FEMTO test labels."""
         super().__init__(
             fd, window_size, max_rul, percent_broken, percent_fail_runs, truncate_val
         )
@@ -60,7 +61,11 @@ class FemtoReader(AbstractReader):
 
 class FemtoPreparator:
     DEFAULT_WINDOW_SIZE = 2560
-    _SPLIT_FOLDERS = {"dev": "Learning_set", "val": "Full_Test_Set", "test": "Test_set"}
+    _SPLIT_FOLDERS = {
+        "dev": "Learning_set",
+        "val": "Full_Test_Set",
+        "test": "Full_Test_Set",
+    }
     _DEFAULT_RUN_SPLIT_DIST = {
         1: {"dev": [1, 2], "val": [3], "test": [4, 5, 6, 7]},
         2: {"dev": [1, 2], "val": [3], "test": [4, 5, 6, 7]},

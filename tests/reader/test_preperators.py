@@ -16,9 +16,9 @@ def xjtu_sy_preparator_class(fd):
 
 
 FEMTO_NUM_SAMPLES = {
-    1: {"dev": 3674, "val": 2375, "test": 7245},
-    2: {"dev": 1708, "val": 1955, "test": 3358},
-    3: {"dev": 515, "val": 1637, "test": 352},
+    1: {"dev": 3674, "val": 2375, "test": 8598},
+    2: {"dev": 1708, "val": 1955, "test": 3993},
+    3: {"dev": 515, "val": 1637, "test": 434},
 }
 XJTU_SY_NUM_SAMPLES = {
     1: {"dev": 284, "val": 158, "test": 174},
@@ -65,9 +65,9 @@ class TestPreperatorsShared:
 
 
 FEMTO_NUM_FILES = {
-    1: {"dev": 3674, "val": 10973, "test": 9047},
-    2: {"dev": 1708, "val": 5948, "test": 4560},
-    3: {"dev": 2152, "val": 434, "test": 352},
+    1: {"dev": 3674, "val": 10973, "test": 10973},
+    2: {"dev": 1708, "val": 5948, "test": 5948},
+    3: {"dev": 2152, "val": 434, "test": 434},
 }
 
 
