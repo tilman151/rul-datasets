@@ -256,7 +256,7 @@ class PairedRulDataset(IterableDataset):
         self._labels: List[torch.Tensor]
         self._prepare_datasets()
 
-        self._max_rul = max(reader.max_rul for reader in self.readers)
+        self._max_rul = self._get_max_rul()
         self._curr_iter = 0
         self._rng = self._reset_rng()
         if mode == "linear":
@@ -265,6 +265,17 @@ class PairedRulDataset(IterableDataset):
             self._get_pair_func = self._get_pair_idx_piecewise
         elif mode == "labeled":
             self._get_pair_func = self._get_labeled_pair_idx
+
+    def _get_max_rul(self):
+        max_ruls = [reader.max_rul for reader in self.readers]
+        if any(m is None for m in max_ruls):
+            raise ValueError(
+                "PairedRulDataset needs a set max_rul for all readers "
+                "but at least one of them has is None."
+            )
+        max_rul = max(max_ruls)
+
+        return max_rul
 
     def _prepare_datasets(self):
         run_domain_idx = []

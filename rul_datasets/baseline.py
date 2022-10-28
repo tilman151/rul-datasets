@@ -33,7 +33,8 @@ class BaselineDataModule(pl.LightningDataModule):
 
     def __init__(self, data_module: RulDataModule) -> None:
         """
-        Create a new baseline data module from a [RulDataModule][rul_datasets.RulDataModule].
+        Create a new baseline data module from a [RulDataModule]
+        [rul_datasets.RulDataModule].
 
         It will provide a data loader of the underlying data module's training and
         validation splits. Additionally, it provides a data loader of the test split

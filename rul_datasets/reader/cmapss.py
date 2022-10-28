@@ -6,7 +6,7 @@ import os
 import tempfile
 import warnings
 import zipfile
-from typing import Union, List, Tuple, Dict
+from typing import Union, List, Tuple, Dict, Optional
 
 import numpy as np
 from sklearn import preprocessing as scalers  # type: ignore
@@ -67,10 +67,10 @@ class CmapssReader(AbstractReader):
     def __init__(
         self,
         fd: int,
-        window_size: int = None,
-        max_rul: int = 125,
-        percent_broken: float = None,
-        percent_fail_runs: Union[float, List[int]] = None,
+        window_size: Optional[int] = None,
+        max_rul: Optional[int] = None,
+        percent_broken: Optional[float] = None,
+        percent_fail_runs: Optional[Union[float, List[int]]] = None,
         feature_select: List[int] = None,
         truncate_val: bool = False,
     ) -> None:
@@ -229,7 +229,10 @@ class CmapssReader(AbstractReader):
 
     def _generate_targets(self, time_steps: List[np.ndarray]) -> List[np.ndarray]:
         """Generate RUL targets from time steps."""
-        return [np.minimum(self.max_rul, steps)[::-1].copy() for steps in time_steps]
+        max_rul = self.max_rul or np.inf  # no capping if max_rul is None
+        targets = [np.minimum(max_rul, steps)[::-1].copy() for steps in time_steps]
+
+        return targets
 
     def _load_targets(self) -> List[np.ndarray]:
         """Load target file."""
@@ -237,7 +240,8 @@ class CmapssReader(AbstractReader):
         file_path = os.path.join(self._CMAPSS_ROOT, file_name)
         raw_targets = np.loadtxt(file_path)
 
-        raw_targets = np.minimum(self.max_rul, raw_targets)
+        max_rul = self.max_rul or np.inf
+        raw_targets = np.minimum(max_rul, raw_targets)
         targets = np.split(raw_targets, len(raw_targets))
 
         return targets

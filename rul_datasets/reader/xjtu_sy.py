@@ -53,10 +53,10 @@ class XjtuSyReader(AbstractReader):
     def __init__(
         self,
         fd: int,
-        window_size: int = None,
-        max_rul: int = None,
-        percent_broken: float = None,
-        percent_fail_runs: Union[float, List[int]] = None,
+        window_size: Optional[int] = None,
+        max_rul: Optional[int] = None,
+        percent_broken: Optional[float] = None,
+        percent_fail_runs: Optional[Union[float, List[int]]] = None,
         truncate_val: bool = False,
         run_split_dist: Optional[Dict[str, List[int]]] = None,
     ) -> None:

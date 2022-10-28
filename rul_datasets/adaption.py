@@ -2,7 +2,7 @@
 
 import warnings
 from copy import deepcopy
-from typing import List, Optional, Any, Tuple
+from typing import List, Optional, Any, Tuple, Callable
 
 import numpy as np
 import pytorch_lightning as pl
@@ -207,6 +207,9 @@ class AdaptionDataset(Dataset):
         >>> source_features, source_label, target_features = dataset[0]
     """
 
+    _target_idx: List[int]
+    _get_target_idx: Callable
+
     def __init__(
         self, source: Dataset, target: Dataset, deterministic: bool = False
     ) -> None:
@@ -226,7 +229,7 @@ class AdaptionDataset(Dataset):
         self.source = source
         self.target = target
         self.deterministic = deterministic
-        self._target_len = len(target)
+        self._target_len = len(target)  # type: ignore
 
         self._rng = np.random.default_rng(seed=42)
         if self.deterministic:
@@ -236,9 +239,8 @@ class AdaptionDataset(Dataset):
             ]
         else:
             self._get_target_idx = self._get_random_target_idx
-            self._target_idx = None
 
-    def _get_random_target_idx(self, _: int) -> int:
+    def _get_random_target_idx(self, idx: int) -> int:
         return self._rng.integers(0, self._target_len)
 
     def _get_deterministic_target_idx(self, idx: int) -> int:
@@ -252,7 +254,7 @@ class AdaptionDataset(Dataset):
         return source, source_label, target
 
     def __len__(self) -> int:
-        return len(self.source)
+        return len(self.source)  # type: ignore
 
 
 class PretrainingAdaptionDataModule(pl.LightningDataModule):

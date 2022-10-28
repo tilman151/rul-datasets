@@ -172,14 +172,24 @@ class DummyRul(reader.AbstractReader):
             ),
         }
 
+    @property
+    def fds(self):
+        return [1]
+
+    def default_window_size(self, fd):
+        return self.window_size
+
     def check_compatibility(self, other) -> None:
         pass
 
     def prepare_data(self):
         pass
 
-    def load_split(self, split):
+    def load_complete_split(self, split):
         return self.data[split]
+
+    def load_split(self, split):
+        return self.load_complete_split(split)
 
 
 @dataclass
@@ -208,17 +218,27 @@ class DummyRulShortRuns(reader.AbstractReader):
         ),
     }
 
+    @property
+    def fds(self):
+        return [1]
+
+    def default_window_size(self, fd):
+        return self.window_size
+
     def check_compatibility(self, other) -> None:
         pass
 
     def prepare_data(self):
         pass
 
-    def load_split(self, split):
+    def load_complete_split(self, split):
         if not split == "dev":
             raise ValueError(f"DummyRulShortRuns does not have a '{split}' split")
 
         return self.data["dev"]
+
+    def load_split(self, split):
+        return self.load_complete_split(split)
 
 
 @pytest.fixture(scope="module")

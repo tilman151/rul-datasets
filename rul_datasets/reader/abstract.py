@@ -51,9 +51,9 @@ class AbstractReader(metaclass=abc.ABCMeta):
 
     fd: int
     window_size: int
-    max_rul: int
+    max_rul: Optional[int]
     percent_broken: Optional[float]
-    percent_fail_runs: Union[float, List[int], None]
+    percent_fail_runs: Optional[Union[float, List[int], None]]
     truncate_val: bool
 
     _NUM_TRAIN_RUNS: Dict[int, int]
@@ -61,10 +61,10 @@ class AbstractReader(metaclass=abc.ABCMeta):
     def __init__(
         self,
         fd: int,
-        window_size: int = None,
-        max_rul: int = 125,
-        percent_broken: float = None,
-        percent_fail_runs: Union[float, List[int]] = None,
+        window_size: Optional[int] = None,
+        max_rul: Optional[int] = None,
+        percent_broken: Optional[float] = None,
+        percent_fail_runs: Optional[Union[float, List[int]]] = None,
         truncate_val: bool = False,
     ) -> None:
         """
