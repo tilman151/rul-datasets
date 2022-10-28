@@ -1,8 +1,9 @@
 import os
-from typing import List, Optional, Callable, Dict
+from typing import List, Optional, Callable, Dict, Tuple
 
 import numpy as np
 import requests  # type: ignore
+import torch
 from tqdm import tqdm  # type: ignore
 
 
@@ -91,3 +92,13 @@ def download_file(url: str, save_path: str) -> None:
     with open(save_path, mode="wb") as f:
         for data in tqdm(response.iter_content(chunk_size=1024), total=content_len):
             f.write(data)
+
+
+def to_tensor(
+    features: List[np.ndarray], targets: List[np.ndarray]
+) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+    dtype = torch.float32
+    tensor_feats = [torch.tensor(f, dtype=dtype).permute(0, 2, 1) for f in features]
+    tensor_targets = [torch.tensor(t, dtype=dtype) for t in targets]
+
+    return tensor_feats, tensor_targets

@@ -17,13 +17,17 @@ class DummyReader(reader.AbstractReader):
 
     _NUM_TRAIN_RUNS = {1: 100}
 
-    def _default_window_size(self, fd):
+    @property
+    def fds(self):
+        return [1]
+
+    def default_window_size(self, fd):
         return 15
 
     def prepare_data(self):
         pass
 
-    def _load_complete_split(
+    def load_complete_split(
         self, split: str
     ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         return [], []
@@ -46,7 +50,7 @@ class TestAbstractLoader:
             1, 30, 125, percent_broken=0.2, percent_fail_runs=0.8, truncate_val=True
         )
         this.load_split("val")
-        mock_truncate_runs.assert_called_with([], [], 0.2, 0.8)
+        mock_truncate_runs.assert_called_with([], [], 0.2)
 
     @mock.patch("rul_datasets.reader.truncating.truncate_runs", return_value=([], []))
     def test_truncation_test_split(self, mock_truncate_runs):
