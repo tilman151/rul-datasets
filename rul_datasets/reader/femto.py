@@ -163,12 +163,10 @@ class FemtoPreparator:
         return re.compile(rf"Bearing{self.fd}_\d")
 
     def _get_scaler_path(self) -> str:
-        return os.path.join(self._get_split_folder("dev"), f"scaler_{self.fd}.pkl")
+        return os.path.join(self._data_root, f"scaler_{self.fd}.pkl")
 
     def _get_run_file_path(self, split: str, run_idx: int) -> str:
-        return os.path.join(
-            self._get_split_folder(split), f"run_{self.fd}_{run_idx}.npy"
-        )
+        return os.path.join(self._data_root, f"run_{self.fd}_{run_idx}.npy")
 
     def _get_split_folder(self, split: str) -> str:
         return os.path.join(self._data_root, self._SPLIT_FOLDERS[split])
