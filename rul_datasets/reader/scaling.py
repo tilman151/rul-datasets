@@ -34,6 +34,7 @@ def scale_features(
     features: List[np.ndarray], scaler: BaseEstimator
 ) -> List[np.ndarray]:
     for i, run in enumerate(features):
+        _check_channels(run, scaler)
         if len(run.shape) == 3:
             features[i] = _scale_windowed_features(run, scaler)
         else:
@@ -42,11 +43,19 @@ def scale_features(
     return features
 
 
+def _check_channels(run: np.ndarray, scaler: BaseEstimator) -> None:
+    if not run.shape[1] == scaler.n_features_in_:
+        raise ValueError(
+            f"The scaler was fit on {scaler.n_features_in_} "
+            f"channels but the features have {run.shape[1]} channels."
+        )
+
+
 def _scale_windowed_features(features: np.ndarray, scaler: BaseEstimator) -> np.ndarray:
-    window_size = features.shape[1]
-    num_channels = features.shape[-1]
+    num_channels = features.shape[1]
+    window_size = features.shape[2]
     features = features.reshape(-1, num_channels)
     features = scaler.transform(features)
-    features = features.reshape(-1, window_size, num_channels)
+    features = features.reshape(-1, num_channels, window_size)
 
     return features
