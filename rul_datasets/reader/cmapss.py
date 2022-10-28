@@ -68,7 +68,7 @@ class CmapssReader(AbstractReader):
         self,
         fd: int,
         window_size: Optional[int] = None,
-        max_rul: Optional[int] = None,
+        max_rul: Optional[int] = 125,
         percent_broken: Optional[float] = None,
         percent_fail_runs: Optional[Union[float, List[int]]] = None,
         feature_select: List[int] = None,
