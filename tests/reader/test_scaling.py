@@ -48,7 +48,7 @@ def test_save_load_scaler(tmp_path, fitted_scaler):
 
 @pytest.mark.parametrize(
     "feature_shape",
-    [(10000, 5), (5000, 5, 2), pytest.param((25000, 2), marks=pytest.mark.xfail)],
+    [(10000, 5), (5000, 2, 5), pytest.param((25000, 2), marks=pytest.mark.xfail)],
 )
 def test_scale_features(feature_shape, fitted_scaler):
     mean = fitted_scaler.mean_

@@ -29,6 +29,8 @@ def fit_scaler(features: List[np.ndarray], scaler: Optional[Scaler] = None) -> S
     Fit a given scaler to the RUL features. If the scaler is omitted,
     a StandardScaler will be created.
 
+    The scaler assumes that the last axis of the features are the channels.
+
     Args:
         features: The RUL features.
         scaler: The scaler to be fit. Defaults to a StandardScaler.
@@ -76,7 +78,7 @@ def scale_features(features: List[np.ndarray], scaler: Scaler) -> List[np.ndarra
     Scaler the RUL features with a given scaler.
 
     The features can have a shape of `[num_time_steps, channels]` or `[num_windows,
-    channels, window_size]`. The scaler needs to work on the channel dimension. If it
+    window_size, channels]`. The scaler needs to work on the channel dimension. If it
     was not fit with the right number of channels, a `ValueError` is thrown.
 
     Args:
@@ -96,7 +98,7 @@ def scale_features(features: List[np.ndarray], scaler: Scaler) -> List[np.ndarra
 
 
 def _check_channels(run: np.ndarray, scaler: Scaler) -> None:
-    if not run.shape[1] == scaler.n_features_in_:
+    if not run.shape[-1] == scaler.n_features_in_:
         raise ValueError(
             f"The scaler was fit on {scaler.n_features_in_} "
             f"channels but the features have {run.shape[1]} channels."
@@ -104,10 +106,10 @@ def _check_channels(run: np.ndarray, scaler: Scaler) -> None:
 
 
 def _scale_windowed_features(features: np.ndarray, scaler: Scaler) -> np.ndarray:
-    num_channels = features.shape[1]
-    window_size = features.shape[2]
+    num_channels = features.shape[2]
+    window_size = features.shape[1]
     features = features.reshape(-1, num_channels)
     features = scaler.transform(features)
-    features = features.reshape(-1, num_channels, window_size)
+    features = features.reshape(-1, window_size, num_channels)
 
     return features

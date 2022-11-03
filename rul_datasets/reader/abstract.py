@@ -142,8 +142,8 @@ class AbstractReader(metaclass=abc.ABCMeta):
         This function should return the features and targets of the desired split.
         Both should be contained in a list of numpy arrays. Each of the arrays
         contains one time series. The features should have a shape of `[num_windows,
-        num_channels, window_size]` and the targets a shape of `[num_windows]`.
-        The features should be scaled as desired. The targets should be capped by
+        window_size, num_channels]` and the targets a shape of `[num_windows]`. The
+        features should be scaled as desired. The targets should be capped by
         `max_rul`.
 
         This function is used internally in [load_split]
@@ -166,6 +166,9 @@ class AbstractReader(metaclass=abc.ABCMeta):
         memory. Afterwards, truncation is applied if the `split` is set to `dev`. The
         validation set is also truncated with `percent_broken` if `truncate_val` is
         set to `True`. At last, the data is transformed into [tensors][torch.Tensor].
+        While converting to them tensors, the axis of the features are transposed to
+        `[num_windows, num_channels, window_size]` to fit PyTorch's channel first
+        format.
 
         Args:
             split: The desired split to load.
