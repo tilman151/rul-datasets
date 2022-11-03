@@ -80,6 +80,13 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
                 f"FD of source and target has to be different for "
                 f"domain adaption, but is {self.source.reader.fd} both times."
             )
+        if self.target.reader.percent_broken is None:
+            warnings.warn(
+                "The target domain is not truncated by 'percent_broken'."
+                "This may lead to unrealistically good results."
+                "If this was intentional, please set `percent_broken` "
+                "to 1.0 to silence this warning."
+            )
 
     def prepare_data(self, *args: Any, **kwargs: Any) -> None:
         """
