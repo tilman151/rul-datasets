@@ -16,3 +16,15 @@ No code changes needed.
 Aside from the basic ones, this library contains data modules for advanced experiments concerning **transfer learning**, **unsupervised domain adaption** and **semi-supervised learning**.
 These data modules are designed as **higher-order data modules**.
 This means they take one or more of the basic data modules as inputs and adjust them to the desired use case.
+
+## Installation
+
+The library is pip-installable. Simply type:
+
+```shell
+pip install rul-datasets
+```
+
+## Contribution
+
+Contributions are always welcome. Whether you want to fix a bug, add a feature or a new dataset, just open an issue and a PR.

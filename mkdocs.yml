@@ -25,6 +25,9 @@ theme:
 
 nav:
   - Introduction: index.md
+  - Use Cases:
+      - Libraries: use_cases/libraries.md
+      - Learning Tasks: use_cases/tasks.md
   - API Reference: api/
 
 markdown_extensions:
