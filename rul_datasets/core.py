@@ -98,6 +98,19 @@ class RulDataModule(pl.LightningDataModule):
                 f"{self.batch_size} vs. {other.batch_size}"
             )
 
+    def is_mutually_exclusive(self, other: "RulDataModule") -> bool:
+        """
+        Check if the other data module is mutually exclusive to this one. See
+        [AbstractReader.is_mutually_exclusive]
+        [rul_datasets.reader.abstract.AbstractReader.is_mutually_exclusive].
+
+        Args:
+            other: Data module to check exclusivity against.
+        Returns:
+            Whether both data modules are mutually exclusive.
+        """
+        return self.reader.is_mutually_exclusive(other.reader)
+
     def prepare_data(self, *args: Any, **kwargs: Any) -> None:
         """
         Download and pre-process the underlying data.

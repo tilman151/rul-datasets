@@ -276,10 +276,27 @@ class AbstractReader(metaclass=abc.ABCMeta):
         return complement_idx
 
     def is_mutually_exclusive(self, other: "AbstractReader") -> bool:
+        """
+        Check if this reader is mutually exclusive to another reader.
+
+        Two readers are mutually exclusive if:
+
+        * they are not of the same class and therefore do not share a dataset
+        * their `percent_fail_runs` arguments do not overlap (float arguments overlap
+          if they are greater than zero)
+        * one of them is empty
+
+        Args:
+            other: The reader to check exclusivity against.
+        Returns:
+            Whether the readers are mutually exclusive.
+        """
         self_runs = 1.0 if self.percent_fail_runs is None else self.percent_fail_runs
         other_runs = 1.0 if other.percent_fail_runs is None else other.percent_fail_runs
 
-        if self_runs == other and self_runs and other_runs:
+        if not isinstance(self, type(other)):
+            mutually_exclusive = True
+        elif self_runs == other and self_runs and other_runs:
             mutually_exclusive = False  # both the same and not empty
         elif isinstance(self_runs, float) and isinstance(other_runs, float):
             mutually_exclusive = False  # both start with first run -> overlap

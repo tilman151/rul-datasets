@@ -154,6 +154,11 @@ class TestRulDataModule(unittest.TestCase):
             core.RulDataModule(self.mock_loader, batch_size=8),
         )
 
+    def test_is_mutually_exclusive(self):
+        dataset = core.RulDataModule(self.mock_loader, batch_size=16)
+        dataset.is_mutually_exclusive(dataset)
+        self.mock_loader.is_mutually_exclusive.assert_called_once_with(dataset.reader)
+
 
 class DummyRul(reader.AbstractReader):
     fd: int = 1
