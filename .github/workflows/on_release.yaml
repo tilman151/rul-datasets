@@ -1,0 +1,59 @@
+name: On Release
+on:
+  release:
+    types: [published]
+
+jobs:
+  lint:
+    uses: ./.github/workflows/lint.yaml
+
+  unit-test:
+    needs: [ lint ]
+    uses: ./.github/workflows/test.yaml
+
+  deploy-test:
+    needs: [unit-test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/install-poetry
+        with:
+          poetry-version: "1.2.2"
+      - run: poetry install
+      - run: pipx inject poetry poetry-bumpversion
+      - run: poetry config repositories.testpypi https://test.pypi.org/legacy/
+      - run: poetry config pypi-token.testpypi ${{ secrets.TEST_PYPI_TOKEN }}
+      - run: |
+          poetry version ${{ github.ref_name }}
+          poetry build
+      - run: poetry publish -r testpypi
+
+  deploy-prod:
+    needs: [ deploy-test ]
+    runs-on: ubuntu-latest
+    environment:
+      name: PyPI
+      url: https://test.pypi.org/project/rul-datasets/
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/install-poetry
+        with:
+          poetry-version: "1.2.2"
+      - run: poetry install
+      - run: pipx inject poetry poetry-bumpversion
+      - run: poetry config pypi-token.pypi ${{ secrets.PYPI_TOKEN }}
+      - run: |
+          poetry version ${{ github.ref_name }}
+          poetry build
+      - run: poetry publish
+
+  deploy-docs:
+    runs-on: ubuntu-latest
+    needs: [ deploy-prod ]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/install-poetry
+        with:
+          poetry-version: "1.2.2"
+      - run: poetry install --with docs
+      - run: poetry run mkdocs gh-deploy --force
