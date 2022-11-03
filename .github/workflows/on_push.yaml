@@ -11,14 +11,3 @@ jobs:
   unit-test:
     needs: [lint]
     uses: ./.github/workflows/test.yaml
-
-  deploy-docs:
-    runs-on: ubuntu-latest
-    needs: [unit-test]
-    steps:
-      - uses: actions/checkout@v3
-      - uses: ./.github/actions/install-poetry
-        with:
-          poetry-version: "1.2.2"
-      - run: poetry install --with docs
-      - run: poetry run mkdocs gh-deploy --force
