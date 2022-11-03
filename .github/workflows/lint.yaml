@@ -1,0 +1,41 @@
+name: Lint
+on:
+  workflow_call:
+
+jobs:
+  lint-black:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/install-poetry
+        with:
+          poetry-version: "1.2.2"
+      - run: poetry run black --check rul_datasets
+
+  lint-flake8:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/install-poetry
+        with:
+          poetry-version: "1.2.2"
+      - run: poetry run flake8 rul_datasets
+
+  lint-mypy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/install-poetry
+        with:
+          poetry-version: "1.2.2"
+      - run: poetry run mypy rul_datasets
+
+  unit-test:
+    runs-on: ubuntu-latest
+    needs: ["lint-black", "lint-flake8", "lint-mypy"]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/install-poetry
+        with:
+          poetry-version: "1.2.2"
+      - run: poetry run pytest -m "not needs_data" tests
