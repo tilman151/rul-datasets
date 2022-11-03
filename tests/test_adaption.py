@@ -64,7 +64,7 @@ class TestCMAPSSAdaption(unittest.TestCase):
         )
 
     def test_val_source_target_order(self):
-        val_source_loader, val_target_loader, _ = self.dataset.val_dataloader()
+        val_source_loader, val_target_loader = self.dataset.val_dataloader()
         self._assert_datasets_equal(
             val_source_loader.dataset,
             self.dataset.source.to_dataset("val"),
@@ -112,13 +112,9 @@ class TestCMAPSSAdaption(unittest.TestCase):
         self.dataset.target.val_dataloader = mock_target_val
         dataloaders = self.dataset.val_dataloader()
 
-        self.assertEqual(3, len(dataloaders))
+        self.assertEqual(2, len(dataloaders))
         mock_source_val.assert_called_once()
         mock_target_val.assert_called_once()
-        self.assertEqual(16, dataloaders[-1].batch_size)
-        self.assertIsInstance(dataloaders[-1].dataset, core.PairedRulDataset)
-        self.assertTrue(dataloaders[-1].dataset.deterministic)
-        self.assertTrue(dataloaders[-1].pin_memory)
 
     def test_test_dataloader(self):
         mock_source_test = mock.MagicMock()

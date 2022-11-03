@@ -34,7 +34,9 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
         >>> test_1, test_2, paired_test_1_2 = dm.test_dataloader()
     """
 
-    def __init__(self, source: RulDataModule, target: RulDataModule) -> None:
+    def __init__(
+        self, source: RulDataModule, target: RulDataModule, paired_val: bool = False
+    ) -> None:
         """
         Create a new domain adaption data module from a source and target
         [RulDataModule][rul_datasets.RulDataModule]. The source domain is considered
@@ -48,11 +50,13 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
         Args:
             source: The data module of the labeled source domain.
             target: The data module of the unlabeled target domain.
+            paired_val: Whether to include paired data in validation.
         """
         super().__init__()
 
         self.source = source
         self.target = target
+        self.paired_val = paired_val
         self.batch_size = source.batch_size
 
         self.target_truncated = deepcopy(self.target.reader)
@@ -139,24 +143,31 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
         """
         Create a data loader of the source, target and paired validation data.
 
-        The first two data loaders are the return values of `source.val_dataloader`
-        and `target.val_dataloader`. The third is a data loader of a
+        By default, two data loaders are returned, which correspond to the source
+        and the target validation data loader. An optional third is a data loader of a
         [PairedRulDataset][rul_datasets.core.PairedRulDataset] using both source and
-        target.
+        target is returned if `paired_val` was set to `True` in the constructor.
 
         Args:
             *args: Ignored. Only for adhering to parent class interface.
             **kwargs: Ignored. Only for adhering to parent class interface.
         Returns:
-            The source, target and paired validation data loader.
+            The source, target and an optional paired validation data loader.
         """
-        return [
+        loaders = [
             self.source.val_dataloader(*args, **kwargs),
             self.target.val_dataloader(*args, **kwargs),
-            DataLoader(
-                self._get_paired_dataset(), batch_size=self.batch_size, pin_memory=True
-            ),
         ]
+        if self.paired_val:
+            loaders.append(
+                DataLoader(
+                    self._get_paired_dataset(),
+                    batch_size=self.batch_size,
+                    pin_memory=True,
+                )
+            )
+
+        return loaders
 
     def test_dataloader(self, *args: Any, **kwargs: Any) -> List[DataLoader]:
         """
