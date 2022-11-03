@@ -275,6 +275,32 @@ class AbstractReader(metaclass=abc.ABCMeta):
 
         return complement_idx
 
+    def is_mutually_exclusive(self, other: "AbstractReader") -> bool:
+        self_runs = 1.0 if self.percent_fail_runs is None else self.percent_fail_runs
+        other_runs = 1.0 if other.percent_fail_runs is None else other.percent_fail_runs
+
+        if self_runs == other and self_runs and other_runs:
+            mutually_exclusive = False  # both the same and not empty
+        elif isinstance(self_runs, float) and isinstance(other_runs, float):
+            mutually_exclusive = False  # both start with first run -> overlap
+        elif isinstance(self_runs, float) and isinstance(other_runs, Iterable):
+            mutually_exclusive = self._is_mutually_exclusive(self, other)
+        elif isinstance(self_runs, Iterable) and isinstance(other_runs, float):
+            mutually_exclusive = self._is_mutually_exclusive(other, self)
+        else:
+            mutually_exclusive = set(self_runs).isdisjoint(other_runs)
+
+        return mutually_exclusive
+
+    def _is_mutually_exclusive(
+        self, floated: "AbstractReader", listed: "AbstractReader"
+    ) -> bool:
+        """Listed is mutually exclusive if it is a subset of floated's complement."""
+        floated_complement = floated.get_complement().percent_fail_runs
+        mutually_exclusive = set(listed.percent_fail_runs).issubset(floated_complement)
+
+        return mutually_exclusive
+
     def check_compatibility(self, other: "AbstractReader") -> None:
         """
         Check if the other reader is compatible with this one.

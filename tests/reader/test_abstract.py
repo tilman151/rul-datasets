@@ -111,3 +111,22 @@ class TestAbstractLoader:
         assert not other.percent_fail_runs  # Complement is empty
         assert 0.8 == other.percent_broken
         assert not other.truncate_val
+
+    @pytest.mark.parametrize(
+        ["runs_this", "runs_other", "success"],
+        [
+            (None, None, False),
+            (None, [], True),
+            (None, [1], False),
+            ([1, 2], [1, 2, 3], False),
+            ([1, 2], [3, 4], True),
+            (0.8, [90], True),
+            (0.8, [1], False),
+        ],
+    )
+    def test_is_mutually_exclusive(self, runs_this, runs_other, success):
+        this = DummyReader(1, percent_fail_runs=runs_this)
+        other = DummyReader(1, percent_fail_runs=runs_other)
+
+        assert this.is_mutually_exclusive(other) == success
+        assert other.is_mutually_exclusive(this) == success
