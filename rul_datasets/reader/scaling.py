@@ -5,7 +5,6 @@ from typing import List, Optional, Union
 
 import numpy as np
 from sklearn import preprocessing as scalers  # type: ignore
-from sklearn.base import BaseEstimator  # type: ignore
 
 
 Scaler = Union[
