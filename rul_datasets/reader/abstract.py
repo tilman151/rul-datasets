@@ -308,7 +308,7 @@ class AbstractReader(metaclass=abc.ABCMeta):
         elif isinstance(self_runs, Iterable) and isinstance(other_runs, float):
             mutually_exclusive = self._is_mutually_exclusive(other, self)
         else:
-            mutually_exclusive = set(self_runs).isdisjoint(other_runs)
+            mutually_exclusive = set(self_runs).isdisjoint(other_runs)  # type: ignore
 
         return mutually_exclusive
 
@@ -317,9 +317,10 @@ class AbstractReader(metaclass=abc.ABCMeta):
     ) -> bool:
         """Listed is mutually exclusive if it is a subset of floated's complement."""
         floated_complement = floated.get_complement().percent_fail_runs
-        mutually_exclusive = set(listed.percent_fail_runs).issubset(floated_complement)
+        listed = listed.percent_fail_runs  # type: ignore
+        exclusive = set(listed).issubset(floated_complement)  # type: ignore
 
-        return mutually_exclusive
+        return exclusive
 
     def check_compatibility(self, other: "AbstractReader") -> None:
         """
