@@ -14,6 +14,9 @@ jobs:
   deploy-test:
     needs: [unit-test]
     runs-on: ubuntu-latest
+    environment:
+      name: TestPyPI
+      url: https://test.pypi.org/project/rul-datasets/
     steps:
       - uses: actions/checkout@v3
       - uses: ./.github/actions/install-poetry
@@ -22,7 +25,7 @@ jobs:
       - run: poetry install
       - run: pipx inject poetry poetry-bumpversion
       - run: poetry config repositories.testpypi https://test.pypi.org/legacy/
-      - run: poetry config pypi-token.testpypi ${{ secrets.TEST_PYPI_TOKEN }}
+      - run: poetry config pypi-token.testpypi ${{ secrets.PYPI_TOKEN }}
       - run: |
           poetry version ${{ github.ref_name }}
           poetry build
@@ -33,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: PyPI
-      url: https://test.pypi.org/project/rul-datasets/
+      url: https://pypi.org/project/rul-datasets/
     steps:
       - uses: actions/checkout@v3
       - uses: ./.github/actions/install-poetry
