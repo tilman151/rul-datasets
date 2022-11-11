@@ -9,9 +9,7 @@ from rul_datasets.reader import data_root
 def test_default_data_root():
     data_root = _reimport_package()
 
-    exp_data_root = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "data")
-    )
+    exp_data_root = os.path.expanduser(os.path.join("~", ".rul-datasets"))
     assert data_root.get_data_root() == exp_data_root
 
 

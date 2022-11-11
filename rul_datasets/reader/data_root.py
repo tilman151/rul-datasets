@@ -10,9 +10,7 @@ def _init_data_root() -> str:
                 "env var does not exist."
             )
     else:
-        root = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "..", "..", "data")
-        )
+        root = os.path.expanduser(os.path.join("~", ".rul-datasets"))
         os.makedirs(root, exist_ok=True)
 
     return root
