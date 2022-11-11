@@ -12,7 +12,9 @@ import numpy as np
 from sklearn import preprocessing as scalers  # type: ignore
 
 from rul_datasets import utils
-from rul_datasets.reader import AbstractReader, DATA_ROOT, saving, scaling
+from rul_datasets.reader import saving, scaling
+from rul_datasets.reader.abstract import AbstractReader
+from rul_datasets.reader.data_root import get_data_root
 
 XJTU_SY_URL = "https://kr0k0tsch.de/rul-datasets/XJTU-SY.zip"
 
@@ -47,7 +49,7 @@ class XjtuSyReader(AbstractReader):
         torch.Size([52, 2, 32768])
     """
 
-    _XJTU_SY_ROOT: str = os.path.join(DATA_ROOT, "XJTU-SY")
+    _XJTU_SY_ROOT: str = os.path.join(get_data_root(), "XJTU-SY")
     _NUM_TRAIN_RUNS: Dict[int, int] = {1: 5, 2: 5, 3: 5}
 
     def __init__(
@@ -97,7 +99,7 @@ class XjtuSyReader(AbstractReader):
         features. Previously completed steps are skipped.
         """
         if not os.path.exists(self._XJTU_SY_ROOT):
-            _download_xjtu_sy(DATA_ROOT)
+            _download_xjtu_sy(get_data_root())
         self._preparator.prepare_split()
 
     def load_complete_split(

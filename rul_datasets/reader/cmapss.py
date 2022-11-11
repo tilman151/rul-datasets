@@ -12,7 +12,8 @@ import numpy as np
 from sklearn import preprocessing as scalers  # type: ignore
 
 from rul_datasets.reader import scaling
-from rul_datasets.reader.abstract import AbstractReader, DATA_ROOT
+from rul_datasets.reader.data_root import get_data_root
+from rul_datasets.reader.abstract import AbstractReader
 from rul_datasets import utils
 
 
@@ -62,7 +63,7 @@ class CmapssReader(AbstractReader):
     _WINDOW_SIZES: Dict[int, int] = {1: 30, 2: 20, 3: 30, 4: 15}
     _DEFAULT_CHANNELS: List[int] = [4, 5, 6, 9, 10, 11, 13, 14, 15, 16, 17, 19, 22, 23]
     _NUM_TRAIN_RUNS: Dict[int, int] = {1: 80, 2: 208, 3: 80, 4: 199}
-    _CMAPSS_ROOT: str = os.path.join(DATA_ROOT, "CMAPSS")
+    _CMAPSS_ROOT: str = os.path.join(get_data_root(), "CMAPSS")
 
     def __init__(
         self,
@@ -120,7 +121,7 @@ class CmapssReader(AbstractReader):
         Previously completed steps are skipped.
         """
         if not os.path.exists(self._CMAPSS_ROOT):
-            _download_cmapss(DATA_ROOT)
+            _download_cmapss(get_data_root())
         # Check if training data was already split
         if not os.path.exists(self._get_feature_path("dev")):
             warnings.warn(

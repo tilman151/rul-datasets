@@ -16,7 +16,8 @@ import sklearn.preprocessing as scalers  # type: ignore
 
 from rul_datasets import utils
 from rul_datasets.reader import scaling, saving
-from rul_datasets.reader.abstract import AbstractReader, DATA_ROOT
+from rul_datasets.reader.data_root import get_data_root
+from rul_datasets.reader.abstract import AbstractReader
 
 FEMTO_URL = "https://kr0k0tsch.de/rul-datasets/FEMTOBearingDataSet.zip"
 
@@ -55,7 +56,7 @@ class FemtoReader(AbstractReader):
         torch.Size([2463, 2, 2560])
     """
 
-    _FEMTO_ROOT: str = os.path.join(DATA_ROOT, "FEMTOBearingDataSet")
+    _FEMTO_ROOT: str = os.path.join(get_data_root(), "FEMTOBearingDataSet")
     _NUM_TRAIN_RUNS: Dict[int, int] = {1: 2, 2: 2, 3: 2}
 
     def __init__(
@@ -105,7 +106,7 @@ class FemtoReader(AbstractReader):
         features. Previously completed steps are skipped.
         """
         if not os.path.exists(self._FEMTO_ROOT):
-            _download_femto(DATA_ROOT)
+            _download_femto(get_data_root())
         self._preparator.prepare_split("dev")
         self._preparator.prepare_split("val")
         self._preparator.prepare_split("test")

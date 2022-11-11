@@ -153,7 +153,8 @@ For more information, see [core][rul_datasets.core] module page or the
 
  """
 
-from .abstract import AbstractReader, DATA_ROOT
+from .abstract import AbstractReader
+from .data_root import _DATA_ROOT
 from .cmapss import CmapssReader
 from .femto import FemtoReader, FemtoPreparator
 from .xjtu_sy import XjtuSyReader, XjtuSyPreparator
