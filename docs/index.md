@@ -25,6 +25,10 @@ The library is pip-installable. Simply type:
 pip install rul-datasets
 ```
 
+Datasets will be downloaded to a cache directory called `data_root` when used for the first time.
+The default directory on all systems is `~/.rul-datasets`, where `~` is the users home folder.
+You can customize the `data_root` by either setting the environment variable `RUL_DATASETS_DATA_ROOT` or by calling [rul_datasets.set_data_root][]. The manually set data root must be an already existing folder.
+
 ## Contribution
 
 Contributions are always welcome. Whether you want to fix a bug, add a feature or a new dataset, just open an issue and a PR.
