@@ -1,17 +1,14 @@
 """This module contains the base class for all readers. It is only relevant to people
 that want to extend this package with their own dataset. """
 import abc
-import os
 from copy import deepcopy
 from typing import Optional, Union, List, Dict, Any, Iterable, Tuple
 
 import numpy as np
 import torch
 
-from rul_datasets.reader import truncating
 from rul_datasets import utils
-
-DATA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data"))
+from rul_datasets.reader import truncating
 
 
 class AbstractReader(metaclass=abc.ABCMeta):

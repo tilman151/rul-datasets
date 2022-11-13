@@ -5,3 +5,4 @@ from .baseline import BaselineDataModule, PretrainingBaselineDataModule
 from .ssl import SemiSupervisedDataModule
 from .core import RulDataModule
 from .reader import CmapssReader, FemtoReader, XjtuSyReader
+from .reader.data_root import get_data_root, set_data_root
