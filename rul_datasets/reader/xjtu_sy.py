@@ -37,7 +37,7 @@ class XjtuSyReader(AbstractReader):
         >>> fd1.prepare_data()
         >>> features, labels = fd1.load_split("dev")
         >>> features[0].shape
-        torch.Size([123, 2, 32768])
+        (123, 32768, 2)
 
         Custom splits:
         >>> import rul_datasets
@@ -46,7 +46,7 @@ class XjtuSyReader(AbstractReader):
         >>> fd1.prepare_data()
         >>> features, labels = fd1.load_split("dev")
         >>> features[0].shape
-        torch.Size([52, 2, 32768])
+        (52, 32768, 2)
     """
 
     _XJTU_SY_ROOT: str = os.path.join(get_data_root(), "XJTU-SY")

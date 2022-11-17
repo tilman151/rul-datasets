@@ -110,12 +110,12 @@ import rul_datasets
 cmapss_fd1 = rul_datasets.CmapssReader(fd=1)
 cmapss_fd1.prepare_data() # (1)!
 dev_features, _ = cmapss_fd1.load_split("dev") # (2)!
-dev_data = np.concatenate([np.transpose(f.numpy(), (0, 2, 1)) for f in dev_features]) # (3)!
+dev_data = np.concatenate(dev_features) # (3)!
 
 km = tslearn.clustering.TimeSeriesKMeans(n_clusters=5, metric="dtw")
 km.fit(dev_data)
 ```
 
 1. You need to call `prepare_data` before using the reader. This downloads and pre-processes the dataset if not done already.
-2. This yields a list of tensors with the shape `[len_time_series, num_features, window_size]`.
-3. Convert the list of tensors to a single numpy array with the shape `[num_series, window_size, num_features]`.
+2. This yields a list of numpy arrays with the shape `[len_time_series, window_size, num_features]`.
+3. Concatenate to a single numpy array with the shape `[num_series, window_size, num_features]`.
