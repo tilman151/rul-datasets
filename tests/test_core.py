@@ -169,13 +169,29 @@ class TestRulDataModule(unittest.TestCase):
             self.assertEqual(i, len(tensor_dataset.tensors[0]))
 
     def test_check_compatability(self):
+        fe = lambda x: np.mean(x, axis=2)
         dataset = core.RulDataModule(self.mock_loader, batch_size=16)
+        other = core.RulDataModule(
+            self.mock_loader, batch_size=16, feature_extractor=fe, window_size=2
+        )
         dataset.check_compatibility(dataset)
         self.mock_loader.check_compatibility.assert_called_once_with(self.mock_loader)
         self.assertRaises(
             ValueError,
             dataset.check_compatibility,
             core.RulDataModule(self.mock_loader, batch_size=8),
+        )
+        self.assertRaises(
+            ValueError,
+            dataset.check_compatibility,
+            other,
+        )
+        self.assertRaises(
+            ValueError,
+            other.check_compatibility,
+            core.RulDataModule(
+                self.mock_loader, batch_size=16, feature_extractor=fe, window_size=3
+            ),
         )
 
     def test_is_mutually_exclusive(self):

@@ -23,10 +23,31 @@ class RulDataModule(pl.LightningDataModule):
     save hyperparameters to checkpoints. It retrieves the hyperparameters of its
     underlying reader and adds the batch size to them.
 
+    If you want to extract features from the windows, you can pass the
+    `feature_extractor` and `window_size` arguments to the constructor. The
+    `feature_extractor` is a callable that takes a windowed time series as a numpy
+    array with the shape `[num_windows, window_size, num_features]` and returns
+    another numpy array with the shape `[num_windows, num_new_features]`. The time
+    series of extracted features is then re-windowed with `window_size`.
+
     Examples:
+        Default
+
         >>> import rul_datasets
         >>> cmapss = rul_datasets.reader.CmapssReader(fd=1)
         >>> dm = rul_datasets.RulDataModule(cmapss, batch_size=32)
+
+        With Feature Extractor
+
+        >>> import rul_datasets
+        >>> import numpy as np
+        >>> cmapss = rul_datasets.reader.CmapssReader(fd=1)
+        >>> dm = rul_datasets.RulDataModule(
+        ...     cmapss,
+        ...     batch_size=32,
+        ...     feature_extractor=lambda x: np.mean(x, axis=2),
+        ...     window_size=10
+        ... )
     """
 
     _data: Dict[str, Tuple[torch.Tensor, torch.Tensor]]
@@ -46,11 +67,15 @@ class RulDataModule(pl.LightningDataModule):
         pre-process the dataset. Afterwards, `setup_data` is called to load all
         splits into memory.
 
+        If `feature_extractor` and `window_size` are supplied, the data module extracts
+        new features from each window of the time series and re-windows it afterwards.
+
         Args:
             reader: The dataset reader for the desired dataset, e.g. CmapssLoader.
             batch_size: The size of the batches build by the data loaders.
-            feature_extractor: A feature extractor that extracts a feature vector from
+            feature_extractor: A feature extractor that extracts feature vectors from
                                windows.
+            window_size: The new window size to apply after the feature extractor.
         """
         super().__init__()
 
@@ -67,7 +92,9 @@ class RulDataModule(pl.LightningDataModule):
 
         hparams = deepcopy(self.reader.hparams)
         hparams["batch_size"] = self.batch_size
-        hparams["feature_extractor"] = str(self.feature_extractor)
+        hparams["feature_extractor"] = (
+            str(self.feature_extractor) if self.feature_extractor else None
+        )
         hparams["window_size"] = self.window_size or hparams["window_size"]
         self.save_hyperparameters(hparams)
 
@@ -99,9 +126,9 @@ class RulDataModule(pl.LightningDataModule):
 
         RulDataModules can be used together in higher-order data modules,
         e.g. AdaptionDataModule. This function checks if `other` is compatible to
-        this data module to do so. It checks the underlying dataset loaders and for
-        matching batch size. If anything is incompatible, this function will raise a
-        ValueError.
+        this data module to do so. It checks the underlying dataset loaders, matching
+        batch size, feature extractor and window size. If anything is incompatible,
+        this function will raise a ValueError.
 
         Args:
             other: The RulDataModule to check compatibility with.
@@ -114,7 +141,18 @@ class RulDataModule(pl.LightningDataModule):
         if not self.batch_size == other.batch_size:
             raise ValueError(
                 f"The batch size of both data modules has to be the same, "
-                f"{self.batch_size} vs. {other.batch_size}"
+                f"{self.batch_size} vs. {other.batch_size}."
+            )
+
+        if self.feature_extractor is not other.feature_extractor:
+            raise ValueError(
+                "The feature extractor of both data modules has to be the same object."
+            )
+
+        if not self.window_size == other.window_size:
+            raise ValueError(
+                f"The window size of both data modules has to be the same, "
+                f"{self.window_size} vs. {other.window_size}."
             )
 
     def is_mutually_exclusive(self, other: "RulDataModule") -> bool:
