@@ -14,7 +14,10 @@ from rul_datasets import core, reader
 class TestRulDataModule(unittest.TestCase):
     def setUp(self):
         self.mock_loader = mock.MagicMock(name="AbstractLoader")
-        self.mock_loader.hparams = {"test": 0}
+        self.mock_loader.hparams = {
+            "test": 0,
+            "window_size": 30,
+        }
         self.mock_runs = [torch.zeros(1, 1, 1)], [torch.zeros(1)]
         self.mock_loader.load_split.return_value = self.mock_runs
 
@@ -23,7 +26,28 @@ class TestRulDataModule(unittest.TestCase):
 
         self.assertIs(self.mock_loader, dataset.reader)
         self.assertEqual(16, dataset.batch_size)
-        self.assertDictEqual({"test": 0, "batch_size": 16}, dataset.hparams)
+        self.assertDictEqual(
+            {"test": 0, "batch_size": 16, "window_size": 30, "feature_extractor": None},
+            dataset.hparams,
+        )
+
+    def test_created_correctly_with_feature_extractor(self):
+        fe = lambda x: np.mean(x, axis=1)
+        dataset = core.RulDataModule(
+            self.mock_loader, batch_size=16, feature_extractor=fe, window_size=2
+        )
+
+        self.assertIs(self.mock_loader, dataset.reader)
+        self.assertEqual(16, dataset.batch_size)
+        self.assertDictEqual(
+            {
+                "test": 0,
+                "batch_size": 16,
+                "window_size": 2,
+                "feature_extractor": str(fe),
+            },
+            dataset.hparams,
+        )
 
     def test_prepare_data(self):
         dataset = core.RulDataModule(self.mock_loader, batch_size=16)
@@ -145,7 +169,11 @@ class TestRulDataModule(unittest.TestCase):
             self.assertEqual(i, len(tensor_dataset.tensors[0]))
 
     def test_check_compatability(self):
+        fe = lambda x: np.mean(x, axis=2)
         dataset = core.RulDataModule(self.mock_loader, batch_size=16)
+        other = core.RulDataModule(
+            self.mock_loader, batch_size=16, feature_extractor=fe, window_size=2
+        )
         dataset.check_compatibility(dataset)
         self.mock_loader.check_compatibility.assert_called_once_with(self.mock_loader)
         self.assertRaises(
@@ -153,11 +181,46 @@ class TestRulDataModule(unittest.TestCase):
             dataset.check_compatibility,
             core.RulDataModule(self.mock_loader, batch_size=8),
         )
+        self.assertRaises(
+            ValueError,
+            dataset.check_compatibility,
+            other,
+        )
+        self.assertRaises(
+            ValueError,
+            other.check_compatibility,
+            core.RulDataModule(
+                self.mock_loader, batch_size=16, feature_extractor=fe, window_size=3
+            ),
+        )
 
     def test_is_mutually_exclusive(self):
         dataset = core.RulDataModule(self.mock_loader, batch_size=16)
         dataset.is_mutually_exclusive(dataset)
         self.mock_loader.is_mutually_exclusive.assert_called_once_with(dataset.reader)
+
+    def test_feature_extractor(self):
+        self.mock_loader.load_split.return_value = (
+            [torch.zeros(8, 14, 30) + torch.arange(8)[:, None, None]],
+            [torch.arange(8)],
+        )
+        fe = lambda x: np.mean(x, axis=1)
+        dataset = core.RulDataModule(
+            self.mock_loader,
+            batch_size=16,
+            feature_extractor=fe,
+            window_size=2,
+        )
+        dataset.setup()
+
+        dev_data = dataset.to_dataset("dev")
+        self.assertEqual(len(dev_data), 7)
+        for i, (feat, targ) in enumerate(dev_data):
+            self.assertEqual(feat.shape, torch.Size([14, 2]))
+            self.assertTrue(
+                torch.dist(torch.arange(i, i + 2)[None, :].repeat(14, 1), feat) == 0
+            )
+            self.assertEqual(targ, i + 1)  # targets start window_size + 1 steps later
 
 
 class DummyRul(reader.AbstractReader):

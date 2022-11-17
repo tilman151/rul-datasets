@@ -14,7 +14,10 @@ class TestBaselineDataModule(unittest.TestCase):
         self.mock_loader = mock.MagicMock(name="AbstractLoader")
         self.mock_loader.fd = 1
         self.mock_loader.fds = [1, 2, 3]
-        self.mock_loader.hparams = {"fd": self.mock_loader.fd}
+        self.mock_loader.hparams = {
+            "fd": self.mock_loader.fd,
+            "window_size": self.mock_loader.window_size,
+        }
         self.mock_runs = [torch.zeros(1, 1, 1)], [torch.zeros(1)]
         self.mock_loader.load_split.return_value = self.mock_runs
 
@@ -73,7 +76,10 @@ class TestPretrainingBaselineDataModuleFullData(
         self.failed_loader.percent_broken = None
         self.failed_loader.window_size = 1
         self.failed_loader.max_rul = 125
-        self.failed_loader.hparams = {"fd": self.failed_loader.fd}
+        self.failed_loader.hparams = {
+            "fd": self.failed_loader.fd,
+            "window_size": self.failed_loader.window_size,
+        }
         self.failed_loader.load_split.return_value = self.mock_runs
         self.failed_data = rul_datasets.RulDataModule(self.failed_loader, batch_size=16)
 
@@ -83,7 +89,10 @@ class TestPretrainingBaselineDataModuleFullData(
         self.unfailed_loader.percent_broken = 0.8
         self.unfailed_loader.window_size = 1
         self.unfailed_loader.max_rul = 125
-        self.unfailed_loader.hparams = {"fd": self.unfailed_loader.fd}
+        self.unfailed_loader.hparams = {
+            "fd": self.unfailed_loader.fd,
+            "window_size": self.unfailed_loader.window_size,
+        }
         self.unfailed_loader.load_split.return_value = self.mock_runs
         self.unfailed_data = rul_datasets.RulDataModule(
             self.unfailed_loader, batch_size=16
@@ -217,7 +226,10 @@ class TestPretrainingBaselineDataModuleLowData(
         self.failed_loader.percent_broken = None
         self.failed_loader.window_size = 1
         self.failed_loader.max_rul = 125
-        self.failed_loader.hparams = {"fd": self.failed_loader.fd}
+        self.failed_loader.hparams = {
+            "fd": self.failed_loader.fd,
+            "window_size": self.failed_loader.window_size,
+        }
         self.failed_loader.load_split.return_value = self.mock_runs
         self.failed_data = rul_datasets.RulDataModule(self.failed_loader, batch_size=16)
 
@@ -227,7 +239,10 @@ class TestPretrainingBaselineDataModuleLowData(
         self.unfailed_loader.percent_broken = 0.2
         self.unfailed_loader.window_size = 1
         self.unfailed_loader.max_rul = 125
-        self.unfailed_loader.hparams = {"fd": self.unfailed_loader.fd}
+        self.unfailed_loader.hparams = {
+            "fd": self.unfailed_loader.fd,
+            "window_size": self.unfailed_loader.window_size,
+        }
         self.unfailed_loader.load_split.return_value = self.mock_runs
         self.unfailed_data = rul_datasets.RulDataModule(
             self.unfailed_loader, batch_size=16

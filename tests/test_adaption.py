@@ -18,7 +18,10 @@ class TestCMAPSSAdaption(unittest.TestCase):
         self.source_loader.percent_broken = None
         self.source_loader.window_size = 1
         self.source_loader.max_rul = 125
-        self.source_loader.hparams = {"fd": self.source_loader.fd}
+        self.source_loader.hparams = {
+            "fd": self.source_loader.fd,
+            "window_size": self.source_loader.window_size,
+        }
         self.source_loader.load_split.return_value = source_mock_runs
         self.source_data = core.RulDataModule(self.source_loader, batch_size=16)
 
@@ -29,7 +32,10 @@ class TestCMAPSSAdaption(unittest.TestCase):
         self.target_loader.percent_broken = 0.8
         self.target_loader.window_size = 1
         self.target_loader.max_rul = 125
-        self.target_loader.hparams = {"fd": self.target_loader.fd}
+        self.target_loader.hparams = {
+            "fd": self.target_loader.fd,
+            "window_size": self.target_loader.window_size,
+        }
         self.target_loader.load_split.return_value = target_mock_runs
         self.target_data = core.RulDataModule(self.target_loader, batch_size=16)
 
@@ -155,7 +161,10 @@ class TestPretrainingDataModuleFullData(
         self.source_loader.percent_broken = None
         self.source_loader.window_size = 1
         self.source_loader.max_rul = 125
-        self.source_loader.hparams = {"fd": self.source_loader.fd}
+        self.source_loader.hparams = {
+            "fd": self.source_loader.fd,
+            "window_size": self.source_loader.window_size,
+        }
         self.source_loader.load_split.return_value = source_mock_runs
         self.source_data = core.RulDataModule(self.source_loader, batch_size=16)
 
@@ -167,7 +176,10 @@ class TestPretrainingDataModuleFullData(
         self.target_loader.window_size = 1
         self.target_loader.max_rul = 125
         self.target_loader.truncate_val = True
-        self.target_loader.hparams = {"fd": self.target_loader.fd}
+        self.target_loader.hparams = {
+            "fd": self.target_loader.fd,
+            "window_size": self.target_loader.window_size,
+        }
         self.target_loader.load_split.return_value = target_mock_runs
         self.target_data = core.RulDataModule(self.target_loader, batch_size=16)
 
@@ -261,7 +273,10 @@ class TestPretrainingDataModuleLowData(
         self.source_loader.percent_broken = None
         self.source_loader.window_size = 1
         self.source_loader.max_rul = 125
-        self.source_loader.hparams = {"fd": self.source_loader.fd}
+        self.source_loader.hparams = {
+            "fd": self.source_loader.fd,
+            "window_size": self.source_loader.window_size,
+        }
         self.source_loader.load_split.return_value = source_mock_runs
         self.source_data = core.RulDataModule(self.source_loader, batch_size=16)
 
@@ -276,7 +291,10 @@ class TestPretrainingDataModuleLowData(
         self.target_loader.window_size = 1
         self.target_loader.max_rul = 125
         self.target_loader.truncate_val = True
-        self.target_loader.hparams = {"fd": self.target_loader.fd}
+        self.target_loader.hparams = {
+            "fd": self.target_loader.fd,
+            "window_size": self.target_loader.window_size,
+        }
         self.target_loader.load_split.return_value = target_mock_runs
         self.target_data = core.RulDataModule(self.target_loader, batch_size=16)
 

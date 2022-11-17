@@ -98,7 +98,11 @@ def to_tensor(
     features: List[np.ndarray], targets: List[np.ndarray]
 ) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
     dtype = torch.float32
-    tensor_feats = [torch.tensor(f, dtype=dtype).permute(0, 2, 1) for f in features]
+    tensor_feats = [feature_to_tensor(f, dtype) for f in features]
     tensor_targets = [torch.tensor(t, dtype=dtype) for t in targets]
 
     return tensor_feats, tensor_targets
+
+
+def feature_to_tensor(features: np.ndarray, dtype: torch.dtype) -> torch.Tensor:
+    return torch.tensor(features, dtype=dtype).permute(0, 2, 1)
