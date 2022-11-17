@@ -209,8 +209,9 @@ class RulDataModule(pl.LightningDataModule):
         features, targets = self.reader.load_split(split)
         if features:
             features, targets = self._apply_feature_extractor_per_run(features, targets)
-            cat_features = torch.cat(features)
-            cat_targets = torch.cat(targets)
+            tensor_features, tensor_targets = utils.to_tensor(features, targets)
+            cat_features = torch.cat(tensor_features)
+            cat_targets = torch.cat(tensor_targets)
         else:
             cat_features = torch.empty(0, 0, 0)
             cat_targets = torch.empty(0)
@@ -218,8 +219,8 @@ class RulDataModule(pl.LightningDataModule):
         return cat_features, cat_targets
 
     def _apply_feature_extractor_per_run(
-        self, features: List[torch.Tensor], targets: List[torch.Tensor]
-    ) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+        self, features: List[np.ndarray], targets: List[np.ndarray]
+    ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         if self.feature_extractor is not None and self.window_size is not None:
             cutoff = self.window_size - 1
             features = [self._apply_feature_extractor(f) for f in features]
@@ -228,12 +229,9 @@ class RulDataModule(pl.LightningDataModule):
 
         return features, targets
 
-    def _apply_feature_extractor(self, features: torch.Tensor) -> torch.Tensor:
-        dtype = features.dtype
-        numpy_features = torch.permute(features, (0, 2, 1)).numpy()
-        extracted = self.feature_extractor(numpy_features)  # type: ignore
-        extracted = utils.extract_windows(extracted, self.window_size)  # type: ignore
-        features = utils.feature_to_tensor(extracted, dtype)
+    def _apply_feature_extractor(self, features: np.ndarray) -> np.ndarray:
+        features = self.feature_extractor(features)  # type: ignore
+        features = utils.extract_windows(features, self.window_size)  # type: ignore
 
         return features
 
@@ -347,8 +345,8 @@ class PairedRulDataset(IterableDataset):
             reader.check_compatibility(self.readers[0])
 
         self._run_domain_idx: np.ndarray
-        self._features: List[torch.Tensor]
-        self._labels: List[torch.Tensor]
+        self._features: List[np.ndarray]
+        self._labels: List[np.ndarray]
         self._prepare_datasets()
 
         self._max_rul = self._get_max_rul()
@@ -480,14 +478,14 @@ class PairedRulDataset(IterableDataset):
 
     def _build_pair(
         self,
-        run: torch.Tensor,
+        run: np.ndarray,
         anchor_idx: int,
         query_idx: int,
         distance: int,
         domain_label: int,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        anchors = run[anchor_idx]
-        queries = run[query_idx]
+        anchors = utils.feature_to_tensor(run[anchor_idx], torch.float)
+        queries = utils.feature_to_tensor(run[query_idx], torch.float)
         domain_tensor = torch.tensor(domain_label, dtype=torch.float)
         distances = torch.tensor(distance, dtype=torch.float) / self._max_rul
         distances = torch.clamp_max(distances, max=1)  # max distance is max_rul

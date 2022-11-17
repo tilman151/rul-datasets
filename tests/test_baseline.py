@@ -2,6 +2,7 @@ import unittest
 import warnings
 from unittest import mock
 
+import numpy as np
 import torch
 import torch.utils.data
 
@@ -68,7 +69,7 @@ class TestPretrainingBaselineDataModuleFullData(
     PretrainingDataModuleTemplate, unittest.TestCase
 ):
     def setUp(self):
-        self.mock_runs = [torch.randn(16, 14, 1)] * 8, [torch.rand(16)] * 8
+        self.mock_runs = [np.random.randn(16, 1, 14)] * 8, [np.random.rand(16)] * 8
 
         self.failed_loader = mock.MagicMock(name="CMAPSSLoader")
         self.failed_loader.fd = 1
@@ -218,7 +219,7 @@ class TestPretrainingBaselineDataModuleLowData(
     PretrainingDataModuleTemplate, unittest.TestCase
 ):
     def setUp(self):
-        self.mock_runs = [torch.randn(16, 14, 1)] * 2, [torch.rand(16)] * 2
+        self.mock_runs = [np.random.randn(16, 1, 14)] * 2, [np.random.rand(16)] * 2
 
         self.failed_loader = mock.MagicMock(name="CMAPSSLoader")
         self.failed_loader.fd = 1

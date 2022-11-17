@@ -18,7 +18,7 @@ class TestRulDataModule(unittest.TestCase):
             "test": 0,
             "window_size": 30,
         }
-        self.mock_runs = [torch.zeros(1, 1, 1)], [torch.zeros(1)]
+        self.mock_runs = [np.zeros((1, 1, 1))], [np.zeros(1)]
         self.mock_loader.load_split.return_value = self.mock_runs
 
     def test_created_correctly(self):
@@ -62,7 +62,7 @@ class TestRulDataModule(unittest.TestCase):
         self.mock_loader.load_split.assert_has_calls(
             [mock.call("dev"), mock.call("val"), mock.call("test")]
         )
-        mock_runs = tuple(torch.cat(r) for r in self.mock_runs)
+        mock_runs = tuple(torch.tensor(np.concatenate(r)) for r in self.mock_runs)
         self.assertDictEqual(
             {"dev": mock_runs, "val": mock_runs, "test": mock_runs}, dataset._data
         )
@@ -119,8 +119,8 @@ class TestRulDataModule(unittest.TestCase):
 
     def test_train_batch_structure(self):
         self.mock_loader.load_split.return_value = (
-            [torch.zeros(8, 14, 30)] * 4,
-            [torch.zeros(8)] * 4,
+            [np.zeros((8, 30, 14))] * 4,
+            [np.zeros(8)] * 4,
         )
         dataset = core.RulDataModule(self.mock_loader, batch_size=16)
         dataset.setup()
@@ -129,8 +129,8 @@ class TestRulDataModule(unittest.TestCase):
 
     def test_val_batch_structure(self):
         self.mock_loader.load_split.return_value = (
-            [torch.zeros(8, 14, 30)] * 4,
-            [torch.zeros(8)] * 4,
+            [np.zeros((8, 30, 14))] * 4,
+            [np.zeros(8)] * 4,
         )
         dataset = core.RulDataModule(self.mock_loader, batch_size=16)
         dataset.setup()
@@ -139,8 +139,8 @@ class TestRulDataModule(unittest.TestCase):
 
     def test_test_batch_structure(self):
         self.mock_loader.load_split.return_value = (
-            [torch.zeros(8, 14, 30)] * 4,
-            [torch.zeros(8)] * 4,
+            [np.zeros((8, 30, 14))] * 4,
+            [np.zeros(8)] * 4,
         )
         dataset = core.RulDataModule(self.mock_loader, batch_size=16)
         dataset.setup()
@@ -201,7 +201,7 @@ class TestRulDataModule(unittest.TestCase):
 
     def test_feature_extractor(self):
         self.mock_loader.load_split.return_value = (
-            [torch.zeros(8, 14, 30) + torch.arange(8)[:, None, None]],
+            [np.zeros((8, 30, 14)) + np.arange(8)[:, None, None]],
             [torch.arange(8)],
         )
         fe = lambda x: np.mean(x, axis=1)
@@ -231,12 +231,12 @@ class DummyRul(reader.AbstractReader):
     def __init__(self, length):
         self.data = {
             "dev": (
-                [torch.zeros(length, self.window_size, 5)],
-                [torch.clamp_max(torch.arange(length, 0, step=-1), 125)],
+                [np.zeros((length, self.window_size, 5))],
+                [np.clip(np.arange(length, 0, step=-1), a_min=None, a_max=125)],
             ),
             "val": (
-                [torch.zeros(100, self.window_size, 5)],
-                [torch.clamp_max(torch.arange(100, 0, step=-1), 125)],
+                [np.zeros((100, self.window_size, 5))],
+                [np.clip(np.arange(100, 0, step=-1), a_min=None, a_max=125)],
             ),
         }
 
@@ -270,18 +270,18 @@ class DummyRulShortRuns(reader.AbstractReader):
     data = {
         "dev": (
             [
-                torch.ones(100, window_size, 5)
-                * torch.arange(1, 101).view(100, 1, 1),  # normal run
-                torch.zeros(2, window_size, 5),  # too short run
-                torch.ones(100, window_size, 5)
-                * torch.arange(1, 101).view(100, 1, 1),  # normal run
-                torch.zeros(1, window_size, 5),  # empty run
+                np.ones((100, window_size, 5))
+                * np.arange(1, 101).reshape((100, 1, 1)),  # normal run
+                np.zeros((2, window_size, 5)),  # too short run
+                np.ones((100, window_size, 5))
+                * np.arange(1, 101).reshape((100, 1, 1)),  # normal run
+                np.zeros((1, window_size, 5)),  # empty run
             ],
             [
-                torch.clamp_max(torch.arange(100, 0, step=-1), 125),
-                torch.ones(2) * 500,
-                torch.clamp_max(torch.arange(100, 0, step=-1), 125),
-                torch.ones(1) * 500,
+                np.clip(np.arange(100, 0, step=-1), a_min=None, a_max=125),
+                np.ones(2) * 500,
+                np.clip(torch.arange(100, 0, step=-1), a_min=None, a_max=125),
+                np.ones(1) * 500,
             ],
         ),
     }
@@ -375,8 +375,12 @@ class TestPairedDataset:
         for i, sample in enumerate(data):
             idx = 3 * i
             expected_run = data._features[fixed_idx[idx]]
-            expected_anchor = expected_run[fixed_idx[idx + 1]]
-            expected_query = expected_run[fixed_idx[idx + 2]]
+            expected_anchor = torch.tensor(expected_run[fixed_idx[idx + 1]]).transpose(
+                1, 0
+            )
+            expected_query = torch.tensor(expected_run[fixed_idx[idx + 2]]).transpose(
+                1, 0
+            )
             expected_distance = min(125, fixed_idx[idx + 2] - fixed_idx[idx + 1]) / 125
             expected_domain_idx = 0
             assert 0 == torch.dist(expected_anchor, sample[0])

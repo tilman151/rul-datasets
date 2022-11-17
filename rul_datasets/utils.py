@@ -105,4 +105,7 @@ def to_tensor(
 
 
 def feature_to_tensor(features: np.ndarray, dtype: torch.dtype) -> torch.Tensor:
-    return torch.tensor(features, dtype=dtype).permute(0, 2, 1)
+    if len(features.shape) == 2:
+        return torch.tensor(features, dtype=dtype).permute(1, 0)
+    else:
+        return torch.tensor(features, dtype=dtype).permute(0, 2, 1)

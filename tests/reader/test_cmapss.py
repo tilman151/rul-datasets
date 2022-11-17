@@ -1,3 +1,4 @@
+import numpy as np
 import numpy.testing as npt
 import pytest
 import torch
@@ -29,11 +30,11 @@ class TestCMAPSSLoader:
             self._assert_run_correct(run, run_target, window_size)
 
     def _assert_run_correct(self, run, run_target, win):
-        assert win == run.shape[2]
-        assert self.NUM_CHANNELS == run.shape[1]
+        assert win == run.shape[1]
+        assert self.NUM_CHANNELS == run.shape[2]
         assert len(run) == len(run_target)
-        assert torch.float32 == run.dtype
-        assert torch.float32 == run_target.dtype
+        assert np.float == run.dtype
+        assert np.float == run_target.dtype
 
     @pytest.mark.parametrize(
         ("fd", "window_size"), [(1, 30), (2, 20), (3, 30), (4, 15)]
@@ -52,7 +53,7 @@ class TestCMAPSSLoader:
         for split in ["dev", "val", "test"]:
             features, _ = dataset.load_split(split)
             for run in features:
-                assert 7 == run.shape[1]
+                assert 7 == run.shape[2]
 
     def test_prepare_data_not_called_for_feature_select(self):
         dataset = reader.CmapssReader(1, feature_select=[4])
@@ -64,15 +65,15 @@ class TestCMAPSSLoader:
         full_dataset = reader.CmapssReader(fd)
         full_dev, full_dev_targets = full_dataset.load_split("dev")
 
-        npt.assert_almost_equal(max(torch.max(r).item() for r in full_dev), 1.0)
-        npt.assert_almost_equal(min(torch.min(r).item() for r in full_dev), -1.0)
+        npt.assert_almost_equal(max(np.max(r) for r in full_dev), 1.0)
+        npt.assert_almost_equal(min(np.min(r) for r in full_dev), -1.0)
 
         trunc_dataset = reader.CmapssReader(fd, percent_fail_runs=0.8)
         trunc_dev, _ = trunc_dataset.load_split("dev")
-        assert max(torch.max(r).item() for r in trunc_dev) <= 1.0
-        assert min(torch.min(r).item() for r in trunc_dev) >= -1.0
+        assert np.round(max(np.max(r).item() for r in trunc_dev), decimals=7) <= 1.0
+        assert np.round(min(np.min(r).item() for r in trunc_dev), decimals=7) >= -1.0
 
         trunc_dataset = reader.CmapssReader(fd, percent_broken=0.2)
         trunc_dev, _ = trunc_dataset.load_split("dev")
-        assert max(torch.max(r).item() for r in trunc_dev) <= 1.0
-        assert min(torch.min(r).item() for r in trunc_dev) >= -1.0
+        assert np.round(max(np.max(r).item() for r in trunc_dev), decimals=7) <= 1.0
+        assert np.round(min(np.min(r).item() for r in trunc_dev), decimals=7) >= -1.0

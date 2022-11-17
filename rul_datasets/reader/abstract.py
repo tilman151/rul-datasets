@@ -5,9 +5,7 @@ from copy import deepcopy
 from typing import Optional, Union, List, Dict, Any, Iterable, Tuple
 
 import numpy as np
-import torch
 
-from rul_datasets import utils
 from rul_datasets.reader import truncating
 
 
@@ -155,17 +153,14 @@ class AbstractReader(metaclass=abc.ABCMeta):
         """
         raise NotImplementedError
 
-    def load_split(self, split: str) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+    def load_split(self, split: str) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         """
         Load a split as tensors and apply truncation to it.
 
         This function loads the scaled features and the targets of a split into
         memory. Afterwards, truncation is applied if the `split` is set to `dev`. The
         validation set is also truncated with `percent_broken` if `truncate_val` is
-        set to `True`. At last, the data is transformed into [tensors][torch.Tensor].
-        While converting to them tensors, the axis of the features are transposed to
-        `[num_windows, num_channels, window_size]` to fit PyTorch's channel first
-        format.
+        set to `True`.
 
         Args:
             split: The desired split to load.
@@ -182,9 +177,8 @@ class AbstractReader(metaclass=abc.ABCMeta):
             features, targets = truncating.truncate_runs(
                 features, targets, self.percent_broken
             )
-        tensor_feats, tensor_targets = utils.to_tensor(features, targets)
 
-        return tensor_feats, tensor_targets
+        return features, targets
 
     def get_compatible(
         self,
