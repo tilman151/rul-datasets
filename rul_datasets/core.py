@@ -2,13 +2,14 @@
 dataset. """
 
 from copy import deepcopy
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any, Callable
 
 import numpy as np
 import pytorch_lightning as pl
 import torch
 from torch.utils.data import DataLoader, IterableDataset, TensorDataset, get_worker_info
 
+from rul_datasets import utils
 from rul_datasets.reader import AbstractReader
 
 
@@ -30,7 +31,13 @@ class RulDataModule(pl.LightningDataModule):
 
     _data: Dict[str, Tuple[torch.Tensor, torch.Tensor]]
 
-    def __init__(self, reader: AbstractReader, batch_size: int):
+    def __init__(
+        self,
+        reader: AbstractReader,
+        batch_size: int,
+        feature_extractor: Optional[Callable[[np.ndarray], np.ndarray]] = None,
+        window_size: Optional[int] = None,
+    ):
         """
         Create a new RUL data module from a reader.
 
@@ -41,15 +48,27 @@ class RulDataModule(pl.LightningDataModule):
 
         Args:
             reader: The dataset reader for the desired dataset, e.g. CmapssLoader.
-            batch_size: The size of the batches build by the data loaders
+            batch_size: The size of the batches build by the data loaders.
+            feature_extractor: A feature extractor that extracts a feature vector from
+                               windows.
         """
         super().__init__()
 
         self._reader: AbstractReader = reader
-        self.batch_size: int = batch_size
+        self.batch_size = batch_size
+        self.feature_extractor = feature_extractor
+        self.window_size = window_size
+
+        if (self.feature_extractor is not None) != (self.window_size is not None):
+            raise ValueError(
+                "feature_extractor and window_size cannot be set without "
+                "the other. Please supply values for both."
+            )
 
         hparams = deepcopy(self.reader.hparams)
         hparams["batch_size"] = self.batch_size
+        hparams["feature_extractor"] = str(self.feature_extractor)
+        hparams["window_size"] = self.window_size or hparams["window_size"]
         self.save_hyperparameters(hparams)
 
     @property
@@ -128,12 +147,16 @@ class RulDataModule(pl.LightningDataModule):
 
     def setup(self, stage: Optional[str] = None) -> None:
         """
-        Load all splits as tensors into memory.
+        Load all splits as tensors into memory and optionally apply feature extractor.
 
         The splits are placed inside the [data][rul_datasets.core.RulDataModule.data]
         property. If a split is empty, a tuple of empty tensors with the correct
         number of dimensions is created as a placeholder. This ensures compatibility
         with higher-order data modules.
+
+        If the data module was constructed with a `feature_extractor` argument,
+        the feature windows are passed to the feature extractor. The resulting,
+        new features are re-windowed.
 
         Args:
             stage: Ignored. Only for adhering to parent class interface.
@@ -144,16 +167,37 @@ class RulDataModule(pl.LightningDataModule):
             "test": self._setup_split("test"),
         }
 
-    def _setup_split(self, split):
+    def _setup_split(self, split: str) -> Tuple[torch.Tensor, torch.Tensor]:
         features, targets = self.reader.load_split(split)
         if features:
-            features = torch.cat(features)
-            targets = torch.cat(targets)
+            features, targets = self._apply_feature_extractor_per_run(features, targets)
+            cat_features = torch.cat(features)
+            cat_targets = torch.cat(targets)
         else:
-            features = torch.empty(0, 0, 0)
-            targets = torch.empty(0)
+            cat_features = torch.empty(0, 0, 0)
+            cat_targets = torch.empty(0)
+
+        return cat_features, cat_targets
+
+    def _apply_feature_extractor_per_run(
+        self, features: List[torch.Tensor], targets: List[torch.Tensor]
+    ) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+        if self.feature_extractor is not None and self.window_size is not None:
+            cutoff = self.window_size - 1
+            features = [self._apply_feature_extractor(f) for f in features]
+            # cut off because feats are re-windowed
+            targets = [t[cutoff:] for t in targets]
 
         return features, targets
+
+    def _apply_feature_extractor(self, features: torch.Tensor) -> torch.Tensor:
+        dtype = features.dtype
+        numpy_features = torch.permute(features, (0, 2, 1)).numpy()
+        extracted = self.feature_extractor(numpy_features)  # type: ignore
+        extracted = utils.extract_windows(extracted, self.window_size)  # type: ignore
+        features = utils.feature_to_tensor(extracted, dtype)
+
+        return features
 
     def train_dataloader(self, *args: Any, **kwargs: Any) -> DataLoader:
         """
