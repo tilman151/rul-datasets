@@ -45,7 +45,7 @@ class RulDataModule(pl.LightningDataModule):
         >>> dm = rul_datasets.RulDataModule(
         ...     cmapss,
         ...     batch_size=32,
-        ...     feature_extractor=lambda x: np.mean(x, axis=2),
+        ...     feature_extractor=lambda x: np.mean(x, axis=1),
         ...     window_size=10
         ... )
     """
@@ -126,7 +126,7 @@ class RulDataModule(pl.LightningDataModule):
 
         RulDataModules can be used together in higher-order data modules,
         e.g. AdaptionDataModule. This function checks if `other` is compatible to
-        this data module to do so. It checks the underlying dataset loaders, matching
+        this data module to do so. It checks the underlying dataset readers, matching
         batch size, feature extractor and window size. If anything is incompatible,
         this function will raise a ValueError.
 

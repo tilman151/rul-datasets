@@ -204,11 +204,11 @@ class TestRulDataModule(unittest.TestCase):
             [torch.zeros(8, 14, 30) + torch.arange(8)[:, None, None]],
             [torch.arange(8)],
         )
-        feature_extractor = lambda x: np.mean(x, axis=1)
+        fe = lambda x: np.mean(x, axis=1)
         dataset = core.RulDataModule(
             self.mock_loader,
             batch_size=16,
-            feature_extractor=feature_extractor,
+            feature_extractor=fe,
             window_size=2,
         )
         dataset.setup()
