@@ -36,24 +36,24 @@ The reader object can load the features and targets of each split into memory:
 >>> test_features, test_targets = reader.load_split("test")
 ```
 
-The features are a list of [tensors][torch.Tensor] where each tensor has a shape of
-`[num_windows, num_channels, window_size]`:
+The features are a list of [numpy arrays][numpy.ndarray] where each array has a shape of
+`[num_windows, window_size, num_channels]`:
 
 ```pycon
 >>> type(dev_features)
 <class 'list'>
 >>> dev_features[0].shape
-torch.Size([163, 14, 30])
+(163, 30, 14)
 ```
 
-The targets are a list of [tensors][torch.Tensor], too, where each tensor has a shape
-of `[num_windows]`:
+The targets are a list of [numpy arrays][numpy.ndarrays], too, where each array has a
+shape of `[num_windows]`:
 
 ```pycon
 >>> type(dev_targets)
 <class 'list'>
 >>> dev_targets[0].shape
-torch.Size([163])
+(163,)
 ```
 
 Each reader defines a default window size for its data. This can be overridden by the
@@ -63,7 +63,7 @@ Each reader defines a default window size for its data. This can be overridden b
 >>> fd1 = CmapssReader(fd=1, window_size=15)
 >>> features, _ = fd1.load_split("dev")
 >>> features[0].shape
-torch.Size([163, 14, 15])
+(163, 15, 14)
 ```
 
 Some datasets, i.e. CMAPSS, use a piece-wise linear RUL function, where a maximum RUL
@@ -73,8 +73,8 @@ argument:
 ```pycon
 >>> fd1 = CmapssReader(fd=1, max_rul=100)
 >>> targets = fd1.load_split("dev")
->>> max(torch.max(t) for t in targets)
-tensor(100.)
+>>> max(np.max(t) for t in targets)
+100.0
 ```
 
 If you want to use a sub-dataset as unlabeled data, e.g. for unsupervised domain
@@ -88,9 +88,9 @@ series are available:
 >>> fd1 = CmapssReader(fd=1, percent_broken=0.8)
 >>> features, targets = fd1.load_split("dev")
 >>> features[0].shape
-torch.Size([130, 14, 30])
->>> torch.min(targets[0])
-tensor(34.)
+(130, 30, 14])
+>>> np.min(targets[0])
+34.0
 ```
 
 You may want to apply the same `percent_broken` from your training data to your
@@ -101,8 +101,8 @@ to labeled validation data in real-life. You can achieve this, by setting
 ```pycon
 >>> fd1 = CmapssReader(fd=1, percent_broken=0.8, truncate_val=True)
 >>> features, targets = fd1.load_split("val")
->>> torch.min(targets[0])
-tensor(44.)
+>>> np.min(targets[0])
+44.0
 ```
 
 Data-driven RUL estimation algorithms are often sensitive to the overall amount of
@@ -149,7 +149,7 @@ them with PyTorch or PyTorch Lightning, it is recommended to combine them with a
 ```
 
 For more information, see [core][rul_datasets.core] module page or the
-[Use Cases](/rul-datasets/) page.
+[Libraries](/rul-datasets/use_cases/libraries) page.
 
  """
 

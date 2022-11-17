@@ -44,7 +44,7 @@ class CmapssReader(AbstractReader):
         >>> fd1.prepare_data()
         >>> features, labels = fd1.load_split("dev")
         >>> features[0].shape
-        torch.Size([163, 14, 30])
+        (163, 30, 14)
 
         Custom channels
         >>> import rul_datasets
@@ -52,7 +52,7 @@ class CmapssReader(AbstractReader):
         >>> fd1.prepare_data()
         >>> features, labels = fd1.load_split("dev")
         >>> features[0].shape
-        torch.Size([163, 3, 30])
+        (163, 30, 3)
     """
 
     _FMT: str = (

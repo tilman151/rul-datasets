@@ -321,7 +321,7 @@ class RulDataModule(pl.LightningDataModule):
 
 
 class PairedRulDataset(IterableDataset):
-    """TODO."""
+    """A dataset of sample pairs drawn from the same time series."""
 
     def __init__(
         self,

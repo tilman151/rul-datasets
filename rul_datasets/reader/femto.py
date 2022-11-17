@@ -44,7 +44,7 @@ class FemtoReader(AbstractReader):
         >>> fd1.prepare_data()
         >>> features, labels = fd1.load_split("dev")
         >>> features[0].shape
-        torch.Size([2803, 2, 2560])
+        (2803, 2560, 2)
 
         Custom splits:
         >>> import rul_datasets
@@ -53,7 +53,7 @@ class FemtoReader(AbstractReader):
         >>> fd1.prepare_data()
         >>> features, labels = fd1.load_split("dev")
         >>> features[0].shape
-        torch.Size([2463, 2, 2560])
+        (2463, 2560, 2)
     """
 
     _FEMTO_ROOT: str = os.path.join(get_data_root(), "FEMTOBearingDataSet")
