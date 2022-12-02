@@ -244,6 +244,9 @@ class RulDataModule(pl.LightningDataModule):
         configured to drop the last batch of the data if it would only contain one
         sample.
 
+        The whole split is held in memory. Therefore, the `num_workers` are set to
+        zero which uses the main process for creating batches.
+
         Args:
             *args: Ignored. Only for adhering to parent class interface.
             **kwargs: Ignored. Only for adhering to parent class interface.
@@ -269,6 +272,9 @@ class RulDataModule(pl.LightningDataModule):
         The data loader is configured to leave the data unshuffled. The `pin_memory`
         option is activated to achieve maximum transfer speed to the GPU.
 
+        The whole split is held in memory. Therefore, the `num_workers` are set to
+        zero which uses the main process for creating batches.
+
         Args:
             *args: Ignored. Only for adhering to parent class interface.
             **kwargs: Ignored. Only for adhering to parent class interface.
@@ -288,6 +294,9 @@ class RulDataModule(pl.LightningDataModule):
 
         The data loader is configured to leave the data unshuffled. The `pin_memory`
         option is activated to achieve maximum transfer speed to the GPU.
+
+        The whole split is held in memory. Therefore, the `num_workers` are set to
+        zero which uses the main process for creating batches.
 
         Args:
             *args: Ignored. Only for adhering to parent class interface.

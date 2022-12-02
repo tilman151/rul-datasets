@@ -26,6 +26,10 @@ trainer.test(my_rul_estimator, dm)
 1. This should be a subclass of [LightningModule][pytorch_lightning.core.LightningModule].
 2. The trainer calls the data module's `prepare_data` and `setup` functions automatically.
 
+The RUL datasets library loads all data into memory at once and uses the main process for creating batches, i.e. `num_workers=0` for all dataloaders.
+When data is held in memory, multiple data loading processes are unnecessary and may even slow down training.
+The warning produced by PyTorch Lightning that `num_workers` is too low is, therefore, suppressed.
+
 ## PyTorch
 
 If you do not want to work with PyTorch Lightning, you can still use the RUL Dataset library in plain PyTorch.
