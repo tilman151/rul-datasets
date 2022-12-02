@@ -29,6 +29,7 @@ nav:
       - Libraries: use_cases/libraries.md
       - Learning Tasks: use_cases/tasks.md
       - Feature Extraction: use_cases/feature_extraction.md
+      - Dummy Dataset: dummy_for_debugging.ipynb
   - API Reference: api/
 
 markdown_extensions:
@@ -46,6 +47,8 @@ plugins:
   - search
   - autorefs
   - section-index
+  - mkdocs-jupyter:
+      no_input: False
   - gen-files:
       scripts: [docs/gen_ref_pages.py]
   - literate-nav:

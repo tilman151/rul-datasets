@@ -158,3 +158,4 @@ from .data_root import _DATA_ROOT
 from .cmapss import CmapssReader
 from .femto import FemtoReader, FemtoPreparator
 from .xjtu_sy import XjtuSyReader, XjtuSyPreparator
+from .dummy import DummyReader
