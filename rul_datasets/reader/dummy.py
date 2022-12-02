@@ -5,7 +5,7 @@ how to estimate RUL. It does not mean it is good at it. """
 from typing import Tuple, List, Optional, Union
 
 import numpy as np
-from sklearn import preprocessing
+from sklearn import preprocessing  # type: ignore
 
 from rul_datasets import utils
 from rul_datasets.reader import AbstractReader, scaling
