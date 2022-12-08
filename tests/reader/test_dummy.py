@@ -22,6 +22,7 @@ def _assert_run_correct(run, run_target, win):
     assert win == run.shape[1]
     assert 1 == run.shape[2]
     assert len(run) == len(run_target)
+    assert run_target.shape == (len(run_target),)
     assert np.float == run.dtype
     assert np.float == run_target.dtype
 
