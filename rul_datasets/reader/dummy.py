@@ -131,14 +131,14 @@ class DummyReader(AbstractReader):
         t = np.clip(np.arange(length, 1, -1), a_min=0, a_max=self.max_rul)
         t = t.astype(np.float)
 
-        return t[:, None]
+        return t
 
     def _generate_features(self, rng, targets):
         steady = -0.05 * targets + self._OFFSET[self.fd] + rng.normal() * 0.01
         noise = rng.normal(size=targets.shape) * self._NOISE_FACTOR[self.fd]
         f = np.exp(steady) + noise
 
-        return f
+        return f[:, None]
 
     def _truncate_test_split(self, rng, features, targets):
         """Extract a single window from a random position of the time series."""
