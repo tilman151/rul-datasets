@@ -129,7 +129,7 @@ class DummyReader(AbstractReader):
     def _generate_targets(self, rng):
         length = rng.integers(90, 110)
         t = np.clip(np.arange(length, 1, -1), a_min=0, a_max=self.max_rul)
-        t = t.astype(np.float)
+        t = t.astype(float)
 
         return t
 
