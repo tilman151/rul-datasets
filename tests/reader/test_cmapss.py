@@ -3,6 +3,7 @@ import numpy.testing as npt
 import pytest
 import torch
 
+import rul_datasets
 from rul_datasets import reader
 
 
@@ -16,11 +17,10 @@ def prepare_cmapss():
 class TestCMAPSSLoader:
     NUM_CHANNELS = len(reader.CmapssReader._DEFAULT_CHANNELS)
 
-    @pytest.mark.parametrize(
-        ("fd", "window_size"), [(1, 30), (2, 20), (3, 30), (4, 15)]
-    )
+    @pytest.mark.parametrize("fd", [1, 2, 3, 4])
+    @pytest.mark.parametrize("window_size", [30, 15])
     def test_run_shape_and_dtype(self, fd, window_size):
-        rul_loader = reader.CmapssReader(fd)
+        rul_loader = reader.CmapssReader(fd, window_size=window_size)
         for split in ["dev", "val", "test"]:
             self._check_split(rul_loader, split, window_size)
 
@@ -77,3 +77,13 @@ class TestCMAPSSLoader:
         trunc_dev, _ = trunc_dataset.load_split("dev")
         assert np.round(max(np.max(r).item() for r in trunc_dev), decimals=7) <= 1.0
         assert np.round(min(np.min(r).item() for r in trunc_dev), decimals=7) >= -1.0
+
+    def test_crop_data_pads_correctly(self):
+        """Check test samples smaller than window_size are zero-padded on the left."""
+        dataset = reader.CmapssReader(1, window_size=30)
+        inputs = np.ones((15, 14))
+
+        outputs, *_ = dataset._crop_data([inputs])
+
+        assert np.all(outputs[0, :15] == 0.0)
+        npt.assert_equal(outputs[0, 15:], inputs)
