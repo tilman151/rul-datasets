@@ -84,12 +84,12 @@ class TestAbstractLoader:
         this.check_compatibility(other)
         assert other is not this
         assert 2 == other.fd
-        assert 15 == other.window_size
-        assert 15 == this.window_size  # original reader is made compatible
+        assert 30 == other.window_size
+        assert 30 == this.window_size  # original reader overrides window size
         assert this.max_rul == other.max_rul
         assert 0.2 == other.percent_broken
         assert 0.8 == other.percent_fail_runs
-        assert False == other.truncate_val
+        assert not other.truncate_val
 
     def test_get_complement_percentage(self):
         this = DummyReader(1, 30, 125, percent_fail_runs=0.8)
