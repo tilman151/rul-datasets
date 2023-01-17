@@ -71,7 +71,7 @@ class XjtuSyReader(AbstractReader):
 
         Args:
             fd: Index of the selected sub-dataset
-            window_size: Size of the sliding window. Defaults to 2560.
+            window_size: Size of the sliding window. Defaults to 32768.
             max_rul: Maximum RUL value of targets.
             percent_broken: The maximum relative degradation per time series.
             percent_fail_runs: The percentage or index list of available time series.

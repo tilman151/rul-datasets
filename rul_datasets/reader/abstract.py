@@ -2,7 +2,7 @@
 that want to extend this package with their own dataset. """
 import abc
 from copy import deepcopy
-from typing import Optional, Union, List, Dict, Any, Iterable, Tuple
+from typing import Optional, Union, List, Dict, Any, Iterable, Tuple, Literal
 
 import numpy as np
 
@@ -186,6 +186,7 @@ class AbstractReader(metaclass=abc.ABCMeta):
         percent_broken: Optional[float] = None,
         percent_fail_runs: Union[float, List[int], None] = None,
         truncate_val: Optional[bool] = None,
+        consolidate_window_size: Literal["override", "min", "none"] = "override",
     ) -> "AbstractReader":
         """
         Create a new reader of the desired sub-dataset that is compatible to this one
@@ -196,11 +197,21 @@ class AbstractReader(metaclass=abc.ABCMeta):
         The values for `percent_broken`, `percent_fail_runs` and `truncate_val` of
         the new reader can be overridden.
 
+        When constructing a compatible reader for another sub-dataset, the window
+        size of this reader will be used to override the default window size of the
+        new reader. This behavior can be changed by setting `consolidate_window_size`
+        to `"min"`. The window size of this reader and the new one will be set to the
+        minimum of this readers window size and the default window size of the new
+        reader. Please be aware that this will change the window size of *this*
+        reader, too. If the new reader should use its default window size,
+        set `consolidate_window_size` to `"none"`.
+
         Args:
             fd: The index of the sub-dataset for the new reader.
             percent_broken: Override this value in the new reader.
             percent_fail_runs: Override this value in the new reader.
             truncate_val: Override this value in the new reader.
+            consolidate_window_size: How to consolidate the window size of the readers.
         Returns:
             A compatible reader with optional overrides.
         """
@@ -211,16 +222,23 @@ class AbstractReader(metaclass=abc.ABCMeta):
             other.percent_fail_runs = percent_fail_runs
         if truncate_val is not None:
             other.truncate_val = truncate_val
-
         if fd is not None:
             other.fd = fd
-            window_size = min(self.window_size, self.default_window_size(other.fd))
-        else:
-            window_size = self.window_size
-        self.window_size = window_size
-        other.window_size = window_size
+        self._consolidate_window_size(other, consolidate_window_size)
 
         return other
+
+    def _consolidate_window_size(
+        self, other: "AbstractReader", mode: Literal["override", "min", "none"]
+    ) -> None:
+        if mode == "override":
+            other.window_size = self.window_size
+        elif mode == "min":
+            window_size = min(self.window_size, self.default_window_size(other.fd))
+            self.window_size = window_size
+            other.window_size = window_size
+        elif mode == "none":
+            other.window_size = self.default_window_size(other.fd)
 
     def get_complement(
         self,

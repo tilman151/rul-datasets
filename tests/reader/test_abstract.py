@@ -130,3 +130,14 @@ class TestAbstractLoader:
 
         assert this.is_mutually_exclusive(other) == success
         assert other.is_mutually_exclusive(this) == success
+
+    @pytest.mark.parametrize(
+        ["mode", "expected_this", "expected_other"],
+        [("override", 30, 30), ("min", 15, 15), ("none", 30, 15)],
+    )
+    def test_consolidate_window_size(self, mode, expected_this, expected_other):
+        this = DummyReader(1, window_size=30)
+        other = this.get_compatible(2, consolidate_window_size=mode)
+
+        assert this.window_size == expected_this
+        assert other.window_size == expected_other
