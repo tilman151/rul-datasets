@@ -11,151 +11,154 @@ from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, Tenso
 from rul_datasets import core, reader
 
 
-class TestRulDataModule(unittest.TestCase):
-    def setUp(self):
-        self.mock_loader = mock.MagicMock(name="AbstractLoader")
-        self.mock_loader.hparams = {
+@pytest.fixture()
+def mock_runs():
+    return [np.zeros((1, 1, 1))], [np.zeros(1)]
+
+
+@pytest.fixture()
+def mock_loader(mock_runs):
+    mock_reader = mock.MagicMock(reader.AbstractReader)
+    mock_reader.hparams = {"test": 0, "window_size": 30}
+    mock_reader.load_split.return_value = mock_runs
+
+    return mock_reader
+
+
+class TestRulDataModule:
+    def test_created_correctly(self, mock_loader):
+        dataset = core.RulDataModule(mock_loader, batch_size=16)
+
+        assert mock_loader is dataset.reader
+        assert 16 == dataset.batch_size
+        assert dataset.hparams == {
             "test": 0,
+            "batch_size": 16,
             "window_size": 30,
+            "feature_extractor": None,
         }
-        self.mock_runs = [np.zeros((1, 1, 1))], [np.zeros(1)]
-        self.mock_loader.load_split.return_value = self.mock_runs
 
-    def test_created_correctly(self):
-        dataset = core.RulDataModule(self.mock_loader, batch_size=16)
-
-        self.assertIs(self.mock_loader, dataset.reader)
-        self.assertEqual(16, dataset.batch_size)
-        self.assertDictEqual(
-            {"test": 0, "batch_size": 16, "window_size": 30, "feature_extractor": None},
-            dataset.hparams,
-        )
-
-    def test_created_correctly_with_feature_extractor(self):
+    def test_created_correctly_with_feature_extractor(self, mock_loader):
         fe = lambda x: np.mean(x, axis=1)
         dataset = core.RulDataModule(
-            self.mock_loader, batch_size=16, feature_extractor=fe, window_size=2
+            mock_loader, batch_size=16, feature_extractor=fe, window_size=2
         )
 
-        self.assertIs(self.mock_loader, dataset.reader)
-        self.assertEqual(16, dataset.batch_size)
-        self.assertDictEqual(
-            {
-                "test": 0,
-                "batch_size": 16,
-                "window_size": 2,
-                "feature_extractor": str(fe),
-            },
-            dataset.hparams,
-        )
+        assert mock_loader is dataset.reader
+        assert 16 == dataset.batch_size
+        assert dataset.hparams == {
+            "test": 0,
+            "batch_size": 16,
+            "window_size": 2,  # window size is pulled from data module
+            "feature_extractor": str(fe),
+        }
 
-    def test_prepare_data(self):
-        dataset = core.RulDataModule(self.mock_loader, batch_size=16)
+    def test_prepare_data(self, mock_loader):
+        dataset = core.RulDataModule(mock_loader, batch_size=16)
         dataset.prepare_data()
 
-        self.mock_loader.prepare_data.assert_called_once()
+        mock_loader.prepare_data.assert_called_once()
 
-    def test_setup(self):
-        dataset = core.RulDataModule(self.mock_loader, batch_size=16)
+    def test_setup(self, mock_loader, mock_runs):
+        dataset = core.RulDataModule(mock_loader, batch_size=16)
         dataset.setup()
 
-        self.mock_loader.load_split.assert_has_calls(
+        mock_loader.load_split.assert_has_calls(
             [mock.call("dev"), mock.call("val"), mock.call("test")]
         )
-        mock_runs = tuple(torch.tensor(np.concatenate(r)) for r in self.mock_runs)
-        self.assertDictEqual(
-            {"dev": mock_runs, "val": mock_runs, "test": mock_runs}, dataset._data
-        )
+        mock_runs = tuple(torch.tensor(np.concatenate(r)) for r in mock_runs)
+        assert dataset._data == {"dev": mock_runs, "val": mock_runs, "test": mock_runs}
 
-    def test_empty_dataset(self):
-        self.mock_loader.load_split.return_value = [], []
-        dataset = core.RulDataModule(self.mock_loader, batch_size=4)
+    def test_empty_dataset(self, mock_loader):
+        """Should not crash on empty dataset."""
+        mock_loader.load_split.return_value = [], []
+        dataset = core.RulDataModule(mock_loader, batch_size=4)
         dataset.setup()
 
     @mock.patch(
         "rul_datasets.core.RulDataModule.to_dataset",
         return_value=TensorDataset(torch.zeros(1)),
     )
-    def test_train_dataloader(self, mock_to_dataset):
-        dataset = core.RulDataModule(self.mock_loader, batch_size=16)
+    def test_train_dataloader(self, mock_to_dataset, mock_loader):
+        dataset = core.RulDataModule(mock_loader, batch_size=16)
         dataset.setup()
         dataloader = dataset.train_dataloader()
 
         mock_to_dataset.assert_called_once_with("dev")
-        self.assertIs(mock_to_dataset.return_value, dataloader.dataset)
-        self.assertEqual(16, dataloader.batch_size)
-        self.assertIsInstance(dataloader.sampler, RandomSampler)
-        self.assertTrue(dataloader.pin_memory)
+        assert mock_to_dataset.return_value == dataloader.dataset
+        assert 16 == dataloader.batch_size
+        assert isinstance(dataloader.sampler, RandomSampler)
+        assert dataloader.pin_memory
 
     @mock.patch(
         "rul_datasets.core.RulDataModule.to_dataset",
         return_value=TensorDataset(torch.zeros(1)),
     )
-    def test_val_dataloader(self, mock_to_dataset):
-        dataset = core.RulDataModule(self.mock_loader, batch_size=16)
+    def test_val_dataloader(self, mock_to_dataset, mock_loader):
+        dataset = core.RulDataModule(mock_loader, batch_size=16)
         dataset.setup()
         dataloader = dataset.val_dataloader()
 
         mock_to_dataset.assert_called_once_with("val")
-        self.assertIs(mock_to_dataset.return_value, dataloader.dataset)
-        self.assertEqual(16, dataloader.batch_size)
-        self.assertIsInstance(dataloader.sampler, SequentialSampler)
-        self.assertTrue(dataloader.pin_memory)
+        assert mock_to_dataset.return_value is dataloader.dataset
+        assert 16 == dataloader.batch_size
+        assert isinstance(dataloader.sampler, SequentialSampler)
+        assert dataloader.pin_memory
 
     @mock.patch(
         "rul_datasets.core.RulDataModule.to_dataset",
         return_value=TensorDataset(torch.zeros(1)),
     )
-    def test_test_dataloader(self, mock_to_dataset):
-        dataset = core.RulDataModule(self.mock_loader, batch_size=16)
+    def test_test_dataloader(self, mock_to_dataset, mock_loader):
+        dataset = core.RulDataModule(mock_loader, batch_size=16)
         dataset.setup()
         dataloader = dataset.test_dataloader()
 
         mock_to_dataset.assert_called_once_with("test")
-        self.assertIs(mock_to_dataset.return_value, dataloader.dataset)
-        self.assertEqual(16, dataloader.batch_size)
-        self.assertIsInstance(dataloader.sampler, SequentialSampler)
-        self.assertTrue(dataloader.pin_memory)
+        assert mock_to_dataset.return_value is dataloader.dataset
+        assert 16 == dataloader.batch_size
+        assert isinstance(dataloader.sampler, SequentialSampler)
+        assert dataloader.pin_memory
 
-    def test_train_batch_structure(self):
-        self.mock_loader.load_split.return_value = (
+    def test_train_batch_structure(self, mock_loader):
+        mock_loader.load_split.return_value = (
             [np.zeros((8, 30, 14))] * 4,
             [np.zeros(8)] * 4,
         )
-        dataset = core.RulDataModule(self.mock_loader, batch_size=16)
+        dataset = core.RulDataModule(mock_loader, batch_size=16)
         dataset.setup()
         train_loader = dataset.train_dataloader()
         self._assert_batch_structure(train_loader)
 
-    def test_val_batch_structure(self):
-        self.mock_loader.load_split.return_value = (
+    def test_val_batch_structure(self, mock_loader):
+        mock_loader.load_split.return_value = (
             [np.zeros((8, 30, 14))] * 4,
             [np.zeros(8)] * 4,
         )
-        dataset = core.RulDataModule(self.mock_loader, batch_size=16)
+        dataset = core.RulDataModule(mock_loader, batch_size=16)
         dataset.setup()
         val_loader = dataset.val_dataloader()
         self._assert_batch_structure(val_loader)
 
-    def test_test_batch_structure(self):
-        self.mock_loader.load_split.return_value = (
+    def test_test_batch_structure(self, mock_loader):
+        mock_loader.load_split.return_value = (
             [np.zeros((8, 30, 14))] * 4,
             [np.zeros(8)] * 4,
         )
-        dataset = core.RulDataModule(self.mock_loader, batch_size=16)
+        dataset = core.RulDataModule(mock_loader, batch_size=16)
         dataset.setup()
         test_loader = dataset.test_dataloader()
         self._assert_batch_structure(test_loader)
 
     def _assert_batch_structure(self, loader):
         batch = next(iter(loader))
-        self.assertEqual(2, len(batch))
+        assert 2 == len(batch)
         features, labels = batch
-        self.assertEqual(torch.Size((16, 14, 30)), features.shape)
-        self.assertEqual(torch.Size((16,)), labels.shape)
+        assert torch.Size((16, 14, 30)) == features.shape
+        assert torch.Size((16,)) == labels.shape
 
-    def test_to_dataset(self):
-        dataset = core.RulDataModule(self.mock_loader, batch_size=16)
+    def test_to_dataset(self, mock_loader):
+        dataset = core.RulDataModule(mock_loader, batch_size=16)
         mock_data = {
             "dev": [torch.zeros(0)] * 2,
             "val": [torch.zeros(1)] * 2,
@@ -165,48 +168,41 @@ class TestRulDataModule(unittest.TestCase):
 
         for i, split in enumerate(["dev", "val", "test"]):
             tensor_dataset = dataset.to_dataset(split)
-            self.assertIsInstance(tensor_dataset, TensorDataset)
-            self.assertEqual(i, len(tensor_dataset.tensors[0]))
+            assert isinstance(tensor_dataset, TensorDataset)
+            assert i == len(tensor_dataset.tensors[0])
 
-    def test_check_compatability(self):
+    def test_check_compatability(self, mock_loader):
         fe = lambda x: np.mean(x, axis=2)
-        dataset = core.RulDataModule(self.mock_loader, batch_size=16)
+        dataset = core.RulDataModule(mock_loader, batch_size=16)
         other = core.RulDataModule(
-            self.mock_loader, batch_size=16, feature_extractor=fe, window_size=2
+            mock_loader, batch_size=16, feature_extractor=fe, window_size=2
         )
         dataset.check_compatibility(dataset)
-        self.mock_loader.check_compatibility.assert_called_once_with(self.mock_loader)
-        self.assertRaises(
-            ValueError,
-            dataset.check_compatibility,
-            core.RulDataModule(self.mock_loader, batch_size=8),
-        )
-        self.assertRaises(
-            ValueError,
-            dataset.check_compatibility,
-            other,
-        )
-        self.assertRaises(
-            ValueError,
-            other.check_compatibility,
-            core.RulDataModule(
-                self.mock_loader, batch_size=16, feature_extractor=fe, window_size=3
-            ),
-        )
+        mock_loader.check_compatibility.assert_called_once_with(mock_loader)
+        with pytest.raises(ValueError):
+            dataset.check_compatibility(core.RulDataModule(mock_loader, batch_size=8))
+        with pytest.raises(ValueError):
+            dataset.check_compatibility(other)
+        with pytest.raises(ValueError):
+            other.check_compatibility(
+                core.RulDataModule(
+                    mock_loader, batch_size=16, feature_extractor=fe, window_size=3
+                )
+            )
 
-    def test_is_mutually_exclusive(self):
-        dataset = core.RulDataModule(self.mock_loader, batch_size=16)
+    def test_is_mutually_exclusive(self, mock_loader):
+        dataset = core.RulDataModule(mock_loader, batch_size=16)
         dataset.is_mutually_exclusive(dataset)
-        self.mock_loader.is_mutually_exclusive.assert_called_once_with(dataset.reader)
+        mock_loader.is_mutually_exclusive.assert_called_once_with(dataset.reader)
 
-    def test_feature_extractor(self):
-        self.mock_loader.load_split.return_value = (
+    def test_feature_extractor(self, mock_loader):
+        mock_loader.load_split.return_value = (
             [np.zeros((8, 30, 14)) + np.arange(8)[:, None, None]],
             [torch.arange(8)],
         )
         fe = lambda x: np.mean(x, axis=1)
         dataset = core.RulDataModule(
-            self.mock_loader,
+            mock_loader,
             batch_size=16,
             feature_extractor=fe,
             window_size=2,
@@ -214,13 +210,11 @@ class TestRulDataModule(unittest.TestCase):
         dataset.setup()
 
         dev_data = dataset.to_dataset("dev")
-        self.assertEqual(len(dev_data), 7)
+        assert len(dev_data) == 7
         for i, (feat, targ) in enumerate(dev_data):
-            self.assertEqual(feat.shape, torch.Size([14, 2]))
-            self.assertTrue(
-                torch.dist(torch.arange(i, i + 2)[None, :].repeat(14, 1), feat) == 0
-            )
-            self.assertEqual(targ, i + 1)  # targets start window_size + 1 steps later
+            assert feat.shape == torch.Size([14, 2])
+            assert torch.dist(torch.arange(i, i + 2)[None, :].repeat(14, 1), feat) == 0
+            assert targ == i + 1  # targets start window_size + 1 steps later
 
 
 class DummyRul(reader.AbstractReader):
