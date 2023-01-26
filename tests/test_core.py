@@ -34,14 +34,15 @@ class TestRulDataModule:
         assert dataset.hparams == {
             "test": 0,
             "batch_size": 16,
-            "window_size": 30,
+            "window_size": mock_loader.hparams["window_size"],
             "feature_extractor": None,
         }
 
-    def test_created_correctly_with_feature_extractor(self, mock_loader):
+    @pytest.mark.parametrize("window_size", [2, None])
+    def test_created_correctly_with_feature_extractor(self, mock_loader, window_size):
         fe = lambda x: np.mean(x, axis=1)
         dataset = core.RulDataModule(
-            mock_loader, batch_size=16, feature_extractor=fe, window_size=2
+            mock_loader, batch_size=16, feature_extractor=fe, window_size=window_size
         )
 
         assert mock_loader is dataset.reader
@@ -49,7 +50,7 @@ class TestRulDataModule:
         assert dataset.hparams == {
             "test": 0,
             "batch_size": 16,
-            "window_size": 2,  # window size is pulled from data module
+            "window_size": window_size or mock_loader.hparams["window_size"],
             "feature_extractor": str(fe),
         }
 
@@ -201,12 +202,7 @@ class TestRulDataModule:
             [torch.arange(8)],
         )
         fe = lambda x: np.mean(x, axis=1)
-        dataset = core.RulDataModule(
-            mock_loader,
-            batch_size=16,
-            feature_extractor=fe,
-            window_size=2,
-        )
+        dataset = core.RulDataModule(mock_loader, 16, fe, window_size=2)
         dataset.setup()
 
         dev_data = dataset.to_dataset("dev")
@@ -215,6 +211,22 @@ class TestRulDataModule:
             assert feat.shape == torch.Size([14, 2])
             assert torch.dist(torch.arange(i, i + 2)[None, :].repeat(14, 1), feat) == 0
             assert targ == i + 1  # targets start window_size + 1 steps later
+
+    def test_feature_extractor_no_rewindowing(self, mock_loader):
+        mock_loader.load_split.return_value = (
+            [np.zeros((8, 30, 14)) + np.arange(8)[:, None, None]],
+            [torch.arange(8)],
+        )
+        fe = lambda x: np.tile(x, (1, 2, 1))  # repeats window two times
+        dataset = core.RulDataModule(mock_loader, 16, fe, window_size=None)
+        dataset.setup()
+
+        dev_data = dataset.to_dataset("dev")
+        assert len(dev_data) == 8
+        for i, (feat, targ) in enumerate(dev_data):
+            assert feat.shape == torch.Size([14, 60])
+            assert torch.dist(feat[:, :30], feat[:, 30:]) == 0.0  # fe applied correctly
+            assert targ == i
 
 
 class DummyRul(reader.AbstractReader):
