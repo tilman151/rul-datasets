@@ -3,9 +3,14 @@ It may be useful to extract hand-crafted features, i.e. RMS or P2P, from this vi
 The [RulDataModule][rul_datasets.core.RulDataModule] provides the option to use a custom feature extractor on each window of data.
 
 The feature extractor can be anything that can be called as a function.
-It should take a numpy array with the shape `[num_windows, window_size, num_features]` and return an array with the shape `[num_windows, num_new_features]`.
+It should take a numpy array with the shape `[num_windows, window_size, num_features]` and return another array.
+Depending on whether a `window_size` is supplied to the data module, the expected output shape of the feature extractor is:
+
+* `window_size is None`: `[num_new_windows, new_window_size, features]`
+* `window_size is not None`: `[num_windows, features]`
+
 An example would be taking the mean of the window with `lambda x: np.mean(x, axis=1)`.
-After applying the feature extractor, the data module extracts new windows of extracted features:
+Because this function reduces the windows to a single feature vector, we set `window_size` to 10 to get new windows of that size:
 
 ```pycon
 >>> import rul_datasets
@@ -44,3 +49,7 @@ The number of samples will reduce by `num_runs * (window_size - 1)` due to the r
 >>> dm_extracted.to_dataset("dev")
 3656
 ```
+
+If your feature extractor produces windows itself, you can set `window_size` to `None`.
+This way, no new windows are extracted.
+An example would be extracting multiple sub-windows from the existing windows.

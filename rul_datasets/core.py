@@ -27,8 +27,13 @@ class RulDataModule(pl.LightningDataModule):
     `feature_extractor` and `window_size` arguments to the constructor. The
     `feature_extractor` is a callable that takes a windowed time series as a numpy
     array with the shape `[num_windows, window_size, num_features]` and returns
-    another numpy array with the shape `[num_windows, num_new_features]`. The time
-    series of extracted features is then re-windowed with `window_size`.
+    another numpy array. Depending on `window_size`, the expected output shapes for
+    the `feature_extractor` are:
+
+    * `window_size is None`: `[num_new_windows, new_window_size, features]`
+    * `window_size is not None`: `[num_windows, features]`
+
+    If `window_size` is set, the extracted features are re-windowed.
 
     Examples:
         Default
@@ -67,8 +72,18 @@ class RulDataModule(pl.LightningDataModule):
         pre-process the dataset. Afterwards, `setup_data` is called to load all
         splits into memory.
 
-        If `feature_extractor` and `window_size` are supplied, the data module extracts
-        new features from each window of the time series and re-windows it afterwards.
+        If a `feature_extractor` is supplied, the data module extracts new features
+        from each window of the time series. If `window_size` is `None`,
+        it is assumed that the extracted features form a new windows themselves. If
+        `window_size` is an int, it is assumed that the extracted features are a
+        single feature vectors and should be re-windowed. The expected output shapes
+        for the `feature_extractor` are:
+
+        * `window_size is None`: `[num_new_windows, new_window_size, features]`
+        * `window_size is not None`: `[num_windows, features]`
+
+        The expected input shape for the `feature_extractor` is always
+        `[num_windows, window_size, features]`.
 
         Args:
             reader: The dataset reader for the desired dataset, e.g. CmapssLoader.
@@ -84,10 +99,10 @@ class RulDataModule(pl.LightningDataModule):
         self.feature_extractor = feature_extractor
         self.window_size = window_size
 
-        if (self.feature_extractor is not None) != (self.window_size is not None):
+        if (self.feature_extractor is None) and (self.window_size is not None):
             raise ValueError(
-                "feature_extractor and window_size cannot be set without "
-                "the other. Please supply values for both."
+                "A feature extractor has to be supplied "
+                "to set a window size for re-windowing."
             )
 
         hparams = deepcopy(self.reader.hparams)
@@ -194,7 +209,7 @@ class RulDataModule(pl.LightningDataModule):
 
         If the data module was constructed with a `feature_extractor` argument,
         the feature windows are passed to the feature extractor. The resulting,
-        new features are re-windowed.
+        new features may be re-windowed.
 
         Args:
             stage: Ignored. Only for adhering to parent class interface.
@@ -221,19 +236,14 @@ class RulDataModule(pl.LightningDataModule):
     def _apply_feature_extractor_per_run(
         self, features: List[np.ndarray], targets: List[np.ndarray]
     ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-        if self.feature_extractor is not None and self.window_size is not None:
+        if self.feature_extractor is not None:
+            features = [self.feature_extractor(f) for f in features]
+        if self.window_size is not None:
             cutoff = self.window_size - 1
-            features = [self._apply_feature_extractor(f) for f in features]
-            # cut off because feats are re-windowed
+            features = [utils.extract_windows(f, self.window_size) for f in features]
             targets = [t[cutoff:] for t in targets]
 
         return features, targets
-
-    def _apply_feature_extractor(self, features: np.ndarray) -> np.ndarray:
-        features = self.feature_extractor(features)  # type: ignore
-        features = utils.extract_windows(features, self.window_size)  # type: ignore
-
-        return features
 
     def train_dataloader(self, *args: Any, **kwargs: Any) -> DataLoader:
         """
