@@ -61,8 +61,12 @@ class TestCMAPSSLoader:
             dataset.load_split("dev")
 
     @pytest.mark.parametrize("fd", [1, 2, 3, 4])
-    def test_normalization_min_max(self, fd):
-        full_dataset = reader.CmapssReader(fd)
+    @pytest.mark.parametrize("ops_aware", [True, False])
+    def test_normalization_min_max(self, fd, ops_aware):
+        full_dataset = reader.CmapssReader(
+            fd, operation_condition_aware_scaling=ops_aware
+        )
+        full_dataset.prepare_data()
         full_dev, full_dev_targets = full_dataset.load_split("dev")
 
         npt.assert_almost_equal(max(np.max(r) for r in full_dev), 1.0)
@@ -77,6 +81,13 @@ class TestCMAPSSLoader:
         trunc_dev, _ = trunc_dataset.load_split("dev")
         assert np.round(max(np.max(r).item() for r in trunc_dev), decimals=7) <= 1.0
         assert np.round(min(np.min(r).item() for r in trunc_dev), decimals=7) >= -1.0
+
+    @pytest.mark.parametrize("fd", [1, 2, 3, 4])
+    @pytest.mark.parametrize("split", ["dev", "val", "test"])
+    def test_operation_condition_boundaries_cover_all_samples(self, fd, split):
+        dataset = reader.CmapssReader(fd, operation_condition_aware_scaling=True)
+        dataset.prepare_data()
+        dataset.load_split(split)
 
     def test_crop_data_pads_correctly(self):
         """Check test samples smaller than window_size are zero-padded on the left."""

@@ -63,6 +63,15 @@ class CmapssReader(AbstractReader):
     _WINDOW_SIZES: Dict[int, int] = {1: 30, 2: 20, 3: 30, 4: 15}
     _DEFAULT_CHANNELS: List[int] = [4, 5, 6, 9, 10, 11, 13, 14, 15, 16, 17, 19, 22, 23]
     _NUM_TRAIN_RUNS: Dict[int, int] = {1: 80, 2: 208, 3: 80, 4: 199}
+    _CONDITION_BOUNDARIES: List[Tuple[float, float]] = [
+        (-0.009, 0.009),  # Different from paper to include FD001 and FD003
+        (9.998, 10.008),
+        (19.998, 20.008),
+        (24.998, 25.008),
+        (34.998, 35.008),
+        (41.998, 42.008),
+    ]
+    _CONDITION_COLUMN: int = 0
     _CMAPSS_ROOT: str = os.path.join(get_data_root(), "CMAPSS")
 
     def __init__(
@@ -74,6 +83,7 @@ class CmapssReader(AbstractReader):
         percent_fail_runs: Optional[Union[float, List[int]]] = None,
         feature_select: List[int] = None,
         truncate_val: bool = False,
+        operation_condition_aware_scaling: bool = False,
     ) -> None:
         """
         Create a new CMAPSS reader for one of the sub-datasets. The maximum RUL value
@@ -101,6 +111,7 @@ class CmapssReader(AbstractReader):
         if feature_select is None:
             feature_select = self._DEFAULT_CHANNELS
         self.feature_select = feature_select
+        self.operation_condition_aware_scaling = operation_condition_aware_scaling
 
     @property
     def fds(self) -> List[int]:
@@ -133,11 +144,25 @@ class CmapssReader(AbstractReader):
             self._prepare_scaler()
 
     def _prepare_scaler(self) -> None:
-        dev_features = self._load_features(self._get_feature_path("dev"))
+        dev_features, ops_cond = self._load_features(self._get_feature_path("dev"))
         dev_features, _ = self._split_time_steps_from_features(dev_features)
-        scaler = scalers.MinMaxScaler(feature_range=(-1, 1))
-        scaler = scaling.fit_scaler(dev_features, scaler)
+        scaler = self._fit_scaler(dev_features, ops_cond)
         scaling.save_scaler(scaler, self._get_scaler_path())
+
+    def _fit_scaler(self, features, operation_conditions):
+        scaler = scalers.MinMaxScaler(feature_range=(-1, 1))
+        if self.operation_condition_aware_scaling:
+            scaler = scaling.OperationConditionAwareScaler(
+                scaler, self._CONDITION_BOUNDARIES
+            )
+            operation_conditions = [
+                c[:, self._CONDITION_COLUMN] for c in operation_conditions
+            ]
+            scaler = scaling.fit_scaler(features, scaler, operation_conditions)
+        else:
+            scaler = scaling.fit_scaler(features, scaler)
+
+        return scaler
 
     def _split_fd_train(self, train_path: str) -> None:
         train_data = np.loadtxt(train_path)
@@ -154,16 +179,19 @@ class CmapssReader(AbstractReader):
         data_root, train_file = os.path.split(train_path)
         dev_file = train_file.replace("train_", "dev_")
         dev_file = os.path.join(data_root, dev_file)
-        np.savetxt(dev_file, dev_data, fmt=self._FMT)
+        np.savetxt(dev_file, dev_data, fmt=self._FMT)  # type: ignore
         val_file = train_file.replace("train_", "val_")
         val_file = os.path.join(data_root, val_file)
-        np.savetxt(val_file, val_data, fmt=self._FMT)
+        np.savetxt(val_file, val_data, fmt=self._FMT)  # type: ignore
 
     def _get_scaler_path(self) -> str:
         return os.path.join(self._CMAPSS_ROOT, self._get_scaler_name())
 
     def _get_scaler_name(self) -> str:
-        return f"FD{self.fd:03d}_scaler_{self.feature_select}.pkl"
+        ops_aware = "_ops_aware" if self.operation_condition_aware_scaling else ""
+        name = f"FD{self.fd:03d}_scaler_{self.feature_select}{ops_aware}.pkl"
+
+        return name
 
     def _get_feature_path(self, split: str) -> str:
         return os.path.join(self._CMAPSS_ROOT, self._get_feature_name(split))
@@ -175,9 +203,9 @@ class CmapssReader(AbstractReader):
         self, split: str
     ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         file_path = self._get_feature_path(split)
-        features = self._load_features(file_path)
+        features, operation_conditions = self._load_features(file_path)
         features, time_steps = self._split_time_steps_from_features(features)
-        features = self._scale_features(features)
+        features = self._scale_features(features, operation_conditions)
 
         if split in ["dev", "val"]:
             targets = self._generate_targets(time_steps)
@@ -190,20 +218,26 @@ class CmapssReader(AbstractReader):
 
         return features, targets
 
-    def _load_features(self, file_path: str) -> List[np.ndarray]:
+    def _load_features(
+        self, file_path: str
+    ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         raw_features = np.loadtxt(file_path)
 
         feature_idx = [0, 1] + [idx + 2 for idx in self.feature_select]
+        operation_conditions = raw_features[:, [2, 3, 4]]
         raw_features = raw_features[:, feature_idx]
 
         # Split into runs
         _, samples_per_run = np.unique(raw_features[:, 0], return_counts=True)
         split_idx = np.cumsum(samples_per_run)[:-1]
         features = np.split(raw_features, split_idx, axis=0)
+        cond_per_run = np.split(operation_conditions, split_idx, axis=0)
 
-        return features
+        return features, cond_per_run
 
-    def _scale_features(self, features: List[np.ndarray]) -> List[np.ndarray]:
+    def _scale_features(
+        self, features: List[np.ndarray], operation_conditions: List[np.ndarray]
+    ) -> List[np.ndarray]:
         scaler_path = self._get_scaler_path()
         if not os.path.exists(scaler_path):
             raise RuntimeError(
@@ -212,7 +246,13 @@ class CmapssReader(AbstractReader):
                 f"Did you call prepare_data yet?"
             )
         scaler = scaling.load_scaler(scaler_path)
-        features = scaling.scale_features(features, scaler)
+        if self.operation_condition_aware_scaling:
+            operation_conditions = [
+                c[:, self._CONDITION_COLUMN] for c in operation_conditions
+            ]
+            features = scaling.scale_features(features, scaler, operation_conditions)
+        else:
+            features = scaling.scale_features(features, scaler)
 
         return features
 
