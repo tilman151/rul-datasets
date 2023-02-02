@@ -23,8 +23,8 @@ def _assert_run_correct(run, run_target, win):
     assert 1 == run.shape[2]
     assert len(run) == len(run_target)
     assert run_target.shape == (len(run_target),)
-    assert np.float == run.dtype
-    assert np.float == run_target.dtype
+    assert float == run.dtype
+    assert float == run_target.dtype
 
 
 def test_test_split_has_only_single_windows():

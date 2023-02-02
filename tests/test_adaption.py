@@ -12,7 +12,7 @@ from tests.templates import PretrainingDataModuleTemplate
 
 class TestCMAPSSAdaption(unittest.TestCase):
     def setUp(self):
-        source_mock_runs = [torch.randn(16, 14, 1)] * 3, [torch.rand(16)] * 3
+        source_mock_runs = [np.random.randn(16, 14, 1)] * 3, [np.random.rand(16)] * 3
         self.source_loader = mock.MagicMock(name="CMAPSSLoader")
         self.source_loader.fd = 3
         self.source_loader.percent_fail_runs = None
@@ -26,7 +26,7 @@ class TestCMAPSSAdaption(unittest.TestCase):
         self.source_loader.load_split.return_value = source_mock_runs
         self.source_data = core.RulDataModule(self.source_loader, batch_size=16)
 
-        target_mock_runs = [torch.randn(16, 14, 1)] * 2, [torch.rand(16)] * 2
+        target_mock_runs = [np.random.randn(16, 14, 1)] * 2, [np.random.rand(16)] * 2
         self.target_loader = mock.MagicMock(name="CMAPSSLoader")
         self.target_loader.fd = 1
         self.target_loader.percent_fail_runs = 0.8

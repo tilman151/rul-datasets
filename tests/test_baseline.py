@@ -19,7 +19,7 @@ class TestBaselineDataModule(unittest.TestCase):
             "fd": self.mock_loader.fd,
             "window_size": self.mock_loader.window_size,
         }
-        self.mock_runs = [torch.zeros(1, 1, 1)], [torch.zeros(1)]
+        self.mock_runs = [np.zeros((1, 1, 1))], [np.zeros(1)]
         self.mock_loader.load_split.return_value = self.mock_runs
 
         self.base_module = rul_datasets.RulDataModule(self.mock_loader, batch_size=16)
