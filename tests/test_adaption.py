@@ -3,6 +3,7 @@ import warnings
 from unittest import mock
 
 import numpy as np
+import pytest
 import torch
 from torch.utils.data import RandomSampler, TensorDataset
 
@@ -240,11 +241,10 @@ class TestPretrainingDataModuleFullData(
 
     def test_warning_on_non_truncated_val_data(self):
         self.target_loader.truncate_val = False
-        with warnings.catch_warnings(record=True) as warn:
+        with pytest.warns(UserWarning):
             adaption.PretrainingAdaptionDataModule(
                 self.source_data, self.target_data, 10
             )
-        self.assertTrue(warn)
 
     def test_hparams(self):
         expected_hparams = {

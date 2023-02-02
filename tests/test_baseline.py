@@ -3,6 +3,7 @@ import warnings
 from unittest import mock
 
 import numpy as np
+import pytest
 import torch
 import torch.utils.data
 
@@ -208,11 +209,10 @@ class TestPretrainingBaselineDataModuleFullData(
 
     def test_warning_on_non_truncated_val_data(self):
         self.unfailed_data.reader.truncate_val = False
-        with warnings.catch_warnings(record=True) as warn:
+        with pytest.warns(UserWarning):
             rul_datasets.PretrainingBaselineDataModule(
                 self.failed_data, self.unfailed_data, 10
             )
-        self.assertTrue(warn)
 
 
 class TestPretrainingBaselineDataModuleLowData(
