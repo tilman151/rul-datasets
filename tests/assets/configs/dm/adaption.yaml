@@ -8,4 +8,6 @@ source:
   batch_size: ???
 target:
   _target_: ${..source._target_}
+  reader:
+    percent_broken: 0.8
   batch_size: ${..source.batch_size}

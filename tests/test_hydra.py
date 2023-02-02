@@ -13,7 +13,7 @@ class TestBaseline(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls._hydra_init = hydra.initialize(config_path=CONFIG_DIR)
+        cls._hydra_init = hydra.initialize(config_path=CONFIG_DIR, version_base="1.1")
         cls._hydra_init.__enter__()
 
     @classmethod
@@ -64,7 +64,7 @@ class TestAdaption(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls._hydra_init = hydra.initialize(config_path=CONFIG_DIR)
+        cls._hydra_init = hydra.initialize(config_path=CONFIG_DIR, version_base="1.1")
         cls._hydra_init.__enter__()
 
     @classmethod

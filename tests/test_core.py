@@ -199,7 +199,7 @@ class TestRulDataModule:
     def test_feature_extractor(self, mock_loader):
         mock_loader.load_split.return_value = (
             [np.zeros((8, 30, 14)) + np.arange(8)[:, None, None]],
-            [torch.arange(8)],
+            [np.arange(8)],
         )
         fe = lambda x: np.mean(x, axis=1)
         dataset = core.RulDataModule(mock_loader, 16, fe, window_size=2)
@@ -215,7 +215,7 @@ class TestRulDataModule:
     def test_feature_extractor_no_rewindowing(self, mock_loader):
         mock_loader.load_split.return_value = (
             [np.zeros((8, 30, 14)) + np.arange(8)[:, None, None]],
-            [torch.arange(8)],
+            [np.arange(8)],
         )
         fe = lambda x: np.tile(x, (1, 2, 1))  # repeats window two times
         dataset = core.RulDataModule(mock_loader, 16, fe, window_size=None)

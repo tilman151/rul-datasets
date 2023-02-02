@@ -42,6 +42,9 @@ jupyter = "^1.0.0"
 
 [tool.pytest.ini_options]
 markers = ["needs_data: needs the dataset on disk to run"]
+filterwarnings = [
+    'ignore:distutils Version classes are deprecated. Use packaging.version instead.:DeprecationWarning',
+]
 
 [tool.mypy]
 plugins = "numpy.typing.mypy_plugin"

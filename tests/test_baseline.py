@@ -3,6 +3,7 @@ import warnings
 from unittest import mock
 
 import numpy as np
+import pytest
 import torch
 import torch.utils.data
 
@@ -19,7 +20,7 @@ class TestBaselineDataModule(unittest.TestCase):
             "fd": self.mock_loader.fd,
             "window_size": self.mock_loader.window_size,
         }
-        self.mock_runs = [torch.zeros(1, 1, 1)], [torch.zeros(1)]
+        self.mock_runs = [np.zeros((1, 1, 1))], [np.zeros(1)]
         self.mock_loader.load_split.return_value = self.mock_runs
 
         self.base_module = rul_datasets.RulDataModule(self.mock_loader, batch_size=16)
@@ -208,11 +209,10 @@ class TestPretrainingBaselineDataModuleFullData(
 
     def test_warning_on_non_truncated_val_data(self):
         self.unfailed_data.reader.truncate_val = False
-        with warnings.catch_warnings(record=True) as warn:
+        with pytest.warns(UserWarning):
             rul_datasets.PretrainingBaselineDataModule(
                 self.failed_data, self.unfailed_data, 10
             )
-        self.assertTrue(warn)
 
 
 class TestPretrainingBaselineDataModuleLowData(
