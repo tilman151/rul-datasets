@@ -30,19 +30,65 @@ Supported scalers:
 
 
 class OperationConditionAwareScaler(BaseEstimator, TransformerMixin):
+    """This scaler is an ensemble of multiple base scalers, e.g. [
+    sklearn.preprocessing.MinMaxScaler][]. It takes an additional operation condition
+    array while fitting and transforming that controls which base scaler is used. The
+    operation condition corresponding to a sample is compared against the boundaries
+    defined during construction of the scaler. If the condition lies between the
+    first set of boundaries, the first base scaler is used, and so forth.
+    If any condition does not fall between any boundaries, an exception will be
+    raised and the boundaries should be adjusted."""
+
     def __init__(
         self, base_scaler: Scaler, boundaries: List[Tuple[float, float]]
     ) -> None:
+        """
+        Create a new scaler aware of operation conditions.
+
+        Each pair in `boundaries` represents the lower and upper value of an
+        inclusive interval. For each interval a copy of the `base_scaler` is
+        maintained. If an operation condition value falls inside an interval,
+        the corresponding scaler is used. The boundaries have to be mutually exclusive.
+
+        Args:
+            base_scaler: The scaler that should be used for each condition.
+            boundaries: The pairs that form the inclusive boundaries of each condition.
+        """
         self.base_scalers = [copy.deepcopy(base_scaler) for _ in boundaries]
         self.boundaries = boundaries
 
+        self._check_boundaries_mutually_exclusive()
+
+    def _check_boundaries_mutually_exclusive(self):
+        b = sorted(self.boundaries, key=lambda x: x[0])
+        exclusive = all(up < low for (_, up), (low, _) in zip(b[:-1], b[1:]))
+        if not exclusive:
+            raise ValueError(
+                "Boundaries are not mutually exclusive. Be aware that "
+                "the boundaries are inclusive, i.e. lower <= value <= upper."
+            )
+
     @property
     def n_features_in_(self):
+        """Number of expected input features."""
         return self.base_scalers[0].n_features_in_
 
     def partial_fit(
         self, features: np.ndarray, operation_conditions: np.ndarray
     ) -> "OperationConditionAwareScaler":
+        """
+        Fit the base scalers partially.
+
+        This function calls `partial_fit` on each of the base scalers with the
+        samples that fall into the corresponding condition boundaries. If any sample
+        does not fall into one of the boundaries, an exception is raised.
+
+        Args:
+            features: The feature array to be scaled.
+            operation_conditions: The condition values compared against the boundaries.
+        Returns:
+            The partially fitted scaler.
+        """
         total = 0
         for i, (lower, upper) in enumerate(self.boundaries):
             idx = self._between(operation_conditions, lower, upper)
@@ -56,6 +102,19 @@ class OperationConditionAwareScaler(BaseEstimator, TransformerMixin):
     def transform(
         self, features: np.ndarray, operation_conditions: np.ndarray
     ) -> np.ndarray:
+        """
+        Scale the features with the appropriate condition aware scaler.
+
+        This function calls `transform` on each of the base scalers for the
+        samples that fall into the corresponding condition boundaries. If any sample
+        does not fall into one of the boundaries, an exception is raised.
+
+        Args:
+            features: The features to be scaled.
+            operation_conditions: The condition values compared against the boundaries.
+        Returns:
+            The scaled features.
+        """
         scaled = np.empty_like(features)
         total = 0
         for i, (lower, upper) in enumerate(self.boundaries):
@@ -76,6 +135,7 @@ class OperationConditionAwareScaler(BaseEstimator, TransformerMixin):
             )
 
     def _between(self, inputs: np.ndarray, lower: float, upper: float) -> np.ndarray:
+        """Inclusive between."""
         return (lower <= inputs) & (inputs <= upper)
 
 
@@ -88,13 +148,20 @@ def fit_scaler(
     Fit a given scaler to the RUL features. If the scaler is omitted,
     a StandardScaler will be created.
 
-    The scaler assumes that the last axis of the features are the channels.
+    If the scaler is an [OperationConditionAwareScaler][
+    rul_datasets.reader.scaling.OperationConditionAwareScaler] and
+    `operation_conditions` are passed, the scaler will be fit aware of operation
+    conditions.
+
+    The scaler assumes that the last axis of the features are the channels. Only
+    scalers unaware of operation conditions can be fit with windowed data.
 
     Args:
         features: The RUL features.
         scaler: The scaler to be fit. Defaults to a StandardScaler.
+        operation_conditions: The operation conditions for condition aware scaling.
     Returns:
-        The fitted scaler
+        The fitted scaler.
     """
     scaler = scaler or scalers.StandardScaler()
     if isinstance(scaler, Scaler.__args__):  # type: ignore[attr-defined]
@@ -172,9 +239,13 @@ def scale_features(
     window_size, channels]`. The scaler needs to work on the channel dimension. If it
     was not fit with the right number of channels, a `ValueError` is thrown.
 
+    If the scaler is operation condition aware, the `operation_conditions` argument
+    needs to be passed. Windowed data cannot be fit this way.
+
     Args:
         features: The RUL features to be scaled.
         scaler: The already fitted scaler.
+        operation_conditions: The operation conditions for condition aware scaling.
     Returns:
         The scaled features.
     """
