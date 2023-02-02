@@ -92,6 +92,10 @@ class CmapssReader(AbstractReader):
         default window size is defined per sub-dataset as the minimum time series
         length in the test set.
 
+        The data can be scaled separately for each operation condition, as done by
+        Ragab et al. This only affects FD002 and FD004 due to them having multiple
+        operation conditions.
+
         For more information about using readers refer to the [reader]
         [rul_datasets.reader] module page.
 
@@ -103,6 +107,8 @@ class CmapssReader(AbstractReader):
             percent_fail_runs: The percentage or index list of available time series.
             feature_select: The index list of selected feature channels.
             truncate_val: Truncate the validation data with `percent_broken`, too.
+            operation_condition_aware_scaling: Scale data separatly for each
+                                               operation condition.
         """
         super().__init__(
             fd, window_size, max_rul, percent_broken, percent_fail_runs, truncate_val

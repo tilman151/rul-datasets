@@ -42,6 +42,16 @@ def fitted_conditioned_scaler(conditioned_inputs):
 
 
 class TestOperationConditionAwareScaler:
+    @pytest.mark.parametrize(
+        "boundaries",
+        [
+            [(0, 1), (2, 3), [4, 5]],
+            pytest.param([(0, 1), (1, 2)], marks=pytest.mark.xfail(strict=True)),
+        ],
+    )
+    def test_boundary_mutually_exclusive_check(self, boundaries):
+        scaling.OperationConditionAwareScaler(scalers.MinMaxScaler(), boundaries)
+
     def test_partial_fit(self, conditioned_inputs):
         features, conditions, boundaries = conditioned_inputs
         scaler = scaling.OperationConditionAwareScaler(
@@ -127,7 +137,11 @@ def test_save_load_scaler(tmp_path, fitted_scaler):
 
 @pytest.mark.parametrize(
     "feature_shape",
-    [(10000, 5), (5000, 2, 5), pytest.param((25000, 2), marks=pytest.mark.xfail)],
+    [
+        (10000, 5),
+        (5000, 2, 5),
+        pytest.param((25000, 2), marks=pytest.mark.xfail(strict=True)),
+    ],
 )
 def test_scale_features(feature_shape, fitted_scaler):
     mean = fitted_scaler.mean_
@@ -145,8 +159,8 @@ def test_scale_features(feature_shape, fitted_scaler):
     "feature_shape",
     [
         (10000, 5),
-        pytest.param((5000, 2, 5), marks=pytest.mark.xfail),
-        pytest.param((5000, 4), marks=pytest.mark.xfail),
+        pytest.param((5000, 2, 5), marks=pytest.mark.xfail(strict=True)),
+        pytest.param((5000, 4), marks=pytest.mark.xfail(strict=True)),
     ],
 )
 def test_scale_features_condition_aware(feature_shape, fitted_conditioned_scaler):
