@@ -188,7 +188,7 @@ class CmapssReader(AbstractReader):
         return os.path.join(self._CMAPSS_ROOT, self._get_scaler_name())
 
     def _get_scaler_name(self) -> str:
-        ops_aware = f"_ops_aware" if self.operation_condition_aware_scaling else ""
+        ops_aware = "_ops_aware" if self.operation_condition_aware_scaling else ""
         name = f"FD{self.fd:03d}_scaler_{self.feature_select}{ops_aware}.pkl"
 
         return name
@@ -231,9 +231,9 @@ class CmapssReader(AbstractReader):
         _, samples_per_run = np.unique(raw_features[:, 0], return_counts=True)
         split_idx = np.cumsum(samples_per_run)[:-1]
         features = np.split(raw_features, split_idx, axis=0)
-        operation_conditions = np.split(operation_conditions, split_idx, axis=0)
+        cond_per_run = np.split(operation_conditions, split_idx, axis=0)
 
-        return features, operation_conditions
+        return features, cond_per_run
 
     def _scale_features(
         self, features: List[np.ndarray], operation_conditions: List[np.ndarray]

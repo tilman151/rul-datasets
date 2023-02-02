@@ -5,8 +5,14 @@ from typing import List, Optional, Union, Tuple
 
 import numpy as np
 from sklearn import preprocessing as scalers  # type: ignore
-from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.base import BaseEstimator, TransformerMixin  # type: ignore
 
+_Scaler = (
+    scalers.StandardScaler,
+    scalers.MinMaxScaler,
+    scalers.MaxAbsScaler,
+    scalers.RobustScaler,
+)
 Scaler = Union[
     scalers.StandardScaler,
     scalers.MinMaxScaler,
@@ -90,19 +96,24 @@ def fit_scaler(
     Returns:
         The fitted scaler
     """
-    if operation_conditions is None:
+    scaler = scaler or scalers.StandardScaler()
+    if isinstance(scaler, Scaler.__args__):  # type: ignore[attr-defined]
         scaler = _fit_scaler_naive(features, scaler)
-    else:
+    elif operation_conditions is not None and isinstance(
+        scaler, OperationConditionAwareScaler
+    ):
         scaler = _fit_scaler_operation_condition_aware(
             features, scaler, operation_conditions
+        )
+    else:
+        raise ValueError(
+            "Unsupported combination of scaler type and operation conditions."
         )
 
     return scaler
 
 
-def _fit_scaler_naive(features: List[np.ndarray], scaler: Optional[Scaler]) -> Scaler:
-    if scaler is None:
-        scaler = scalers.StandardScaler()
+def _fit_scaler_naive(features: List[np.ndarray], scaler: Scaler) -> Scaler:
     for run in features:
         run = run.reshape(-1, run.shape[-1])
         scaler.partial_fit(run)
@@ -116,10 +127,6 @@ def _fit_scaler_operation_condition_aware(
     operation_conditions: List[np.ndarray],
 ) -> OperationConditionAwareScaler:
     assert len(features[0].shape) == 2, "Condition aware scaling can't fit window data"
-    if scaler is None:
-        raise ValueError(
-            "Scaler must be supplied if it should be operation condition aware."
-        )
     for run, cond in zip(features, operation_conditions):
         scaler.partial_fit(run, cond)
 
