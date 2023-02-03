@@ -61,7 +61,7 @@ class RulDataModule(pl.LightningDataModule):
         self,
         reader: AbstractReader,
         batch_size: int,
-        feature_extractor: Optional[Callable[[np.ndarray], np.ndarray]] = None,
+        feature_extractor: Optional[Callable] = None,
         window_size: Optional[int] = None,
     ):
         """
@@ -236,12 +236,20 @@ class RulDataModule(pl.LightningDataModule):
     def _apply_feature_extractor_per_run(
         self, features: List[np.ndarray], targets: List[np.ndarray]
     ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+        extracted = (self._extract_and_window(f, t) for f, t in zip(features, targets))
+        features, targets = zip(*extracted)
+
+        return list(features), list(targets)
+
+    def _extract_and_window(
+        self, features: np.ndarray, targets: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray]:
         if self.feature_extractor is not None:
-            features = [self.feature_extractor(f) for f in features]
+            features, targets = self.feature_extractor(features, targets)
         if self.window_size is not None:
             cutoff = self.window_size - 1
-            features = [utils.extract_windows(f, self.window_size) for f in features]
-            targets = [t[cutoff:] for t in targets]
+            features = utils.extract_windows(features, self.window_size)
+            targets = targets[cutoff:]
 
         return features, targets
 
