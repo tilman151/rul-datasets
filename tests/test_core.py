@@ -201,7 +201,7 @@ class TestRulDataModule:
             [np.zeros((8, 30, 14)) + np.arange(8)[:, None, None]],
             [np.arange(8)],
         )
-        fe = lambda x: np.mean(x, axis=1)
+        fe = lambda x, y: (np.mean(x, axis=1), y)
         dataset = core.RulDataModule(mock_loader, 16, fe, window_size=2)
         dataset.setup()
 
@@ -217,16 +217,22 @@ class TestRulDataModule:
             [np.zeros((8, 30, 14)) + np.arange(8)[:, None, None]],
             [np.arange(8)],
         )
-        fe = lambda x: np.tile(x, (1, 2, 1))  # repeats window two times
+        fe = lambda x, y: (
+            np.repeat(x, 2, axis=0),
+            np.repeat(y, 2),
+        )  # repeats window two times
         dataset = core.RulDataModule(mock_loader, 16, fe, window_size=None)
         dataset.setup()
 
         dev_data = dataset.to_dataset("dev")
-        assert len(dev_data) == 8
-        for i, (feat, targ) in enumerate(dev_data):
-            assert feat.shape == torch.Size([14, 60])
-            assert torch.dist(feat[:, :30], feat[:, 30:]) == 0.0  # fe applied correctly
-            assert targ == i
+        assert len(dev_data) == 16
+        for i in range(0, len(dev_data), 2):
+            f0, t0 = dev_data[i]
+            f1, t1 = dev_data[i + 1]
+            assert f0.shape == torch.Size([14, 30])
+            assert torch.dist(f0, f1) == 0  # each window is repeated twice
+            assert t0 == i // 2  # both windows share a label
+            assert t1 == i // 2
 
 
 class DummyRul(reader.AbstractReader):
