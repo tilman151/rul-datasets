@@ -139,6 +139,27 @@ reader containing all other runs by using the `get_complement` function:
 The effects of `percent_broken` and `percent_fail_runs` are summarized under the term
 **truncation** as they effectively truncate the dataset in two dimensions.
 
+The readers for the FEMTO and XJTU-SY datasets have two additional constructor
+arguments. The `first_time_to_predict` lets you set an individual maximum RUL value
+per run in the dataset. As both are bearing datasets, the first-time-to-predict is
+defined as the time step where the degradation of the bearing is first noticeable.
+The RUL value before this time step is assumed to be constant. Setting `norm_rul`
+scales the RUL between [0, 1] per run, as it is best practice when using
+first-time-to-predict.
+
+```pycon
+>>> fttp = [10, 20, 30, 40, 50]
+>>> fd1 = rul_datasets.reader.XjtuSyReader(
+...     fd=1, first_time_to_predict=fttp, norm_rul=True
+... )
+>>> fd1.prepare_data()
+>>> features, labels = fd1.load_split("dev")
+>>> labels[0][:15]
+array([1.        , 1.        , 1.        , 1.        , 1.        ,
+       1.        , 1.        , 1.        , 1.        , 1.        ,
+       1.        , 0.99115044, 0.98230088, 0.97345133, 0.96460177])
+```
+
 Readers can be used as is if you just want access to the dataset. If you plan to use
 them with PyTorch or PyTorch Lightning, it is recommended to combine them with a
 [RulDataModule][rul_datasets.core.RulDataModule]:

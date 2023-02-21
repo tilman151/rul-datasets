@@ -54,6 +54,16 @@ class FemtoReader(AbstractReader):
         >>> features, labels = fd1.load_split("dev")
         >>> features[0].shape
         (2463, 2560, 2)
+
+        Set first-time-to-predict:
+        >>> import rul_datasets
+        >>> fttp = [10, 20, 30, 40, 50]
+        >>> fd1 = rul_datasets.reader.FemtoReader(fd=1, first_time_to_predict=fttp)
+        >>> fd1.prepare_data()
+        >>> features, labels = fd1.load_split("dev")
+        >>> labels[0][:15]
+        array([2793., 2793., 2793., 2793., 2793., 2793., 2793., 2793., 2793.,
+               2793., 2793., 2792., 2791., 2790., 2789.])
     """
 
     _FEMTO_ROOT: str = os.path.join(get_data_root(), "FEMTOBearingDataSet")
@@ -68,10 +78,18 @@ class FemtoReader(AbstractReader):
         percent_fail_runs: Optional[Union[float, List[int]]] = None,
         truncate_val: bool = False,
         run_split_dist: Optional[Dict[str, List[int]]] = None,
+        first_time_to_predict: List[int] = None,
+        norm_rul: bool = False,
     ) -> None:
         """
         Create a new FEMTO reader for one of the sub-datasets. By default, the RUL
         values are not capped. The default window size is 2560.
+
+         Use `first_time_to_predict` to set an individual RUL inflection point for
+        each run. It should be a list with an integer index for each run. The index
+        is the time step after which RUL declines. Before the time step it stays
+        constant. The `norm_rul` argument can then be used to scale the RUL of each
+        run between zero and one.
 
         For more information about using readers refer to the [reader]
         [rul_datasets.reader] module page.
@@ -84,10 +102,23 @@ class FemtoReader(AbstractReader):
             percent_fail_runs: The percentage or index list of available time series.
             truncate_val: Truncate the validation data with `percent_broken`, too.
             run_split_dist: Dictionary that assigns each run idx to each split.
+            first_time_to_predict: The time step for each time series before which RUL
+                                   is constant.
+            norm_rul: Normalize RUL between zero and one.
         """
         super().__init__(
             fd, window_size, max_rul, percent_broken, percent_fail_runs, truncate_val
         )
+
+        if (first_time_to_predict is not None) and (max_rul is not None):
+            raise ValueError(
+                "FemtoReader cannot use 'first_time_to_predict' "
+                "and 'max_rul' in conjunction."
+            )
+
+        self.first_time_to_predict = first_time_to_predict
+        self.norm_rul = norm_rul
+
         self._preparator = FemtoPreparator(self.fd, self._FEMTO_ROOT, run_split_dist)
 
     @property
@@ -101,7 +132,7 @@ class FemtoReader(AbstractReader):
         dataset and each custom split for the first time.
 
         The dataset is downloaded from a custom mirror and extracted into the data
-        root directory. The whole dataset is converted com CSV files to NPY files to
+        root directory. The whole dataset is converted from CSV files to NPY files to
         speed up loading it from disk. Afterwards, a scaler is fit on the development
         features. Previously completed steps are skipped.
         """
@@ -118,9 +149,23 @@ class FemtoReader(AbstractReader):
         features = [f[:, -self.window_size :, :] for f in features]  # crop to window
         features = scaling.scale_features(features, self._preparator.load_scaler())
         if self.max_rul is not None:
-            targets = [np.clip(t, a_min=0, a_max=self.max_rul) for t in targets]
+            targets = [np.minimum(t, self.max_rul) for t in targets]
+        elif self.first_time_to_predict is not None:
+            targets = self._clip_first_time_to_predict(targets, split)
+
+        if self.norm_rul:
+            targets = [t / np.max(t) for t in targets]
 
         return features, targets
+
+    def _clip_first_time_to_predict(self, targets, split):
+        fttp = [
+            self.first_time_to_predict[i - 1]
+            for i in self._preparator.run_split_dist[split]
+        ]
+        targets = [np.minimum(t, len(t) - fttp) for t, fttp in zip(targets, fttp)]
+
+        return targets
 
     def default_window_size(self, fd: int) -> int:
         return FemtoPreparator.DEFAULT_WINDOW_SIZE

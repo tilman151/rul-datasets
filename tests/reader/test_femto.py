@@ -69,3 +69,30 @@ class TestFEMTOLoader:
                 npt.assert_equal(t, np.arange(len(t), 0, -1))  # is linear
             else:
                 assert np.max(t) <= max_rul  # capped at max_rul
+
+    def test_first_time_to_predict(self):
+        fttp = [10, 20, 30, 40, 50, 60, 70]
+        dataset = reader.FemtoReader(1, first_time_to_predict=fttp)
+        targets = (
+            dataset.load_split("dev")[1]
+            + dataset.load_split("val")[1]
+            + dataset.load_split("test")[1]
+        )
+        for target, first_time in zip(targets, fttp):
+            max_rul = len(target) - first_time
+            assert np.all(target[:first_time] == max_rul)
+
+    def test_norm_rul_with_max_rul(self):
+        dataset = reader.FemtoReader(1, max_rul=50, norm_rul=True)
+        for split in ["dev", "val", "test"]:
+            _, targets = dataset.load_split(split)
+            for target in targets:
+                assert np.max(target) == 1
+
+    def test_norm_rul_with_fttp(self):
+        fttp = [10, 20, 30, 40, 50, 60, 70]
+        dataset = reader.FemtoReader(1, first_time_to_predict=fttp, norm_rul=True)
+        for split in ["dev", "val", "test"]:
+            _, targets = dataset.load_split(split)
+            for target in targets:
+                assert np.max(target) == 1
