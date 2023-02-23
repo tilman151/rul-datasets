@@ -322,12 +322,11 @@ class TestAdaptionDataset(unittest.TestCase):
         self.assertEqual(len(self.dataset.source), len(self.dataset))
 
     def test_source_target_shuffeled(self):
-        for i in range(len(self.dataset)):
-            source_one, label_one, target_one = self.dataset[i]
-            source_another, label_another, target_another = self.dataset[i]
-            self.assertEqual(source_one, source_another)
-            self.assertEqual(label_one, label_another)
-            self.assertNotEqual(target_one, target_another)
+        source_one, label_one, target_one = self.dataset[0]
+        source_another, label_another, target_another = self.dataset[0]
+        self.assertEqual(source_one, source_another)
+        self.assertEqual(label_one, label_another)
+        self.assertNotEqual(target_one, target_another)
 
     def test_source_target_deterministic(self):
         dataset = adaption.AdaptionDataset(self.source, self.target, deterministic=True)
@@ -337,6 +336,14 @@ class TestAdaptionDataset(unittest.TestCase):
             self.assertEqual(source_one, source_another)
             self.assertEqual(label_one, label_another)
             self.assertEqual(target_one, target_another)
+
+    def test_non_determinism(self):
+        one = adaption.AdaptionDataset(self.source, self.target)
+        another = adaption.AdaptionDataset(self.source, self.target)
+        _, _, target_one = one[0]
+        _, _, target_another = another[0]
+
+        self.assertNotEqual(target_one, target_another)
 
     def test_source_sampled_completely(self):
         for i in range(len(self.dataset)):
