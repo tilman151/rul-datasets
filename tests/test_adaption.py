@@ -8,10 +8,11 @@ import torch
 from torch.utils.data import RandomSampler, TensorDataset
 
 from rul_datasets import adaption, core
+from rul_datasets.reader import DummyReader
 from tests.templates import PretrainingDataModuleTemplate
 
 
-class TestCMAPSSAdaption(unittest.TestCase):
+class TestDomainAdaptionDataModule(unittest.TestCase):
     def setUp(self):
         source_mock_runs = [np.random.randn(16, 14, 1)] * 3, [np.random.rand(16)] * 3
         self.source_loader = mock.MagicMock(name="CMAPSSLoader")
@@ -373,3 +374,61 @@ class TestAdaptionDataset:
             source, labels, *_ = dataset[i]
             assert i == source.item()
             assert i == labels.item()
+
+
+@mock.patch(
+    "rul_datasets.adaption.split_healthy",
+    return_value=(TensorDataset(torch.zeros(1)),) * 2,
+)
+@pytest.mark.parametrize(["by_max_rul", "by_steps"], [(True, None), (False, 10)])
+def test_latent_align_data_module(mock_split_healthy, by_max_rul, by_steps):
+    source = DummyReader(1)
+    target = source.get_compatible(2, percent_broken=0.8)
+    dm = adaption.LatentAlignDataModule(
+        core.RulDataModule(source, 32),
+        core.RulDataModule(target, 32),
+        split_by_max_rul=by_max_rul,
+        split_by_steps=by_steps,
+    )
+    dm.setup()
+
+    dm.train_dataloader()
+
+    mock_split_healthy.assert_has_calls(
+        [
+            mock.call(mock.ANY, mock.ANY, by_max_rul=True),
+            mock.call(mock.ANY, mock.ANY, by_max_rul, by_steps),
+        ]
+    )
+
+
+def test_latent_align_with_dummy():
+    source = DummyReader(1)
+    target = source.get_compatible(2, percent_broken=0.8)
+    dm = adaption.LatentAlignDataModule(
+        core.RulDataModule(source, 32),
+        core.RulDataModule(target, 32),
+        split_by_max_rul=True,
+    )
+    dm.setup()
+
+    for batch in dm.train_dataloader():
+        assert len(batch) == 6
+
+
+def test_split_healthy_max_rul():
+    features = [np.random.randn(10, 100, 2)]
+    targets = [np.minimum(np.arange(10)[::-1], 5)]
+
+    healthy, degraded = adaption.split_healthy(features, targets, by_max_rul=True)
+
+    assert len(healthy) == 5
+    healthy_sample = healthy[0]
+    assert len(healthy_sample) == 2  # features and labels
+    assert healthy_sample[0].shape == (2, 100)  # features are channel first
+
+    assert len(degraded) == 5
+    for i, degraded_sample in enumerate(degraded):
+        assert len(degraded_sample) == 3  # features, degradation steps, and labels
+        assert degraded_sample[0].shape == (2, 100)  # features are channel first
+        assert degraded_sample[1] == i  # degradation step is timestep since healthy

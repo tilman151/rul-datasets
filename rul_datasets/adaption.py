@@ -2,14 +2,15 @@
 
 import warnings
 from copy import deepcopy
-from typing import List, Optional, Any, Tuple, Callable
+from typing import List, Optional, Any, Tuple, Callable, Sequence
 
 import numpy as np
 import pytorch_lightning as pl
 import torch
 from torch.utils.data import DataLoader, Dataset
-from torch.utils.data.dataset import T_co
+from torch.utils.data.dataset import ConcatDataset, TensorDataset
 
+from rul_datasets import utils
 from rul_datasets.core import PairedRulDataset, RulDataModule
 
 
@@ -207,6 +208,73 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
         return paired
 
 
+class LatentAlignDataModule(DomainAdaptionDataModule):
+    def __init__(
+        self,
+        source: RulDataModule,
+        target: RulDataModule,
+        paired_val: bool = False,
+        split_by_max_rul: bool = False,
+        split_by_steps: Optional[int] = None,
+    ) -> None:
+        super().__init__(source, target, paired_val)
+
+        if not split_by_max_rul and (split_by_steps is None):
+            raise ValueError(
+                "Either 'split_by_max_rul' or 'split_by_steps' need to be set."
+            )
+
+        self.split_by_max_rul = split_by_max_rul
+        self.split_by_steps = split_by_steps
+
+    def _to_dataset(self, split: str) -> "AdaptionDataset":
+        source_healthy, source_degraded = split_healthy(
+            *self.source.reader.load_split(split), by_max_rul=True
+        )
+        target_healthy, target_degraded = split_healthy(
+            *self.target.reader.load_split(split),
+            self.split_by_max_rul,
+            self.split_by_steps,
+        )
+        healthy: Dataset = ConcatDataset([source_healthy, target_healthy])
+        dataset = AdaptionDataset(source_degraded, target_degraded, healthy)
+
+        return dataset
+
+
+def split_healthy(
+    features: List[np.ndarray],
+    targets: List[np.ndarray],
+    by_max_rul: bool = False,
+    by_steps: Optional[int] = None,
+):
+    if not by_max_rul and (by_steps is None):
+        raise ValueError("Either 'by_max_rul' or 'by_steps' need to be set.")
+
+    healthy = []
+    degraded = []
+    for feature, target in zip(features, targets):
+        # get index of last max RUL or use step
+        split_idx = [np.argmax(target[::-1]) if by_max_rul else by_steps]
+        healthy_feature, degraded_feature = np.split(feature, split_idx)  # type: ignore
+        healthy_target, degraded_target = np.split(target, split_idx)  # type: ignore
+        degradation_steps = np.arange(len(degraded_target))
+        healthy.append((healthy_feature, healthy_target))
+        degraded.append((degraded_feature, degradation_steps, degraded_target))
+
+    healthy_dataset = _to_dataset(healthy)
+    degraded_dataset = _to_dataset(degraded)
+
+    return healthy_dataset, degraded_dataset
+
+
+def _to_dataset(data: Sequence[Tuple[np.ndarray, ...]]) -> TensorDataset:
+    tensor_data = [torch.cat(h) for h in utils.to_tensor(*zip(*data))]
+    dataset = TensorDataset(*tensor_data)
+
+    return dataset
+
+
 class AdaptionDataset(Dataset):
     """
     A torch [dataset][torch.utils.data.Dataset] for unsupervised domain adaption. The
@@ -252,7 +320,7 @@ class AdaptionDataset(Dataset):
         self.labeled = labeled
         self.unlabeled = unlabeled
         self.deterministic = deterministic
-        self._unlabeled_len = [len(ul) for ul in self.unlabeled]
+        self._unlabeled_len = [len(ul) for ul in self.unlabeled]  # type: ignore
 
         if self.deterministic:
             self._rng = np.random.default_rng(seed=42)

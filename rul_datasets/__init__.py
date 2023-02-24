@@ -2,7 +2,11 @@ __version__ = "0.0.0"
 
 import warnings
 
-from .adaption import DomainAdaptionDataModule, PretrainingAdaptionDataModule
+from .adaption import (
+    DomainAdaptionDataModule,
+    PretrainingAdaptionDataModule,
+    LatentAlignDataModule,
+)
 from .baseline import BaselineDataModule, PretrainingBaselineDataModule
 from .core import RulDataModule
 from .reader import CmapssReader, FemtoReader, XjtuSyReader
