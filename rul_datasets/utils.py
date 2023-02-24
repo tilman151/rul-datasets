@@ -95,13 +95,15 @@ def download_file(url: str, save_path: str) -> None:
 
 
 def to_tensor(
-    features: List[np.ndarray], targets: List[np.ndarray]
-) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+    features: List[np.ndarray], *targets: List[np.ndarray]
+) -> Tuple[List[torch.Tensor], ...]:
     dtype = torch.float32
     tensor_feats = [feature_to_tensor(f, dtype) for f in features]
-    tensor_targets = [torch.tensor(t, dtype=dtype) for t in targets]
+    tensor_targets = [
+        [torch.tensor(t, dtype=dtype) for t in target] for target in targets
+    ]
 
-    return tensor_feats, tensor_targets
+    return tensor_feats, *tensor_targets
 
 
 def feature_to_tensor(features: np.ndarray, dtype: torch.dtype) -> torch.Tensor:

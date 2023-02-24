@@ -4,6 +4,7 @@ import random
 import numpy as np
 import numpy.testing as npt
 import pytest
+import torch
 
 from rul_datasets import utils
 
@@ -61,3 +62,20 @@ def test_extract_windows(window_size):
     for i in range(expected_num_windows):
         expected_window = inputs[i : (i + window_size)]
         npt.assert_equal(windows[i], expected_window)
+
+
+@pytest.mark.parametrize("num_targets", [0, 1, 2])
+def test_to_tensor(num_targets):
+    features = [np.random.randn(10, 100, 2)]
+    targets = [[np.arange(10)]] * num_targets
+
+    tensor_features, *tensor_targets = utils.to_tensor(features, *targets)
+
+    assert isinstance(tensor_features, list)
+    assert tensor_features[0].shape == (10, 2, 100)
+    assert tensor_features[0].dtype == torch.float32
+
+    assert len(tensor_targets) == num_targets
+    for tensor_t in tensor_targets:
+        assert isinstance(tensor_t, list)
+        assert tensor_t[0].dtype == torch.float32
