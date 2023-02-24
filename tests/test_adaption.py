@@ -65,10 +65,10 @@ class TestCMAPSSAdaption(unittest.TestCase):
     def test_train_source_target_order(self):
         train_dataloader = self.dataset.train_dataloader()
         self._assert_datasets_equal(
-            self.dataset.source.to_dataset("dev"), train_dataloader.dataset.source
+            self.dataset.source.to_dataset("dev"), train_dataloader.dataset.labeled
         )
         self._assert_datasets_equal(
-            self.dataset.target.to_dataset("dev"), train_dataloader.dataset.target
+            self.dataset.target.to_dataset("dev"), train_dataloader.dataset.unlabeled[0]
         )
 
     def test_val_source_target_order(self):
@@ -309,44 +309,67 @@ class TestPretrainingDataModuleLowData(
         self.window_size = self.target_loader.window_size
 
 
-class TestAdaptionDataset(unittest.TestCase):
-    def setUp(self):
-        self.source = TensorDataset(torch.arange(100), torch.arange(100))
-        self.target = TensorDataset(torch.arange(150), torch.arange(150))
-        self.dataset = adaption.AdaptionDataset(
-            self.source,
-            self.target,
-        )
+@pytest.fixture()
+def labeled():
+    return TensorDataset(torch.arange(100), torch.arange(100))
 
-    def test_len(self):
-        self.assertEqual(len(self.dataset.source), len(self.dataset))
 
-    def test_source_target_shuffeled(self):
-        source_one, label_one, target_one = self.dataset[0]
-        source_another, label_another, target_another = self.dataset[0]
-        self.assertEqual(source_one, source_another)
-        self.assertEqual(label_one, label_another)
-        self.assertNotEqual(target_one, target_another)
+@pytest.fixture(params=[1, 2])
+def unlabeled(request):
+    return [
+        (TensorDataset(torch.arange(i * 50), torch.arange(i * 50)))
+        for i in range(request.param, 0, -1)
+    ]
 
-    def test_source_target_deterministic(self):
-        dataset = adaption.AdaptionDataset(self.source, self.target, deterministic=True)
+
+@pytest.fixture()
+def dataset(labeled, unlabeled):
+    dataset = adaption.AdaptionDataset(labeled, *unlabeled)
+
+    return dataset
+
+
+class TestAdaptionDataset:
+    @pytest.mark.parametrize("det", [True, False])
+    def test_output_shape(self, det, labeled, unlabeled):
+        dataset = adaption.AdaptionDataset(labeled, *unlabeled, deterministic=det)
+        item = dataset[0]
+        labeled_item = labeled[0]
+        unlabeled_items = [ul[0] for ul in unlabeled]
+
+        expected_length = len(labeled_item) + sum(len(ul) - 1 for ul in unlabeled_items)
+        assert len(item) == expected_length
+
+    def test_len(self, dataset, labeled):
+        assert len(labeled) == len(dataset)
+
+    def test_source_target_shuffeled(self, dataset):
+        np.random.seed(42)
+        source_one, label_one, *target_one = dataset[0]
+        source_another, label_another, *target_another = dataset[0]
+        assert source_one == source_another
+        assert label_one == label_another
+        assert not target_one == target_another
+
+    def test_source_target_deterministic(self, labeled, unlabeled):
+        dataset = adaption.AdaptionDataset(labeled, *unlabeled, deterministic=True)
         for i in range(len(dataset)):
-            source_one, label_one, target_one = dataset[i]
-            source_another, label_another, target_another = dataset[i]
-            self.assertEqual(source_one, source_another)
-            self.assertEqual(label_one, label_another)
-            self.assertEqual(target_one, target_another)
+            source_one, label_one, *target_one = dataset[i]
+            source_another, label_another, *target_another = dataset[i]
+            assert source_one == source_another
+            assert label_one == label_another
+            assert target_one == target_another
 
-    def test_non_determinism(self):
-        one = adaption.AdaptionDataset(self.source, self.target)
-        another = adaption.AdaptionDataset(self.source, self.target)
-        _, _, target_one = one[0]
-        _, _, target_another = another[0]
+    def test_non_determinism(self, labeled, unlabeled):
+        one = adaption.AdaptionDataset(labeled, *unlabeled)
+        another = adaption.AdaptionDataset(labeled, *unlabeled)
+        _, _, *target_one = one[0]
+        _, _, *target_another = another[0]
 
-        self.assertNotEqual(target_one, target_another)
+        assert not target_one == target_another
 
-    def test_source_sampled_completely(self):
-        for i in range(len(self.dataset)):
-            source, labels, _ = self.dataset[i]
-            self.assertEqual(i, source.item())
-            self.assertEqual(i, labels.item())
+    def test_source_sampled_completely(self, dataset):
+        for i in range(len(dataset)):
+            source, labels, *_ = dataset[i]
+            assert i == source.item()
+            assert i == labels.item()

@@ -8,6 +8,7 @@ import numpy as np
 import pytorch_lightning as pl
 import torch
 from torch.utils.data import DataLoader, Dataset
+from torch.utils.data.dataset import T_co
 
 from rul_datasets.core import PairedRulDataset, RulDataModule
 
@@ -209,12 +210,15 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
 class AdaptionDataset(Dataset):
     """
     A torch [dataset][torch.utils.data.Dataset] for unsupervised domain adaption. The
-    dataset takes a source and a target [dataset][torch.utils.data.Dataset] and
-    combines them. For each label/features pair from the source dataset, a random
-    sample of features is drawn from the target data. The target datasets labels are
-    omitted. The datasets length is determined by the source dataset. This setup can
-    be used to train with common unsupervised domain adaption methods like DAN,
-    DANN or JAN.
+    dataset takes a labeled source and one or multiple unlabeled target [dataset][
+    torch.utils.data.Dataset] and combines them.
+
+    For each label/features pair from the source dataset, a random sample of features
+    is drawn from each target dataset. The datasets are supposed to provide a sample
+    as a tuple of tensors. The target datasets' labels are assumed to be the last
+    element of the tuple and are omitted. The datasets length is determined by the
+    source dataset. This setup can be used to train with common unsupervised domain
+    adaption methods like DAN, DANN or JAN.
 
     Examples:
         >>> import torch
@@ -225,53 +229,55 @@ class AdaptionDataset(Dataset):
         >>> source_features, source_label, target_features = dataset[0]
     """
 
-    _target_idx: np.ndarray
-    _get_target_idx: Callable
+    _unlabeled_idx: np.ndarray
+    _get_unlabeled_idx: Callable
 
     def __init__(
-        self, source: Dataset, target: Dataset, deterministic: bool = False
+        self, labeled: Dataset, *unlabeled: Dataset, deterministic: bool = False
     ) -> None:
         """
-        Create a new adaption data set from a source and a target domain dataset.
+        Create a new adaption data set from a labeled source and one or multiple
+        unlabeled target dataset.
 
-        By default, a new target sample is drawn when a source sample is accessed.
-        This is the recommended setting for training. To deactivate this behavior and
-        fix the pairing of source and target samples, set `deterministic` to `True`.
-        This is the recommended setting for evaluation.
+        By default, a random sample is drawn from each target dataset when a source
+        sample is accessed. This is the recommended setting for training. To
+        deactivate this behavior and fix the pairing of source and target samples,
+        set `deterministic` to `True`. This is the recommended setting for evaluation.
 
         Args:
-            source: The dataset from the source domain.
-            target: The dataset from the target domain.
+            labeled: The dataset from the labeled domain.
+            unlabeled: The dataset(s) from the unlabeled domain(s).
             deterministic: Return the same target sample for each source sample.
         """
-        self.source = source
-        self.target = target
+        self.labeled = labeled
+        self.unlabeled = unlabeled
         self.deterministic = deterministic
-        self._target_len = len(target)  # type: ignore
+        self._unlabeled_len = [len(ul) for ul in self.unlabeled]
 
         if self.deterministic:
             self._rng = np.random.default_rng(seed=42)
-            self._get_target_idx = self._get_deterministic_target_idx
-            self._target_idx = self._rng.integers(0, self._target_len, len(self))
+            size = (len(self), len(self._unlabeled_len))
+            self._unlabeled_idx = self._rng.integers(0, self._unlabeled_len, size)
+            self._get_unlabeled_idx = self._get_deterministic_unlabeled_idx
         else:
             self._rng = np.random.default_rng()
-            self._get_target_idx = self._get_random_target_idx
+            self._get_unlabeled_idx = self._get_random_unlabeled_idx
 
-    def _get_random_target_idx(self, idx: int) -> int:
-        return self._rng.integers(0, self._target_len)
+    def _get_random_unlabeled_idx(self, _: int) -> np.ndarray:
+        return self._rng.integers(0, self._unlabeled_len)
 
-    def _get_deterministic_target_idx(self, idx: int) -> int:
-        return self._target_idx[idx]
+    def _get_deterministic_unlabeled_idx(self, idx: int) -> np.ndarray:
+        return self._unlabeled_idx[idx]
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        target_idx = self._get_target_idx(idx)
-        source, source_label = self.source[idx]
-        target, _ = self.target[target_idx]
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, ...]:
+        item = self.labeled[idx]
+        for unlabeled, ul_idx in zip(self.unlabeled, self._get_unlabeled_idx(idx)):
+            item += unlabeled[ul_idx][:-1]  # drop label tensor in last position
 
-        return source, source_label, target
+        return item
 
     def __len__(self) -> int:
-        return len(self.source)  # type: ignore
+        return len(self.labeled)  # type: ignore
 
 
 class PretrainingAdaptionDataModule(pl.LightningDataModule):
