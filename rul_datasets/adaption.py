@@ -225,7 +225,7 @@ class AdaptionDataset(Dataset):
         >>> source_features, source_label, target_features = dataset[0]
     """
 
-    _target_idx: List[int]
+    _target_idx: np.ndarray
     _get_target_idx: Callable
 
     def __init__(
@@ -249,13 +249,12 @@ class AdaptionDataset(Dataset):
         self.deterministic = deterministic
         self._target_len = len(target)  # type: ignore
 
-        self._rng = np.random.default_rng(seed=42)
         if self.deterministic:
+            self._rng = np.random.default_rng(seed=42)
             self._get_target_idx = self._get_deterministic_target_idx
-            self._target_idx = [
-                self._get_random_target_idx(_) for _ in range(len(self))
-            ]
+            self._target_idx = self._rng.integers(0, self._target_len, len(self))
         else:
+            self._rng = np.random.default_rng()
             self._get_target_idx = self._get_random_target_idx
 
     def _get_random_target_idx(self, idx: int) -> int:

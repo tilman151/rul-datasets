@@ -97,7 +97,8 @@ class TestOperationConditionAwareScaler:
 
 @pytest.mark.parametrize("feature_shape", [(1000, 5), (1000, 2, 5)])
 def test_fit_scaler(feature_shape: Tuple[int]):
-    features = [np.random.randn(*feature_shape) * 2 + 1 for _ in range(10)]
+    rng = np.random.default_rng(seed=42)
+    features = [rng.standard_normal(feature_shape) * 2 + 1 for _ in range(10)]
     scaler = scaling.fit_scaler(features)
 
     npt.assert_almost_equal(scaler.mean_, 1.0, decimal=1)
