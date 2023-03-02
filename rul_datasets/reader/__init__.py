@@ -46,7 +46,7 @@ The features are a list of [numpy arrays][numpy.ndarray] where each array has a 
 (163, 30, 14)
 ```
 
-The targets are a list of [numpy arrays][numpy.ndarrays], too, where each array has a
+The targets are a list of [numpy arrays][numpy.ndarray], too, where each array has a
 shape of `[num_windows]`:
 
 ```pycon

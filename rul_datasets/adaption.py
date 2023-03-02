@@ -21,7 +21,7 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
     The training data of both domains is wrapped in a [AdaptionDataset]
     [rul_datasets.adaption.AdaptionDataset] which provides a random sample of the
     target domain with each sample of the source domain. It provides the validation and
-    test splits of both domains, and a [paired dataset]
+    test splits of both domains, and optionally a [paired dataset]
     [rul_datasets.core.PairedRulDataset] for both.
 
     Examples:
@@ -32,8 +32,8 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
         >>> target = rul_datasets.RulDataModule(fd2, 32)
         >>> dm = rul_datasets.DomainAdaptionDataModule(source, target)
         >>> train_1_2 = dm.train_dataloader()
-        >>> val_1, val_2, paired_val_1_2 = dm.val_dataloader()
-        >>> test_1, test_2, paired_test_1_2 = dm.test_dataloader()
+        >>> val_1, val_2 = dm.val_dataloader()
+        >>> test_1, test_2 = dm.test_dataloader()
     """
 
     def __init__(
@@ -209,6 +209,31 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
 
 
 class LatentAlignDataModule(DomainAdaptionDataModule):
+    """
+    A higher-order [data module][pytorch_lightning.core.LightningDataModule] based on
+    [DomainAdaptionDataModule][rul_datasets.adaption.DomainAdaptionDataModule].
+
+    It is specifically made to work with the latent space alignment approach by Zhang
+    et al. The training data of both domains is wrapped in a [AdaptionDataset]
+    [rul_datasets.adaption.AdaptionDataset] which splits the data into healthy and
+    degrading. For each sample of degrading source data, a random sample of degrading
+    target data and healthy sample of either source or target data is drawn. The
+    number of steps in degradation are supplied for each degrading sample, as well.
+    The data module also provides the validation and test splits of both domains, and
+    optionally a [paired dataset][rul_datasets.core.PairedRulDataset] for both.
+
+    Examples:
+        >>> import rul_datasets
+        >>> fd1 = rul_datasets.CmapssReader(fd=1, window_size=20)
+        >>> fd2 = rul_datasets.CmapssReader(fd=2, percent_broken=0.8)
+        >>> source = rul_datasets.RulDataModule(fd1, 32)
+        >>> target = rul_datasets.RulDataModule(fd2, 32)
+        >>> dm = rul_datasets.LatentAlignDataModule(source, target)
+        >>> train_1_2 = dm.train_dataloader()
+        >>> val_1, val_2 = dm.val_dataloader()
+        >>> test_1, test_2 = dm.test_dataloader()
+    """
+
     def __init__(
         self,
         source: RulDataModule,
@@ -217,6 +242,28 @@ class LatentAlignDataModule(DomainAdaptionDataModule):
         split_by_max_rul: bool = False,
         split_by_steps: Optional[int] = None,
     ) -> None:
+        """
+        Create a new latent align data module from a source and target
+        [RulDataModule][rul_datasets.RulDataModule]. The source domain is considered
+        labeled and the target domain unlabeled.
+
+        The source and target data modules are checked for compatability (see
+        [RulDataModule][rul_datasets.core.RulDataModule.check_compatibility]). These
+        checks include that the `fd` differs between them, as they come from the same
+        domain otherwise.
+
+        The healthy and degrading data can be split by either maximum RUL value or
+        the number of time steps. See [split_healthy]
+        [rul_datasets.adaption.split_healthy] for more information.
+
+        Args:
+            source: The data module of the labeled source domain.
+            target: The data module of the unlabeled target domain.
+            paired_val: Whether to include paired data in validation.
+            split_by_max_rul: Whether to split healthy and degrading by max RUL value.
+            split_by_steps: Split the healthy and degrading data after this number of
+                            time steps.
+        """
         super().__init__(source, target, paired_val)
 
         if not split_by_max_rul and (split_by_steps is None):
@@ -247,7 +294,28 @@ def split_healthy(
     targets: List[np.ndarray],
     by_max_rul: bool = False,
     by_steps: Optional[int] = None,
-):
+) -> Tuple[TensorDataset, TensorDataset]:
+    """
+    Split the feature and target time series into healthy and degrading parts and
+    return a dataset of each.
+
+    If `by_max_rul` is set to `True` the time steps with the maximum RUL value in
+    each time series is considered healthy. This option is intended for labeled data
+    with piece-wise linear RUL functions. If `by_steps` is set to an integer,
+    the first `by_steps` time steps of each series are considered healthy. This
+    option is intended for unlabeled data or data with a linear RUL function.
+
+    One option has to be set and both are mutually exclusive.
+
+    Args:
+        features: List of feature time series.
+        targets: List of target time series.
+        by_max_rul: Whether to split healthy and degrading data by max RUL value.
+        by_steps: Split healthy and degrading data after this number of time steps.
+    Returns:
+        healthy: Dataset of healthy data.
+        degrading: Dataset of degrading data.
+    """
     if not by_max_rul and (by_steps is None):
         raise ValueError("Either 'by_max_rul' or 'by_steps' need to be set.")
 
@@ -278,8 +346,8 @@ def _to_dataset(data: Sequence[Tuple[np.ndarray, ...]]) -> TensorDataset:
 class AdaptionDataset(Dataset):
     """
     A torch [dataset][torch.utils.data.Dataset] for unsupervised domain adaption. The
-    dataset takes a labeled source and one or multiple unlabeled target [dataset][
-    torch.utils.data.Dataset] and combines them.
+    dataset takes a labeled source and one or multiple unlabeled target [dataset]
+    [torch.utils.data.Dataset] and combines them.
 
     For each label/features pair from the source dataset, a random sample of features
     is drawn from each target dataset. The datasets are supposed to provide a sample
@@ -314,7 +382,7 @@ class AdaptionDataset(Dataset):
 
         Args:
             labeled: The dataset from the labeled domain.
-            unlabeled: The dataset(s) from the unlabeled domain(s).
+            *unlabeled: The dataset(s) from the unlabeled domain(s).
             deterministic: Return the same target sample for each source sample.
         """
         self.labeled = labeled
