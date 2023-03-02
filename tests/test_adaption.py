@@ -8,10 +8,11 @@ import torch
 from torch.utils.data import RandomSampler, TensorDataset
 
 from rul_datasets import adaption, core
+from rul_datasets.reader import DummyReader
 from tests.templates import PretrainingDataModuleTemplate
 
 
-class TestCMAPSSAdaption(unittest.TestCase):
+class TestDomainAdaptionDataModule(unittest.TestCase):
     def setUp(self):
         source_mock_runs = [np.random.randn(16, 14, 1)] * 3, [np.random.rand(16)] * 3
         self.source_loader = mock.MagicMock(name="CMAPSSLoader")
@@ -65,10 +66,10 @@ class TestCMAPSSAdaption(unittest.TestCase):
     def test_train_source_target_order(self):
         train_dataloader = self.dataset.train_dataloader()
         self._assert_datasets_equal(
-            self.dataset.source.to_dataset("dev"), train_dataloader.dataset.source
+            self.dataset.source.to_dataset("dev"), train_dataloader.dataset.labeled
         )
         self._assert_datasets_equal(
-            self.dataset.target.to_dataset("dev"), train_dataloader.dataset.target
+            self.dataset.target.to_dataset("dev"), train_dataloader.dataset.unlabeled[0]
         )
 
     def test_val_source_target_order(self):
@@ -309,44 +310,125 @@ class TestPretrainingDataModuleLowData(
         self.window_size = self.target_loader.window_size
 
 
-class TestAdaptionDataset(unittest.TestCase):
-    def setUp(self):
-        self.source = TensorDataset(torch.arange(100), torch.arange(100))
-        self.target = TensorDataset(torch.arange(150), torch.arange(150))
-        self.dataset = adaption.AdaptionDataset(
-            self.source,
-            self.target,
-        )
+@pytest.fixture()
+def labeled():
+    return TensorDataset(torch.arange(100), torch.arange(100))
 
-    def test_len(self):
-        self.assertEqual(len(self.dataset.source), len(self.dataset))
 
-    def test_source_target_shuffeled(self):
-        source_one, label_one, target_one = self.dataset[0]
-        source_another, label_another, target_another = self.dataset[0]
-        self.assertEqual(source_one, source_another)
-        self.assertEqual(label_one, label_another)
-        self.assertNotEqual(target_one, target_another)
+@pytest.fixture(params=[1, 2])
+def unlabeled(request):
+    return [
+        (TensorDataset(torch.arange(i * 50), torch.arange(i * 50)))
+        for i in range(request.param, 0, -1)
+    ]
 
-    def test_source_target_deterministic(self):
-        dataset = adaption.AdaptionDataset(self.source, self.target, deterministic=True)
+
+@pytest.fixture()
+def dataset(labeled, unlabeled):
+    dataset = adaption.AdaptionDataset(labeled, *unlabeled)
+
+    return dataset
+
+
+class TestAdaptionDataset:
+    @pytest.mark.parametrize("det", [True, False])
+    def test_output_shape(self, det, labeled, unlabeled):
+        dataset = adaption.AdaptionDataset(labeled, *unlabeled, deterministic=det)
+        item = dataset[0]
+        labeled_item = labeled[0]
+        unlabeled_items = [ul[0] for ul in unlabeled]
+
+        expected_length = len(labeled_item) + sum(len(ul) - 1 for ul in unlabeled_items)
+        assert len(item) == expected_length
+
+    def test_len(self, dataset, labeled):
+        assert len(labeled) == len(dataset)
+
+    def test_source_target_shuffeled(self, dataset):
+        np.random.seed(42)
+        source_one, label_one, *target_one = dataset[0]
+        source_another, label_another, *target_another = dataset[0]
+        assert source_one == source_another
+        assert label_one == label_another
+        assert not target_one == target_another
+
+    def test_source_target_deterministic(self, labeled, unlabeled):
+        dataset = adaption.AdaptionDataset(labeled, *unlabeled, deterministic=True)
         for i in range(len(dataset)):
-            source_one, label_one, target_one = dataset[i]
-            source_another, label_another, target_another = dataset[i]
-            self.assertEqual(source_one, source_another)
-            self.assertEqual(label_one, label_another)
-            self.assertEqual(target_one, target_another)
+            source_one, label_one, *target_one = dataset[i]
+            source_another, label_another, *target_another = dataset[i]
+            assert source_one == source_another
+            assert label_one == label_another
+            assert target_one == target_another
 
-    def test_non_determinism(self):
-        one = adaption.AdaptionDataset(self.source, self.target)
-        another = adaption.AdaptionDataset(self.source, self.target)
-        _, _, target_one = one[0]
-        _, _, target_another = another[0]
+    def test_non_determinism(self, labeled, unlabeled):
+        one = adaption.AdaptionDataset(labeled, *unlabeled)
+        another = adaption.AdaptionDataset(labeled, *unlabeled)
+        _, _, *target_one = one[0]
+        _, _, *target_another = another[0]
 
-        self.assertNotEqual(target_one, target_another)
+        assert not target_one == target_another
 
-    def test_source_sampled_completely(self):
-        for i in range(len(self.dataset)):
-            source, labels, _ = self.dataset[i]
-            self.assertEqual(i, source.item())
-            self.assertEqual(i, labels.item())
+    def test_source_sampled_completely(self, dataset):
+        for i in range(len(dataset)):
+            source, labels, *_ = dataset[i]
+            assert i == source.item()
+            assert i == labels.item()
+
+
+@mock.patch(
+    "rul_datasets.adaption.split_healthy",
+    return_value=(TensorDataset(torch.zeros(1)),) * 2,
+)
+@pytest.mark.parametrize(["by_max_rul", "by_steps"], [(True, None), (False, 10)])
+def test_latent_align_data_module(mock_split_healthy, by_max_rul, by_steps):
+    source = DummyReader(1)
+    target = source.get_compatible(2, percent_broken=0.8)
+    dm = adaption.LatentAlignDataModule(
+        core.RulDataModule(source, 32),
+        core.RulDataModule(target, 32),
+        split_by_max_rul=by_max_rul,
+        split_by_steps=by_steps,
+    )
+    dm.setup()
+
+    dm.train_dataloader()
+
+    mock_split_healthy.assert_has_calls(
+        [
+            mock.call(mock.ANY, mock.ANY, by_max_rul=True),
+            mock.call(mock.ANY, mock.ANY, by_max_rul, by_steps),
+        ]
+    )
+
+
+def test_latent_align_with_dummy():
+    source = DummyReader(1)
+    target = source.get_compatible(2, percent_broken=0.8)
+    dm = adaption.LatentAlignDataModule(
+        core.RulDataModule(source, 32),
+        core.RulDataModule(target, 32),
+        split_by_max_rul=True,
+    )
+    dm.setup()
+
+    for batch in dm.train_dataloader():
+        assert len(batch) == 6
+
+
+def test_split_healthy_max_rul():
+    features = [np.random.randn(10, 100, 2)]
+    targets = [np.minimum(np.arange(10)[::-1], 5)]
+
+    healthy, degraded = adaption.split_healthy(features, targets, by_max_rul=True)
+
+    assert len(healthy) == 5
+    healthy_sample = healthy[0]
+    assert len(healthy_sample) == 2  # features and labels
+    assert healthy_sample[0].shape == (2, 100)  # features are channel first
+
+    assert len(degraded) == 5
+    for i, degraded_sample in enumerate(degraded):
+        assert len(degraded_sample) == 3  # features, degradation steps, and labels
+        assert degraded_sample[0].shape == (2, 100)  # features are channel first
+        assert degraded_sample[1] == i  # degradation step is timestep since healthy
