@@ -102,14 +102,14 @@ class TestDomainAdaptionDataModule(unittest.TestCase):
             self.assertEqual(0, torch.dist(baseline, inner))
 
     @mock.patch(
-        "rul_datasets.adaption.DomainAdaptionDataModule._to_dataset",
+        "rul_datasets.adaption.DomainAdaptionDataModule._get_training_dataset",
         return_value=TensorDataset(torch.zeros(1)),
     )
-    def test_train_dataloader(self, mock_to_dataset):
+    def test_train_dataloader(self, mock_get_training_dataset):
         dataloader = self.dataset.train_dataloader()
 
-        mock_to_dataset.assert_called_once_with("dev")
-        self.assertIs(mock_to_dataset.return_value, dataloader.dataset)
+        mock_get_training_dataset.assert_called_once_with()
+        self.assertIs(mock_get_training_dataset.return_value, dataloader.dataset)
         self.assertEqual(16, dataloader.batch_size)
         self.assertIsInstance(dataloader.sampler, RandomSampler)
         self.assertTrue(dataloader.pin_memory)

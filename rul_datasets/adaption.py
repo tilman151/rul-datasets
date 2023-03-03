@@ -135,7 +135,7 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
             The training data loader
         """
         return DataLoader(
-            self._to_dataset("dev"),
+            self._get_training_dataset(),
             batch_size=self.batch_size,
             shuffle=True,
             pin_memory=True,
@@ -189,9 +189,9 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
             self.target.test_dataloader(*args, **kwargs),
         ]
 
-    def _to_dataset(self, split: str) -> "AdaptionDataset":
-        source = self.source.to_dataset(split)
-        target = self.target.to_dataset(split)
+    def _get_training_dataset(self) -> "AdaptionDataset":
+        source = self.source.to_dataset("dev")
+        target = self.target.to_dataset("dev")
         dataset = AdaptionDataset(source, target)
 
         return dataset
@@ -274,12 +274,12 @@ class LatentAlignDataModule(DomainAdaptionDataModule):
         self.split_by_max_rul = split_by_max_rul
         self.split_by_steps = split_by_steps
 
-    def _to_dataset(self, split: str) -> "AdaptionDataset":
+    def _get_training_dataset(self) -> "AdaptionDataset":
         source_healthy, source_degraded = split_healthy(
-            *self.source.reader.load_split(split), by_max_rul=True
+            *self.source.reader.load_split("dev"), by_max_rul=True
         )
         target_healthy, target_degraded = split_healthy(
-            *self.target.reader.load_split(split),
+            *self.target.reader.load_split("dev"),
             self.split_by_max_rul,
             self.split_by_steps,
         )
