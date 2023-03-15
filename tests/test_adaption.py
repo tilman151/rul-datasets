@@ -73,16 +73,16 @@ class TestDomainAdaptionDataModule(unittest.TestCase):
     def test_inductive(self):
         self.dataset.inductive = False
         self.dataset.train_dataloader()
-        self.dataset.target.to_dataset.assert_called_with("dev")
+        self.dataset.target.to_dataset.assert_called_with("dev", alias="dev")
 
         self.dataset.inductive = True
         self.dataset.train_dataloader()
-        self.dataset.target.to_dataset.assert_called_with("test")
+        self.dataset.target.to_dataset.assert_called_with("test", alias="dev")
 
     def test_train_source_target_order(self):
         train_dataloader = self.dataset.train_dataloader()
         self.source_data.to_dataset.assert_called_once_with("dev")
-        self.target_data.to_dataset.assert_called_once_with("dev")
+        self.target_data.to_dataset.assert_called_once_with("dev", alias="dev")
         self.assertIs(
             self.dataset.source.to_dataset.return_value,
             train_dataloader.dataset.labeled,
@@ -433,7 +433,7 @@ def test_latent_align_data_module_inductive(_, inductive, exp_split):
     dm.train_dataloader()
 
     source.reader.load_split.assert_called_once_with("dev")
-    target.reader.load_split.assert_called_once_with(exp_split)
+    target.reader.load_split.assert_called_once_with(exp_split, alias="dev")
 
 
 def test_latent_align_with_dummy():

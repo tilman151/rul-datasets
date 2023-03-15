@@ -65,7 +65,7 @@ class TestRulDataModule:
         dataset.setup()
 
         mock_loader.load_split.assert_has_calls(
-            [mock.call("dev"), mock.call("val"), mock.call("test")]
+            [mock.call("dev", None), mock.call("val", None), mock.call("test", None)]
         )
         mock_runs = tuple(torch.tensor(np.concatenate(r)) for r in mock_runs)
         assert dataset._data == {"dev": mock_runs, "val": mock_runs, "test": mock_runs}

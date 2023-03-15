@@ -32,7 +32,7 @@ class AbstractReader(metaclass=abc.ABCMeta):
         ...     def default_window_size(self, fd):
         ...         return 30
         ...
-        ...     def load_complete_split(self, split):
+        ...     def load_complete_split(self, split, alias):
         ...         features = [np.random.randn(100, 2, 30) for _ in range(10)]
         ...         targets = [np.arange(100, 0, -1) for _ in range(10)]
         ...
@@ -141,12 +141,18 @@ class AbstractReader(metaclass=abc.ABCMeta):
         features should be scaled as desired. The targets should be capped by
         `max_rul`.
 
+        By setting `alias`, it should be possible to load a split aliased as another
+        split, e.g. load the test split and treat it as the dev split. The data of
+        `split` should be loaded but all pre-processing steps of `alias` should be
+        carried out.
+
         This function is used internally in [load_split]
         [rul_datasets.reader.abstract.AbstractReader.load_split] which takes care of
-        truncation and conversion to tensors.
+        truncation.
 
         Args:
             split: The name of the split to load.
+            alias: The split as which the loaded data should be treated.
         Returns:
             features: The complete, scaled features of the desired split.
             targets: The capped target values corresponding to the features.
@@ -164,13 +170,18 @@ class AbstractReader(metaclass=abc.ABCMeta):
         validation set is also truncated with `percent_broken` if `truncate_val` is
         set to `True`.
 
+        By setting `alias`, it is possible to load a split aliased as another split,
+        e.g. load the test split and treat it as the dev split. The data of `split`
+        is loaded but all pre-processing steps of `alias` are carried out.
+
         Args:
             split: The desired split to load.
+            alias: The split as which the loaded data should be treated.
         Returns:
             features: The scaled, truncated features of the desired split.
             targets: The truncated targets of the desired split.
         """
-        alias = split if alias is None else alias
+        alias = alias or split
         features, targets = self.load_complete_split(split, alias)
         if alias == "dev":
             features, targets = truncating.truncate_runs(

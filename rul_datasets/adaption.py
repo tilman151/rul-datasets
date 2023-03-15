@@ -196,7 +196,9 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
 
     def _get_training_dataset(self) -> "AdaptionDataset":
         source = self.source.to_dataset("dev")
-        target = self.target.to_dataset("test" if self.inductive else "dev")
+        target = self.target.to_dataset(
+            "test" if self.inductive else "dev", alias="dev"
+        )
         dataset = AdaptionDataset(source, target)
 
         return dataset
@@ -285,7 +287,9 @@ class LatentAlignDataModule(DomainAdaptionDataModule):
             *self.source.reader.load_split("dev"), by_max_rul=True
         )
         target_healthy, target_degraded = split_healthy(
-            *self.target.reader.load_split("test" if self.inductive else "dev"),
+            *self.target.reader.load_split(
+                "test" if self.inductive else "dev", alias="dev"
+            ),
             self.split_by_max_rul,
             self.split_by_steps,
         )
