@@ -129,7 +129,7 @@ class AbstractReader(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def load_complete_split(
-        self, split: str
+        self, split: str, alias: str
     ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         """
         Load a complete split without truncation.
@@ -153,7 +153,9 @@ class AbstractReader(metaclass=abc.ABCMeta):
         """
         raise NotImplementedError
 
-    def load_split(self, split: str) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+    def load_split(
+        self, split: str, alias: Optional[str] = None
+    ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         """
         Load a split as tensors and apply truncation to it.
 
@@ -168,12 +170,13 @@ class AbstractReader(metaclass=abc.ABCMeta):
             features: The scaled, truncated features of the desired split.
             targets: The truncated targets of the desired split.
         """
-        features, targets = self.load_complete_split(split)
-        if split == "dev":
+        alias = split if alias is None else alias
+        features, targets = self.load_complete_split(split, alias)
+        if alias == "dev":
             features, targets = truncating.truncate_runs(
                 features, targets, self.percent_broken, self.percent_fail_runs
             )
-        elif split == "val" and self.truncate_val:
+        elif alias == "val" and self.truncate_val:
             features, targets = truncating.truncate_runs(
                 features, targets, self.percent_broken
             )

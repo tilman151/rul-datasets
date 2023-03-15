@@ -28,7 +28,7 @@ class DummyReader(reader.AbstractReader):
         pass
 
     def load_complete_split(
-        self, split: str
+        self, split: str, alias: str
     ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         return [], []
 
@@ -141,3 +141,29 @@ class TestAbstractLoader:
 
         assert this.window_size == expected_this
         assert other.window_size == expected_other
+
+    @pytest.mark.parametrize(
+        ["split", "alias", "truncate_val", "exp_truncated"],
+        [
+            ("dev", None, False, True),
+            ("dev", "dev", False, True),
+            ("val", None, False, False),
+            ("val", None, True, True),
+            ("val", "dev", False, True),
+            ("val", "test", False, False),
+            ("test", "dev", False, True),
+            ("test", None, False, False),
+        ],
+    )
+    @mock.patch("rul_datasets.reader.truncating.truncate_runs", return_value=([], []))
+    def test_alias(self, mock_truncate_runs, split, alias, truncate_val, exp_truncated):
+        this = DummyReader(1, truncate_val=truncate_val)
+        this.load_complete_split = mock.Mock(wraps=this.load_complete_split)
+
+        this.load_split(split, alias)
+
+        this.load_complete_split.assert_called_with(split, alias or split)
+        if exp_truncated:
+            mock_truncate_runs.assert_called()
+        else:
+            mock_truncate_runs.assert_not_called()

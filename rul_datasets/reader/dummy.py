@@ -103,14 +103,17 @@ class DummyReader(AbstractReader):
         pass
 
     def load_complete_split(
-        self, split: str
+        self, split: str, alias: str
     ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-        features, targets = self._generate_split(split)
+        features, targets = self._generate_split(split, alias)
         features = scaling.scale_features(features, self.scaler)
 
         return features, targets
 
-    def _generate_split(self, split: str) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+    def _generate_split(
+        self, split: str, alias: Optional[str] = None
+    ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+        alias = split if alias is None else alias
         features = []
         targets = []
         rng = np.random.default_rng(self._SPLIT_SEED[split])
@@ -121,7 +124,7 @@ class DummyReader(AbstractReader):
             t = t[: -(self.window_size - 1)]
             features.append(f)
             targets.append(t)
-        if split == "test":
+        if alias == "test":
             features, targets = self._truncate_test_split(rng, features, targets)
 
         return features, targets
