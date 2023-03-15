@@ -220,8 +220,10 @@ class RulDataModule(pl.LightningDataModule):
             "test": self._setup_split("test"),
         }
 
-    def _setup_split(self, split: str) -> Tuple[torch.Tensor, torch.Tensor]:
-        features, targets = self.reader.load_split(split)
+    def _setup_split(
+        self, split: str, alias: Optional[str] = None
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        features, targets = self.reader.load_split(split, alias)
         if features:
             features, targets = self._apply_feature_extractor_per_run(features, targets)
             tensor_features, tensor_targets = utils.to_tensor(features, targets)
@@ -329,19 +331,28 @@ class RulDataModule(pl.LightningDataModule):
             pin_memory=True,
         )
 
-    def to_dataset(self, split: str) -> TensorDataset:
+    def to_dataset(self, split: str, alias: Optional[str] = None) -> TensorDataset:
         """
         Create a dataset of a split.
 
         This convenience function creates a plain [tensor dataset]
         [torch.utils.data.TensorDataset] to use outside the `rul_datasets` library.
 
+        The data placed inside the dataset will be from the specified `split`. If
+        `alias` is set, the loaded data will be treated as if from the `alias` split.
+        For example, one could load the test data and treat them as if it was the
+        training data. This may be useful for inductive domain adaption.
+
         Args:
             split: The split to place inside the dataset.
+            alias: The split the loaded data should be treated as.
         Returns:
             A dataset containing the requested split.
         """
-        features, targets = self._data[split]
+        if (alias is None) or (split == alias):
+            features, targets = self._data[split]
+        else:
+            features, targets = self._setup_split(split, alias)
         split_dataset = TensorDataset(features, targets)
 
         return split_dataset

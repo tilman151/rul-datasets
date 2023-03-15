@@ -37,7 +37,11 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
     """
 
     def __init__(
-        self, source: RulDataModule, target: RulDataModule, paired_val: bool = False
+        self,
+        source: RulDataModule,
+        target: RulDataModule,
+        paired_val: bool = False,
+        inductive: bool = False,
     ) -> None:
         """
         Create a new domain adaption data module from a source and target
@@ -60,6 +64,7 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
         self.target = target
         self.paired_val = paired_val
         self.batch_size = source.batch_size
+        self.inductive = inductive
 
         self.target_truncated = deepcopy(self.target.reader)
         self.target_truncated.truncate_val = True
@@ -135,7 +140,7 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
             The training data loader
         """
         return DataLoader(
-            self._to_dataset("dev"),
+            self._get_training_dataset(),
             batch_size=self.batch_size,
             shuffle=True,
             pin_memory=True,
@@ -189,9 +194,11 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
             self.target.test_dataloader(*args, **kwargs),
         ]
 
-    def _to_dataset(self, split: str) -> "AdaptionDataset":
-        source = self.source.to_dataset(split)
-        target = self.target.to_dataset(split)
+    def _get_training_dataset(self) -> "AdaptionDataset":
+        source = self.source.to_dataset("dev")
+        target = self.target.to_dataset(
+            "test" if self.inductive else "dev", alias="dev"
+        )
         dataset = AdaptionDataset(source, target)
 
         return dataset
@@ -239,6 +246,7 @@ class LatentAlignDataModule(DomainAdaptionDataModule):
         source: RulDataModule,
         target: RulDataModule,
         paired_val: bool = False,
+        inductive: bool = False,
         split_by_max_rul: bool = False,
         split_by_steps: Optional[int] = None,
     ) -> None:
@@ -264,7 +272,7 @@ class LatentAlignDataModule(DomainAdaptionDataModule):
             split_by_steps: Split the healthy and degrading data after this number of
                             time steps.
         """
-        super().__init__(source, target, paired_val)
+        super().__init__(source, target, paired_val, inductive)
 
         if not split_by_max_rul and (split_by_steps is None):
             raise ValueError(
@@ -274,12 +282,14 @@ class LatentAlignDataModule(DomainAdaptionDataModule):
         self.split_by_max_rul = split_by_max_rul
         self.split_by_steps = split_by_steps
 
-    def _to_dataset(self, split: str) -> "AdaptionDataset":
+    def _get_training_dataset(self) -> "AdaptionDataset":
         source_healthy, source_degraded = split_healthy(
-            *self.source.reader.load_split(split), by_max_rul=True
+            *self.source.reader.load_split("dev"), by_max_rul=True
         )
         target_healthy, target_degraded = split_healthy(
-            *self.target.reader.load_split(split),
+            *self.target.reader.load_split(
+                "test" if self.inductive else "dev", alias="dev"
+            ),
             self.split_by_max_rul,
             self.split_by_steps,
         )

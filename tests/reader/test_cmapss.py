@@ -1,9 +1,9 @@
+from unittest import mock
+
 import numpy as np
 import numpy.testing as npt
 import pytest
-import torch
 
-import rul_datasets
 from rul_datasets import reader
 
 
@@ -93,8 +93,39 @@ class TestCMAPSSLoader:
         """Check test samples smaller than window_size are zero-padded on the left."""
         dataset = reader.CmapssReader(1, window_size=30)
         inputs = np.ones((15, 14))
+        targets = np.arange(20, 5, -1)
 
-        outputs, *_ = dataset._crop_data([inputs])
+        output_features, output_targets = dataset._crop_data([inputs], [targets])
 
-        assert np.all(outputs[0, :15] == 0.0)
-        npt.assert_equal(outputs[0, 15:], inputs)
+        assert np.all(output_features[0][0, :15] == 0.0)
+        npt.assert_equal(output_features[0][0, 15:], inputs)
+        assert output_targets[0][0] == targets[-1]
+
+    @pytest.mark.parametrize(
+        ["split", "generated"], [("dev", True), ("val", True), ("test", False)]
+    )
+    @pytest.mark.parametrize(
+        ["alias", "windowed"], [("dev", True), ("val", True), ("test", False)]
+    )
+    def test_alias(self, split, generated, alias, windowed):
+        dataset = reader.CmapssReader(1)
+        dataset._generate_targets = mock.Mock(wraps=dataset._generate_targets)
+        dataset._load_targets = mock.Mock(wraps=dataset._load_targets)
+        dataset._window_data = mock.Mock(wraps=dataset._window_data)
+        dataset._crop_data = mock.Mock(wraps=dataset._crop_data)
+
+        dataset.load_complete_split(split, alias)
+
+        if generated:
+            dataset._generate_targets.assert_called()
+            dataset._load_targets.assert_not_called()
+        else:
+            dataset._generate_targets.assert_not_called()
+            dataset._load_targets.assert_called()
+
+        if windowed:
+            dataset._window_data.assert_called()
+            dataset._crop_data.assert_not_called()
+        else:
+            dataset._window_data.assert_not_called()
+            dataset._crop_data.assert_called()

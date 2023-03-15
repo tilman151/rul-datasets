@@ -7,6 +7,7 @@ import pytest
 import torch
 from torch.utils.data import RandomSampler, TensorDataset
 
+import rul_datasets
 from rul_datasets import adaption, core
 from rul_datasets.reader import DummyReader
 from tests.templates import PretrainingDataModuleTemplate
@@ -26,7 +27,10 @@ class TestDomainAdaptionDataModule(unittest.TestCase):
             "window_size": self.source_loader.window_size,
         }
         self.source_loader.load_split.return_value = source_mock_runs
-        self.source_data = core.RulDataModule(self.source_loader, batch_size=16)
+        self.source_data = mock.MagicMock(rul_datasets.RulDataModule)
+        self.source_data.reader = self.source_loader
+        self.source_data.batch_size = 16
+        self.source_data.to_dataset.return_value = TensorDataset(torch.zeros(1))
 
         target_mock_runs = [np.random.randn(16, 14, 1)] * 2, [np.random.rand(16)] * 2
         self.target_loader = mock.MagicMock(name="CMAPSSLoader")
@@ -40,7 +44,10 @@ class TestDomainAdaptionDataModule(unittest.TestCase):
             "window_size": self.target_loader.window_size,
         }
         self.target_loader.load_split.return_value = target_mock_runs
-        self.target_data = core.RulDataModule(self.target_loader, batch_size=16)
+        self.target_data = mock.MagicMock(rul_datasets.RulDataModule)
+        self.target_data.reader = self.target_loader
+        self.target_data.batch_size = 16
+        self.target_data.to_dataset.return_value = TensorDataset(torch.zeros(1))
 
         self.dataset = adaption.DomainAdaptionDataModule(
             self.source_data, self.target_data
@@ -63,53 +70,47 @@ class TestDomainAdaptionDataModule(unittest.TestCase):
             self.target_data,
         )
 
+    def test_inductive(self):
+        self.dataset.inductive = False
+        self.dataset.train_dataloader()
+        self.dataset.target.to_dataset.assert_called_with("dev", alias="dev")
+
+        self.dataset.inductive = True
+        self.dataset.train_dataloader()
+        self.dataset.target.to_dataset.assert_called_with("test", alias="dev")
+
     def test_train_source_target_order(self):
         train_dataloader = self.dataset.train_dataloader()
-        self._assert_datasets_equal(
-            self.dataset.source.to_dataset("dev"), train_dataloader.dataset.labeled
+        self.source_data.to_dataset.assert_called_once_with("dev")
+        self.target_data.to_dataset.assert_called_once_with("dev", alias="dev")
+        self.assertIs(
+            self.dataset.source.to_dataset.return_value,
+            train_dataloader.dataset.labeled,
         )
-        self._assert_datasets_equal(
-            self.dataset.target.to_dataset("dev"), train_dataloader.dataset.unlabeled[0]
+        self.assertIs(
+            self.dataset.target.to_dataset.return_value,
+            train_dataloader.dataset.unlabeled[0],
         )
 
     def test_val_source_target_order(self):
         val_source_loader, val_target_loader = self.dataset.val_dataloader()
-        self._assert_datasets_equal(
-            val_source_loader.dataset,
-            self.dataset.source.to_dataset("val"),
-        )
-        self._assert_datasets_equal(
-            val_target_loader.dataset,
-            self.dataset.target.to_dataset("val"),
-        )
+        self.assertIs(val_source_loader, self.dataset.source.val_dataloader())
+        self.assertIs(val_target_loader, self.dataset.target.val_dataloader())
 
     def test_test_source_target_order(self):
         test_source_loader, test_target_loader = self.dataset.test_dataloader()
-        self._assert_datasets_equal(
-            test_source_loader.dataset,
-            self.dataset.source.to_dataset("test"),
-        )
-        self._assert_datasets_equal(
-            test_target_loader.dataset,
-            self.dataset.target.to_dataset("test"),
-        )
-
-    def _assert_datasets_equal(self, adaption_dataset, inner_dataset):
-        num_samples = len(adaption_dataset)
-        baseline_data = adaption_dataset[:num_samples]
-        inner_data = inner_dataset[:num_samples]
-        for baseline, inner in zip(baseline_data, inner_data):
-            self.assertEqual(0, torch.dist(baseline, inner))
+        self.assertIs(test_source_loader, self.dataset.source.test_dataloader())
+        self.assertIs(test_target_loader, self.dataset.target.test_dataloader())
 
     @mock.patch(
-        "rul_datasets.adaption.DomainAdaptionDataModule._to_dataset",
+        "rul_datasets.adaption.DomainAdaptionDataModule._get_training_dataset",
         return_value=TensorDataset(torch.zeros(1)),
     )
-    def test_train_dataloader(self, mock_to_dataset):
+    def test_train_dataloader(self, mock_get_training_dataset):
         dataloader = self.dataset.train_dataloader()
 
-        mock_to_dataset.assert_called_once_with("dev")
-        self.assertIs(mock_to_dataset.return_value, dataloader.dataset)
+        mock_get_training_dataset.assert_called_once_with()
+        self.assertIs(mock_get_training_dataset.return_value, dataloader.dataset)
         self.assertEqual(16, dataloader.batch_size)
         self.assertIsInstance(dataloader.sampler, RandomSampler)
         self.assertTrue(dataloader.pin_memory)
@@ -382,24 +383,57 @@ class TestAdaptionDataset:
 )
 @pytest.mark.parametrize(["by_max_rul", "by_steps"], [(True, None), (False, 10)])
 def test_latent_align_data_module(mock_split_healthy, by_max_rul, by_steps):
-    source = DummyReader(1)
-    target = source.get_compatible(2, percent_broken=0.8)
+    source = mock.MagicMock(core.RulDataModule)
+    source.batch_size = 32
+    source.reader.window_size = 30
+    source.reader.load_split.return_value = ([torch.zeros(1)],) * 2
+    target = mock.MagicMock(core.RulDataModule)
+    target.reader.load_split.return_value = ([torch.ones(1)],) * 2
+
     dm = adaption.LatentAlignDataModule(
-        core.RulDataModule(source, 32),
-        core.RulDataModule(target, 32),
-        split_by_max_rul=by_max_rul,
-        split_by_steps=by_steps,
+        source, target, split_by_max_rul=by_max_rul, split_by_steps=by_steps
     )
-    dm.setup()
 
     dm.train_dataloader()
 
     mock_split_healthy.assert_has_calls(
         [
-            mock.call(mock.ANY, mock.ANY, by_max_rul=True),
-            mock.call(mock.ANY, mock.ANY, by_max_rul, by_steps),
+            mock.call(
+                source.reader.load_split.return_value[0],
+                source.reader.load_split.return_value[1],
+                by_max_rul=True,
+            ),
+            mock.call(
+                target.reader.load_split.return_value[0],
+                target.reader.load_split.return_value[1],
+                by_max_rul,
+                by_steps,
+            ),
         ]
     )
+
+
+@mock.patch(
+    "rul_datasets.adaption.split_healthy",
+    return_value=(TensorDataset(torch.zeros(1)),) * 2,
+)
+@pytest.mark.parametrize(["inductive", "exp_split"], [(True, "test"), (False, "dev")])
+def test_latent_align_data_module_inductive(_, inductive, exp_split):
+    source = mock.MagicMock(core.RulDataModule)
+    source.batch_size = 32
+    source.reader.window_size = 30
+    source.reader.load_split.return_value = ([torch.zeros(1)],) * 2
+    target = mock.MagicMock(core.RulDataModule)
+    target.reader.load_split.return_value = ([torch.zeros(1)],) * 2
+
+    dm = adaption.LatentAlignDataModule(
+        source, target, inductive=inductive, split_by_max_rul=True
+    )
+
+    dm.train_dataloader()
+
+    source.reader.load_split.assert_called_once_with("dev")
+    target.reader.load_split.assert_called_once_with(exp_split, alias="dev")
 
 
 def test_latent_align_with_dummy():

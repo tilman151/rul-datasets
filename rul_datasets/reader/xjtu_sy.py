@@ -134,7 +134,7 @@ class XjtuSyReader(AbstractReader):
         self._preparator.prepare_split()
 
     def load_complete_split(
-        self, split: str
+        self, split: str, alias: str
     ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         features, targets = self._preparator.load_runs(split)
         features = [f[:, -self.window_size :, :] for f in features]  # crop to window

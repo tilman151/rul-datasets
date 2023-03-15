@@ -206,7 +206,7 @@ class CmapssReader(AbstractReader):
         return f"{split}_FD{self.fd:03d}.txt"
 
     def load_complete_split(
-        self, split: str
+        self, split: str, alias: str
     ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         file_path = self._get_feature_path(split)
         features, operation_conditions = self._load_features(file_path)
@@ -215,12 +215,17 @@ class CmapssReader(AbstractReader):
 
         if split in ["dev", "val"]:
             targets = self._generate_targets(time_steps)
-            features, targets = self._window_data(features, targets)
         elif split == "test":
-            targets = self._load_targets()
-            features = self._crop_data(features)
+            targets = self._load_targets(features)
         else:
             raise ValueError(f"Unknown split {split}.")
+
+        if alias in ["dev", "val"]:
+            features, targets = self._window_data(features, targets)
+        elif alias == "test":
+            features, targets = self._crop_data(features, targets)
+        else:
+            raise ValueError(f"Unknown alias {alias}.")
 
         return features, targets
 
@@ -281,15 +286,17 @@ class CmapssReader(AbstractReader):
 
         return targets
 
-    def _load_targets(self) -> List[np.ndarray]:
+    def _load_targets(self, features: List[np.ndarray]) -> List[np.ndarray]:
         """Load target file."""
         file_name = f"RUL_FD{self.fd:03d}.txt"
         file_path = os.path.join(self._CMAPSS_ROOT, file_name)
         raw_targets = np.loadtxt(file_path)
 
-        max_rul = self.max_rul or np.inf
-        raw_targets = np.minimum(max_rul, raw_targets)
         targets = np.split(raw_targets, len(raw_targets))
+        targets = [np.arange(len(f), 0, -1) + t - 1 for f, t in zip(features, targets)]
+
+        max_rul = self.max_rul or np.inf
+        targets = [np.minimum(max_rul, t) for t in targets]
 
         return targets
 
@@ -307,18 +314,22 @@ class CmapssReader(AbstractReader):
 
         return new_features, new_targets
 
-    def _crop_data(self, features: List[np.ndarray]) -> List[np.ndarray]:
-        """Crop length of features to specified window size."""
+    def _crop_data(
+        self, features: List[np.ndarray], targets: List[np.ndarray]
+    ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+        """Crop length of data to specified window size."""
         cropped_features = []
-        for seq in features:
+        cropped_targets = []
+        for seq, target in zip(features, targets):
             if seq.shape[0] < self.window_size:
                 pad = (self.window_size - seq.shape[0], seq.shape[1])
                 seq = np.concatenate([np.zeros(pad), seq])
             else:
                 seq = seq[-self.window_size :]
             cropped_features.append(np.expand_dims(seq, axis=0))
+            cropped_targets.append(target[-1, None])
 
-        return cropped_features
+        return cropped_features, cropped_targets
 
 
 def _download_cmapss(data_root: str) -> None:
