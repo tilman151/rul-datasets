@@ -220,6 +220,8 @@ class CmapssReader(AbstractReader):
         else:
             raise ValueError(f"Unknown split {split}.")
 
+        features, targets = self._pad_data(features, targets)
+
         if alias in ["dev", "val"]:
             features, targets = self._window_data(features, targets)
         elif alias == "test":
@@ -300,19 +302,37 @@ class CmapssReader(AbstractReader):
 
         return targets
 
+    def _pad_data(self, features, targets):
+        padded_features = []
+        padded_targets = []
+        for i, (feat, target) in enumerate(zip(features, targets)):
+            if feat.shape[0] < self.window_size:
+                warnings.warn(
+                    f"Run {i} of CMAPSS FD{self.fd:03d} is shorter than window "
+                    f"size {self.window_size} and will be zero-padded."
+                )
+                missing = self.window_size - feat.shape[0]
+                feat_pad = (missing, feat.shape[1])
+                feat = np.concatenate([np.zeros(feat_pad), feat])
+                target = np.concatenate([np.zeros(missing), target])
+            padded_features.append(feat)
+            padded_targets.append(target)
+
+        return padded_features, padded_targets
+
     def _window_data(
         self, features: List[np.ndarray], targets: List[np.ndarray]
     ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         """Window features with specified window size."""
-        new_features = []
-        new_targets = []
+        windowed_features = []
+        windowed_targets = []
         for seq, target in zip(features, targets):
             windows = utils.extract_windows(seq, self.window_size)
             target = target[self.window_size - 1 :]
-            new_features.append(windows)
-            new_targets.append(target)
+            windowed_features.append(windows)
+            windowed_targets.append(target)
 
-        return new_features, new_targets
+        return windowed_features, windowed_targets
 
     def _crop_data(
         self, features: List[np.ndarray], targets: List[np.ndarray]
@@ -321,12 +341,7 @@ class CmapssReader(AbstractReader):
         cropped_features = []
         cropped_targets = []
         for seq, target in zip(features, targets):
-            if seq.shape[0] < self.window_size:
-                pad = (self.window_size - seq.shape[0], seq.shape[1])
-                seq = np.concatenate([np.zeros(pad), seq])
-            else:
-                seq = seq[-self.window_size :]
-            cropped_features.append(np.expand_dims(seq, axis=0))
+            cropped_features.append(seq[None, -self.window_size :])
             cropped_targets.append(target[-1, None])
 
         return cropped_features, cropped_targets

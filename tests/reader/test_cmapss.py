@@ -26,6 +26,8 @@ class TestCMAPSSLoader:
 
     def _check_split(self, rul_loader, split, window_size):
         features, targets = rul_loader.load_split(split)
+        assert len(features) > 0
+        assert len(targets) == len(features)
         for run, run_target in zip(features, targets):
             self._assert_run_correct(run, run_target, window_size)
 
@@ -89,18 +91,6 @@ class TestCMAPSSLoader:
         dataset.prepare_data()
         dataset.load_split(split)
 
-    def test_crop_data_pads_correctly(self):
-        """Check test samples smaller than window_size are zero-padded on the left."""
-        dataset = reader.CmapssReader(1, window_size=30)
-        inputs = np.ones((15, 14))
-        targets = np.arange(20, 5, -1)
-
-        output_features, output_targets = dataset._crop_data([inputs], [targets])
-
-        assert np.all(output_features[0][0, :15] == 0.0)
-        npt.assert_equal(output_features[0][0, 15:], inputs)
-        assert output_targets[0][0] == targets[-1]
-
     @pytest.mark.parametrize(
         ["split", "generated"], [("dev", True), ("val", True), ("test", False)]
     )
@@ -129,3 +119,16 @@ class TestCMAPSSLoader:
         else:
             dataset._window_data.assert_not_called()
             dataset._crop_data.assert_called()
+
+    @pytest.mark.parametrize("alias", ["test", "dev"])
+    def test_window_size_bigger_than_sequence(self, alias):
+        """Runs that are too short should be zero-padded on the left and a warning
+        should be displayed."""
+        dataset = reader.CmapssReader(2, window_size=30)
+
+        with pytest.warns(UserWarning):
+            features, targets = dataset.load_split("test", alias)
+
+        # zero-padding of targets should have been removed via windowing or cropping
+        for t in targets:
+            assert not t[0] == 0
