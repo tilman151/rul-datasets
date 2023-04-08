@@ -80,6 +80,7 @@ class FemtoReader(AbstractReader):
         run_split_dist: Optional[Dict[str, List[int]]] = None,
         first_time_to_predict: List[int] = None,
         norm_rul: bool = False,
+        truncate_degraded_only: bool = False,
     ) -> None:
         """
         Create a new FEMTO reader for one of the sub-datasets. By default, the RUL
@@ -105,9 +106,17 @@ class FemtoReader(AbstractReader):
             first_time_to_predict: The time step for each time series before which RUL
                                    is constant.
             norm_rul: Normalize RUL between zero and one.
+            truncate_degraded_only: Only truncate the degraded part of the data
+                                    (< max RUL).
         """
         super().__init__(
-            fd, window_size, max_rul, percent_broken, percent_fail_runs, truncate_val
+            fd,
+            window_size,
+            max_rul,
+            percent_broken,
+            percent_fail_runs,
+            truncate_val,
+            truncate_degraded_only,
         )
 
         if (first_time_to_predict is not None) and (max_rul is not None):

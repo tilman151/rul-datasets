@@ -38,7 +38,7 @@ class TestAbstractLoader:
     def test_truncation_dev_split(self, mock_truncate_runs):
         this = DummyReader(1, 30, 125, percent_broken=0.2, percent_fail_runs=0.8)
         this.load_split("dev")
-        mock_truncate_runs.assert_called_with([], [], 0.2, 0.8)
+        mock_truncate_runs.assert_called_with([], [], 0.2, 0.8, False)
 
     @mock.patch("rul_datasets.reader.truncating.truncate_runs", return_value=([], []))
     def test_truncation_val_split(self, mock_truncate_runs):
@@ -50,7 +50,7 @@ class TestAbstractLoader:
             1, 30, 125, percent_broken=0.2, percent_fail_runs=0.8, truncate_val=True
         )
         this.load_split("val")
-        mock_truncate_runs.assert_called_with([], [], 0.2)
+        mock_truncate_runs.assert_called_with([], [], 0.2, degraded_only=False)
 
     @mock.patch("rul_datasets.reader.truncating.truncate_runs", return_value=([], []))
     def test_truncation_test_split(self, mock_truncate_runs):
