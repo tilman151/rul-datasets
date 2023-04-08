@@ -59,6 +59,7 @@ class DummyReader(AbstractReader):
         percent_broken: Optional[float] = None,
         percent_fail_runs: Optional[Union[float, List[int]]] = None,
         truncate_val: bool = False,
+        truncate_degraded_only: bool = False,
     ):
         """
         Create a new dummy reader for one of the two sub-datasets. The maximun RUL
@@ -76,6 +77,8 @@ class DummyReader(AbstractReader):
             percent_broken: The maximum relative degradation per time series.
             percent_fail_runs: The percentage or index list of available time series.
             truncate_val: Truncate the validation data with `percent_broken`, too.
+            truncate_degraded_only: Only truncate the degraded part of the data
+                                    (< max RUL).
         """
         super(DummyReader, self).__init__(
             fd,
@@ -84,6 +87,7 @@ class DummyReader(AbstractReader):
             percent_broken,
             percent_fail_runs,
             truncate_val,
+            truncate_degraded_only,
         )
 
         features, _ = self._generate_split("dev")

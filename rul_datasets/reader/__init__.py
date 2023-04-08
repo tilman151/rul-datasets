@@ -93,6 +93,20 @@ series are available:
 34.0
 ```
 
+If you have set a `max_rul` you may only want to truncate data that is considered
+degraded, i.e. with a RUL value smaller than `max_rul`. You can use the
+`truncate_degraded_only` option to do that. This way, the data where the RUL value is
+smaller or equal to `(1 - percent_broken) * max_rul` is cut off.
+
+```pycon
+>>> fd1 = CmapssReader(fd=1, percent_broken=0.8, truncate_degraded_only=True)
+>>> features, targets = fd1.load_split("dev")
+>>> features[0].shape
+(138, 30, 14])
+>>> np.min(targets[0])
+26.0
+```
+
 You may want to apply the same `percent_broken` from your training data to your
 validation data. This is sensible if you do not expect that your algorithm has access
 to labeled validation data in real-life. You can achieve this, by setting

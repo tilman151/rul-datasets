@@ -79,6 +79,8 @@ class AbstractReader(metaclass=abc.ABCMeta):
             percent_broken: The maximum relative degradation per time series.
             percent_fail_runs: The percentage or index list of available time series.
             truncate_val: Truncate the validation data with `percent_broken`, too.
+            truncate_degraded_only: Only truncate the degraded part of the data
+                                    (< max RUL).
         """
         self.fd = fd
         self.window_size = window_size or self.default_window_size(self.fd)

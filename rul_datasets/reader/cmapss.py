@@ -84,6 +84,7 @@ class CmapssReader(AbstractReader):
         feature_select: List[int] = None,
         truncate_val: bool = False,
         operation_condition_aware_scaling: bool = False,
+        truncate_degraded_only: bool = False,
     ) -> None:
         """
         Create a new CMAPSS reader for one of the sub-datasets. The maximum RUL value
@@ -109,9 +110,17 @@ class CmapssReader(AbstractReader):
             truncate_val: Truncate the validation data with `percent_broken`, too.
             operation_condition_aware_scaling: Scale data separatly for each
                                                operation condition.
+            truncate_degraded_only: Only truncate the degraded part of the data
+                                    (< max RUL).
         """
         super().__init__(
-            fd, window_size, max_rul, percent_broken, percent_fail_runs, truncate_val
+            fd,
+            window_size,
+            max_rul,
+            percent_broken,
+            percent_fail_runs,
+            truncate_val,
+            truncate_degraded_only,
         )
         # Select features according to https://doi.org/10.1016/j.ress.2017.11.021
         if feature_select is None:
