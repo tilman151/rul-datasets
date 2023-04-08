@@ -10,6 +10,7 @@ def truncate_runs(
     targets: List[np.ndarray],
     percent_broken: float = None,
     included_runs: Union[float, Iterable[int]] = None,
+    degraded_only: bool = False,
 ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
     """
     Truncate RUL data according to `percent_broken` and `included_runs`.
@@ -41,7 +42,9 @@ def truncate_runs(
         features, targets = _truncate_included(features, targets, included_runs)
     # Truncate the number of samples per run, starting at failure
     if percent_broken is not None and percent_broken < 1:
-        features, targets = _truncate_broken(features, targets, percent_broken)
+        features, targets = _truncate_broken(
+            features, targets, percent_broken, degraded_only
+        )
 
     return features, targets
 
@@ -64,14 +67,22 @@ def _truncate_included(
 
 
 def _truncate_broken(
-    features: List[np.ndarray], targets: List[np.ndarray], percent_broken: float
+    features: List[np.ndarray],
+    targets: List[np.ndarray],
+    percent_broken: float,
+    degraded_only: bool,
 ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
     features = features.copy()  # avoid mutating original list
     targets = targets.copy()  # avoid mutating original list
-    for i, run in enumerate(features):
-        num_cycles = int(percent_broken * len(run))
+    for i, (run, target) in enumerate(zip(features, targets)):
+        if degraded_only:
+            num_healthy = np.sum(target == np.max(target))
+            num_degraded = len(run) - num_healthy
+            num_cycles = num_healthy + int(percent_broken * num_degraded)
+        else:
+            num_cycles = int(percent_broken * len(run))
         features[i] = run[:num_cycles]
-        targets[i] = targets[i][:num_cycles]
+        targets[i] = target[:num_cycles]
 
     return features, targets
 

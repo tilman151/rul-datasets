@@ -7,8 +7,11 @@ from rul_datasets.reader import truncating
 
 @pytest.fixture
 def rul_data():
-    targets = [np.arange(np.random.randint(10, 50), 0, -1) for _ in range(10)]
-    features = [np.random.randn(t.shape[0], 10, 2) for t in targets]
+    rng = np.random.default_rng(42)
+    targets = [
+        np.minimum(25, np.arange(rng.integers(10, 50), 0, -1)) for _ in range(10)
+    ]
+    features = [rng.standard_normal((t.shape[0], 10, 2)) for t in targets]
 
     return features, targets
 
@@ -56,3 +59,14 @@ def _check_truncation_broken(runs, trunc_runs, percent_broken):
         expected_run_length = int(percent_broken * len(run))
         assert len(trunc_run) == expected_run_length
         npt.assert_equal(trunc_run, run[:expected_run_length])
+
+
+def test_percent_broken_degraded_only():
+    features = [np.random.randn(100, 10, 2)]
+    targets = [np.minimum(50, np.arange(100, 0, -1))]
+    trunc_features, trunc_targets = truncating.truncate_runs(
+        features, targets, percent_broken=0.5, degraded_only=True
+    )
+
+    assert len(trunc_features[0]) == 75
+    assert len(trunc_targets[0]) == 75
