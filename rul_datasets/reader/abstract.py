@@ -18,7 +18,7 @@ class AbstractReader(metaclass=abc.ABCMeta):
     data modules in this library use. Just inherit from this class implement the
     abstract functions, and you should be good to go.
 
-    Please consider contributing your work afterwards to help the community.
+    Please consider contributing your work afterward to help the community.
 
     Examples:
         >>> import rul_datasets
@@ -50,6 +50,7 @@ class AbstractReader(metaclass=abc.ABCMeta):
     percent_broken: Optional[float]
     percent_fail_runs: Optional[Union[float, List[int], None]]
     truncate_val: bool
+    truncate_degraded_only: bool
 
     _NUM_TRAIN_RUNS: Dict[int, int]
 
@@ -61,6 +62,7 @@ class AbstractReader(metaclass=abc.ABCMeta):
         percent_broken: Optional[float] = None,
         percent_fail_runs: Optional[Union[float, List[int]]] = None,
         truncate_val: bool = False,
+        truncate_degraded_only: bool = False,
     ) -> None:
         """
         Create a new reader. If your reader needs additional input arguments,
@@ -84,6 +86,7 @@ class AbstractReader(metaclass=abc.ABCMeta):
         self.truncate_val = truncate_val
         self.percent_broken = percent_broken
         self.percent_fail_runs = percent_fail_runs
+        self.truncate_degraded_only = truncate_degraded_only
 
     @property
     def hparams(self) -> Dict[str, Any]:
@@ -97,6 +100,7 @@ class AbstractReader(metaclass=abc.ABCMeta):
             "percent_broken": self.percent_broken,
             "percent_fail_runs": self.percent_fail_runs,
             "truncate_val": self.truncate_val,
+            "truncate_degraded_only": self.truncate_degraded_only,
         }
 
     @property
@@ -185,11 +189,18 @@ class AbstractReader(metaclass=abc.ABCMeta):
         features, targets = self.load_complete_split(split, alias)
         if alias == "dev":
             features, targets = truncating.truncate_runs(
-                features, targets, self.percent_broken, self.percent_fail_runs
+                features,
+                targets,
+                self.percent_broken,
+                self.percent_fail_runs,
+                self.truncate_degraded_only,
             )
         elif alias == "val" and self.truncate_val:
             features, targets = truncating.truncate_runs(
-                features, targets, self.percent_broken
+                features,
+                targets,
+                self.percent_broken,
+                degraded_only=self.truncate_degraded_only,
             )
 
         return features, targets
