@@ -284,12 +284,10 @@ class LatentAlignDataModule(DomainAdaptionDataModule):
 
     def _get_training_dataset(self) -> "AdaptionDataset":
         source_healthy, source_degraded = split_healthy(
-            *self.source.reader.load_split("dev"), by_max_rul=True
+            *self.source.load_split("dev"), by_max_rul=True
         )
         target_healthy, target_degraded = split_healthy(
-            *self.target.reader.load_split(
-                "test" if self.inductive else "dev", alias="dev"
-            ),
+            *self.target.load_split("test" if self.inductive else "dev", alias="dev"),
             self.split_by_max_rul,
             self.split_by_steps,
         )
@@ -329,16 +327,20 @@ def split_healthy(
     if not by_max_rul and (by_steps is None):
         raise ValueError("Either 'by_max_rul' or 'by_steps' need to be set.")
 
+    if isinstance(features[0], np.ndarray):
+        features, targets = utils.to_tensor(features, targets)
+
     healthy = []
     degraded = []
     for feature, target in zip(features, targets):
         # get index of last max RUL or use step
-        split_idx = [np.argmax(target[::-1]) if by_max_rul else by_steps]
-        healthy_feature, degraded_feature = np.split(feature, split_idx)  # type: ignore
-        healthy_target, degraded_target = np.split(target, split_idx)  # type: ignore
-        degradation_steps = np.arange(len(degraded_target))
-        healthy.append((healthy_feature, healthy_target))
-        degraded.append((degraded_feature, degradation_steps, degraded_target))
+        split_idx = torch.argmax(target.flip(0)) if by_max_rul else by_steps
+        sections = [split_idx, len(target) - split_idx]
+        healthy_feat, degraded_feat = torch.split(feature, sections)  # type: ignore
+        healthy_target, degraded_target = torch.split(target, sections)  # type: ignore
+        degradation_steps = torch.arange(len(degraded_target))
+        healthy.append((healthy_feat, healthy_target))
+        degraded.append((degraded_feat, degradation_steps, degraded_target))
 
     healthy_dataset = _to_dataset(healthy)
     degraded_dataset = _to_dataset(degraded)
@@ -346,8 +348,8 @@ def split_healthy(
     return healthy_dataset, degraded_dataset
 
 
-def _to_dataset(data: Sequence[Tuple[np.ndarray, ...]]) -> TensorDataset:
-    tensor_data = [torch.cat(h) for h in utils.to_tensor(*zip(*data))]
+def _to_dataset(data: Sequence[Tuple[torch.Tensor, ...]]) -> TensorDataset:
+    tensor_data = [torch.cat(h) for h in zip(*data)]
     dataset = TensorDataset(*tensor_data)
 
     return dataset
