@@ -68,8 +68,11 @@ def load_multiple(
         features: The feature arrays saved in `save_paths`
         targets: The target arrays saved in `save_paths`
     """
-    runs = [load(save_path, memmap) for save_path in save_paths]
-    features, targets = [list(x) for x in zip(*runs)]
+    if save_paths:
+        runs = [load(save_path, memmap) for save_path in save_paths]
+        features, targets = [list(x) for x in zip(*runs)]
+    else:
+        features, targets = [], []
 
     return features, targets
 

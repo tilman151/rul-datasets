@@ -1,5 +1,6 @@
 import os.path
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
 import numpy.testing as npt
@@ -34,6 +35,16 @@ def test_load(tmp_path, file_name):
     loaded_features, loaded_targets = saving.load(save_path)
     npt.assert_equal(loaded_features, features)
     npt.assert_equal(loaded_targets, targets)
+
+
+@mock.patch("rul_datasets.reader.saving.load", return_value=(None, None))
+@pytest.mark.parametrize("file_names", [["run1", "run2"], []])
+def test_load_multiple(mock_load, file_names):
+    features, targets = saving.load_multiple(file_names)
+
+    mock_load.assert_has_calls([mock.call(name, False) for name in file_names])
+    assert len(features) == len(file_names)
+    assert len(targets) == len(file_names)
 
 
 @pytest.mark.parametrize("file_name", ["run", "run.npy"])
