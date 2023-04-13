@@ -220,26 +220,44 @@ class RulDataModule(pl.LightningDataModule):
             "test": self._setup_split("test"),
         }
 
+    def load_split(
+        self, split: str, alias: Optional[str] = None
+    ) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+        """
+        Load a split from the underlying reader and apply the feature extractor.
+
+        By setting alias, it is possible to load a split aliased as another split,
+        e.g. load the test split and treat it as the dev split. The data of the split is
+        loaded but all pre-processing steps of alias are carried out.
+
+        Args:
+            split: The desired split to load.
+            alias: The split as which the loaded data should be treated.
+        Returns:
+            The feature and target tensors of the split's runs.
+        """
+        features, targets = self.reader.load_split(split, alias)
+        features, targets = self._apply_feature_extractor_per_run(features, targets)
+        tensor_features, tensor_targets = utils.to_tensor(features, targets)
+
+        return tensor_features, tensor_targets
+
     def _setup_split(
         self, split: str, alias: Optional[str] = None
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        features, targets = self.reader.load_split(split, alias)
+        features, targets = self.load_split(split, alias)
         if features:
-            features, targets = self._apply_feature_extractor_per_run(features, targets)
-            tensor_features, tensor_targets = utils.to_tensor(features, targets)
-            cat_features = torch.cat(tensor_features)
-            cat_targets = torch.cat(tensor_targets)
+            cat_features, cat_targets = torch.cat(features), torch.cat(targets)
         else:
-            cat_features = torch.empty(0, 0, 0)
-            cat_targets = torch.empty(0)
+            cat_features, cat_targets = torch.empty(0, 0, 0), torch.empty(0)
 
         return cat_features, cat_targets
 
     def _apply_feature_extractor_per_run(
         self, features: List[np.ndarray], targets: List[np.ndarray]
     ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-        extracted = (self._extract_and_window(f, t) for f, t in zip(features, targets))
-        features, targets = zip(*extracted)
+        extracted = [self._extract_and_window(f, t) for f, t in zip(features, targets)]
+        features, targets = zip(*extracted) if extracted else ((), ())
 
         return list(features), list(targets)
 
