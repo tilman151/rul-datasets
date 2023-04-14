@@ -2,7 +2,7 @@
 
 import warnings
 from copy import deepcopy
-from typing import List, Optional, Any, Tuple, Callable, Sequence
+from typing import List, Optional, Any, Tuple, Callable, Sequence, Union, cast
 
 import numpy as np
 import pytorch_lightning as pl
@@ -298,8 +298,8 @@ class LatentAlignDataModule(DomainAdaptionDataModule):
 
 
 def split_healthy(
-    features: List[np.ndarray],
-    targets: List[np.ndarray],
+    features: Union[List[np.ndarray], List[torch.Tensor]],
+    targets: Union[List[np.ndarray], List[torch.Tensor]],
     by_max_rul: bool = False,
     by_steps: Optional[int] = None,
 ) -> Tuple[TensorDataset, TensorDataset]:
@@ -328,16 +328,20 @@ def split_healthy(
         raise ValueError("Either 'by_max_rul' or 'by_steps' need to be set.")
 
     if isinstance(features[0], np.ndarray):
-        features, targets = utils.to_tensor(features, targets)
+        features, targets = cast(Tuple[List[np.ndarray], ...], (features, targets))
+        _features, _targets = utils.to_tensor(features, targets)
+    else:
+        _features, _targets = cast(Tuple[List[torch.Tensor], ...], (features, targets))
 
     healthy = []
     degraded = []
-    for feature, target in zip(features, targets):
-        # get index of last max RUL or use step
-        split_idx = torch.argmax(target.flip(0)) if by_max_rul else by_steps
+    for feature, target in zip(_features, _targets):
+        # get index of last max RUL or use step (cast is needed for mypy)
+        split_idx = target.flip(0).argmax().item() if by_max_rul else by_steps
+        split_idx = cast(int, split_idx)
         sections = [split_idx, len(target) - split_idx]
-        healthy_feat, degraded_feat = torch.split(feature, sections)  # type: ignore
-        healthy_target, degraded_target = torch.split(target, sections)  # type: ignore
+        healthy_feat, degraded_feat = torch.split(feature, sections)
+        healthy_target, degraded_target = torch.split(target, sections)
         degradation_steps = torch.arange(len(degraded_target))
         healthy.append((healthy_feat, healthy_target))
         degraded.append((degraded_feat, degradation_steps, degraded_target))

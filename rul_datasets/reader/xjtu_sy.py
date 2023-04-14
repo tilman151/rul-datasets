@@ -71,7 +71,7 @@ class XjtuSyReader(AbstractReader):
         percent_fail_runs: Optional[Union[float, List[int]]] = None,
         truncate_val: bool = False,
         run_split_dist: Optional[Dict[str, List[int]]] = None,
-        first_time_to_predict: List[int] = None,
+        first_time_to_predict: Optional[List[int]] = None,
         norm_rul: bool = False,
         truncate_degraded_only: bool = False,
     ) -> None:
