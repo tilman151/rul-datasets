@@ -22,7 +22,7 @@ tqdm = "^4.62.2"
 [tool.poetry.group.dev.dependencies]
 black = {extras = ["d"], version = "^22.8.0"}
 flake8 = "^5.0.4"
-mypy = "^0.981"
+mypy = "^1.0.0"
 hydra-core = "^1.1.1"
 pytest = "^7.1.3"
 
