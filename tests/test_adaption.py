@@ -386,9 +386,9 @@ def test_latent_align_data_module(mock_split_healthy, by_max_rul, by_steps):
     source = mock.MagicMock(core.RulDataModule)
     source.batch_size = 32
     source.reader.window_size = 30
-    source.reader.load_split.return_value = ([torch.zeros(1)],) * 2
+    source.load_split.return_value = ([torch.zeros(1)],) * 2
     target = mock.MagicMock(core.RulDataModule)
-    target.reader.load_split.return_value = ([torch.ones(1)],) * 2
+    target.load_split.return_value = ([torch.ones(1)],) * 2
 
     dm = adaption.LatentAlignDataModule(
         source, target, split_by_max_rul=by_max_rul, split_by_steps=by_steps
@@ -399,13 +399,13 @@ def test_latent_align_data_module(mock_split_healthy, by_max_rul, by_steps):
     mock_split_healthy.assert_has_calls(
         [
             mock.call(
-                source.reader.load_split.return_value[0],
-                source.reader.load_split.return_value[1],
+                source.load_split.return_value[0],
+                source.load_split.return_value[1],
                 by_max_rul=True,
             ),
             mock.call(
-                target.reader.load_split.return_value[0],
-                target.reader.load_split.return_value[1],
+                target.load_split.return_value[0],
+                target.load_split.return_value[1],
                 by_max_rul,
                 by_steps,
             ),
@@ -422,9 +422,9 @@ def test_latent_align_data_module_inductive(_, inductive, exp_split):
     source = mock.MagicMock(core.RulDataModule)
     source.batch_size = 32
     source.reader.window_size = 30
-    source.reader.load_split.return_value = ([torch.zeros(1)],) * 2
+    source.load_split.return_value = ([torch.zeros(1)],) * 2
     target = mock.MagicMock(core.RulDataModule)
-    target.reader.load_split.return_value = ([torch.zeros(1)],) * 2
+    target.load_split.return_value = ([torch.zeros(1)],) * 2
 
     dm = adaption.LatentAlignDataModule(
         source, target, inductive=inductive, split_by_max_rul=True
@@ -432,8 +432,8 @@ def test_latent_align_data_module_inductive(_, inductive, exp_split):
 
     dm.train_dataloader()
 
-    source.reader.load_split.assert_called_once_with("dev")
-    target.reader.load_split.assert_called_once_with(exp_split, alias="dev")
+    source.load_split.assert_called_once_with("dev")
+    target.load_split.assert_called_once_with(exp_split, alias="dev")
 
 
 def test_latent_align_with_dummy():
@@ -450,10 +450,14 @@ def test_latent_align_with_dummy():
         assert len(batch) == 6
 
 
-def test_split_healthy_max_rul():
-    features = [np.random.randn(10, 100, 2)]
-    targets = [np.minimum(np.arange(10)[::-1], 5)]
-
+@pytest.mark.parametrize(
+    ["features", "targets"],
+    [
+        ([np.random.randn(11, 100, 2)], [np.minimum(np.arange(11)[::-1], 5)]),
+        ([torch.randn(11, 2, 100)], [torch.clamp_max(torch.arange(11).flip(0), 5)]),
+    ],
+)
+def test_split_healthy_max_rul(features, targets):
     healthy, degraded = adaption.split_healthy(features, targets, by_max_rul=True)
 
     assert len(healthy) == 5
@@ -461,7 +465,7 @@ def test_split_healthy_max_rul():
     assert len(healthy_sample) == 2  # features and labels
     assert healthy_sample[0].shape == (2, 100)  # features are channel first
 
-    assert len(degraded) == 5
+    assert len(degraded) == 6
     for i, degraded_sample in enumerate(degraded):
         assert len(degraded_sample) == 3  # features, degradation steps, and labels
         assert degraded_sample[0].shape == (2, 100)  # features are channel first

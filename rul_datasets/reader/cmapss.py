@@ -81,7 +81,7 @@ class CmapssReader(AbstractReader):
         max_rul: Optional[int] = 125,
         percent_broken: Optional[float] = None,
         percent_fail_runs: Optional[Union[float, List[int]]] = None,
-        feature_select: List[int] = None,
+        feature_select: Optional[List[int]] = None,
         truncate_val: bool = False,
         operation_condition_aware_scaling: bool = False,
         truncate_degraded_only: bool = False,

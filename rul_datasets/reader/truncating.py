@@ -1,6 +1,6 @@
 """A module with functions for truncating RUL data."""
 
-from typing import List, Tuple, Iterable, Union
+from typing import List, Tuple, Iterable, Union, Optional
 
 import numpy as np
 
@@ -8,8 +8,8 @@ import numpy as np
 def truncate_runs(
     features: List[np.ndarray],
     targets: List[np.ndarray],
-    percent_broken: float = None,
-    included_runs: Union[float, Iterable[int]] = None,
+    percent_broken: Optional[float] = None,
+    included_runs: Optional[Union[float, Iterable[int]]] = None,
     degraded_only: bool = False,
 ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
     """
