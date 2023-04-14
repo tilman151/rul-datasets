@@ -357,7 +357,7 @@ def _get_sections(
         split_idx = cast(int, target.flip(0).argmax().item())
         sections = [len(target) - split_idx, split_idx]
     else:
-        by_steps = cast(int, by_steps)
+        by_steps = min(cast(int, by_steps), len(target))
         sections = [by_steps, len(target) - by_steps]
 
     return sections

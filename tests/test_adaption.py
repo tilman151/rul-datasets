@@ -471,3 +471,14 @@ def test_split_healthy(features, targets, by_max_rul, by_steps):
         assert len(degraded_sample) == 3  # features, degradation steps, and labels
         assert degraded_sample[0].shape == (2, 100)  # features are channel first
         assert degraded_sample[1] == i  # degradation step is timestep since healthy
+
+
+@pytest.mark.parametrize(["by_max_rul", "by_steps"], [(True, None), (False, 15)])
+def test_split_healthy_no_degraded(by_steps, by_max_rul):
+    features = [np.random.randn(11, 100, 2)]
+    targets = [np.ones(11) * 125]
+
+    healthy, degraded = adaption.split_healthy(features, targets, by_max_rul, by_steps)
+
+    assert len(healthy) == 11
+    assert len(degraded) == 0
