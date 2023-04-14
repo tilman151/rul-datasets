@@ -336,13 +336,10 @@ def split_healthy(
     healthy = []
     degraded = []
     for feature, target in zip(_features, _targets):
-        # get index of last max RUL or use step (cast is needed for mypy)
-        split_idx = target.flip(0).argmax().item() if by_max_rul else by_steps
-        split_idx = cast(int, split_idx)
-        sections = [split_idx, len(target) - split_idx]
+        sections = _get_sections(by_max_rul, by_steps, target)
         healthy_feat, degraded_feat = torch.split(feature, sections)
         healthy_target, degraded_target = torch.split(target, sections)
-        degradation_steps = torch.arange(len(degraded_target))
+        degradation_steps = torch.arange(1, len(degraded_target) + 1)
         healthy.append((healthy_feat, healthy_target))
         degraded.append((degraded_feat, degradation_steps, degraded_target))
 
@@ -350,6 +347,20 @@ def split_healthy(
     degraded_dataset = _to_dataset(degraded)
 
     return healthy_dataset, degraded_dataset
+
+
+def _get_sections(
+    by_max_rul: bool, by_steps: Optional[int], target: torch.Tensor
+) -> List[int]:
+    # cast is needed for mypy and has no runtime effect
+    if by_max_rul:
+        split_idx = cast(int, target.flip(0).argmax().item())
+        sections = [len(target) - split_idx, split_idx]
+    else:
+        by_steps = cast(int, by_steps)
+        sections = [by_steps, len(target) - by_steps]
+
+    return sections
 
 
 def _to_dataset(data: Sequence[Tuple[torch.Tensor, ...]]) -> TensorDataset:

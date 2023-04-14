@@ -457,16 +457,17 @@ def test_latent_align_with_dummy():
         ([torch.randn(11, 2, 100)], [torch.clamp_max(torch.arange(11).flip(0), 5)]),
     ],
 )
-def test_split_healthy_max_rul(features, targets):
-    healthy, degraded = adaption.split_healthy(features, targets, by_max_rul=True)
+@pytest.mark.parametrize(["by_max_rul", "by_steps"], [(True, None), (False, 6)])
+def test_split_healthy(features, targets, by_max_rul, by_steps):
+    healthy, degraded = adaption.split_healthy(features, targets, by_max_rul, by_steps)
 
-    assert len(healthy) == 5
+    assert len(healthy) == 6
     healthy_sample = healthy[0]
     assert len(healthy_sample) == 2  # features and labels
     assert healthy_sample[0].shape == (2, 100)  # features are channel first
 
-    assert len(degraded) == 6
-    for i, degraded_sample in enumerate(degraded):
+    assert len(degraded) == 5
+    for i, degraded_sample in enumerate(degraded, start=1):
         assert len(degraded_sample) == 3  # features, degradation steps, and labels
         assert degraded_sample[0].shape == (2, 100)  # features are channel first
         assert degraded_sample[1] == i  # degradation step is timestep since healthy
