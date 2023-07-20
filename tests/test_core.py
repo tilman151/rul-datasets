@@ -1,3 +1,4 @@
+import copy
 import unittest
 from dataclasses import dataclass
 from unittest import mock
@@ -190,6 +191,15 @@ class TestRulDataModule:
                     mock_loader, batch_size=16, feature_extractor=fe, window_size=3
                 )
             )
+        # feature extractor can be different object
+        other.check_compatibility(
+            core.RulDataModule(
+                mock_loader,
+                batch_size=16,
+                feature_extractor=copy.deepcopy(fe),
+                window_size=2,
+            )
+        )
 
     def test_is_mutually_exclusive(self, mock_loader):
         dataset = core.RulDataModule(mock_loader, batch_size=16)
