@@ -159,11 +159,6 @@ class RulDataModule(pl.LightningDataModule):
                 f"{self.batch_size} vs. {other.batch_size}."
             )
 
-        if self.feature_extractor is not other.feature_extractor:
-            raise ValueError(
-                "The feature extractor of both data modules has to be the same object."
-            )
-
         if not self.window_size == other.window_size:
             raise ValueError(
                 f"The window size of both data modules has to be the same, "
