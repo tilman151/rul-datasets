@@ -32,7 +32,7 @@ class TestBaselineDataModule(unittest.TestCase):
         for fd in self.mock_loader.fds:
             self.assertIn(fd, self.dataset.subsets)
             self.assertEqual(fd, self.dataset.subsets[fd].reader.fd)
-            if fd == self.dataset.hparams["fd"]:
+            if fd == self.dataset.data_module.reader.fd:
                 self.assertIs(self.dataset.data_module, self.dataset.subsets[fd])
             else:
                 self.assertIsNone(self.dataset.subsets[fd].reader.percent_fail_runs)

@@ -50,15 +50,14 @@ class BaselineDataModule(pl.LightningDataModule):
         super().__init__()
 
         self.data_module = data_module
-        hparams = self.data_module.hparams
-        self.save_hyperparameters(hparams)
+        self.save_hyperparameters(self.data_module.hparams)
 
         self.subsets = {}
         for fd in self.data_module.fds:
             self.subsets[fd] = self._get_fd(fd)
 
     def _get_fd(self, fd):
-        if fd == self.hparams["fd"]:
+        if fd == self.data_module.reader.fd:
             dm = self.data_module
         else:
             loader = deepcopy(self.data_module.reader)

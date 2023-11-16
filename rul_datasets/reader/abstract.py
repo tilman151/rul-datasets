@@ -92,10 +92,10 @@ class AbstractReader(metaclass=abc.ABCMeta):
 
     @property
     def hparams(self) -> Dict[str, Any]:
-        """A dictionary containing all input arguments of the constructor. This
-        information is used by the data modules to log their hyperparameters in
-        PyTorch Lightning."""
+        """All information logged by the data modules as hyperparameters in PyTorch
+        Lightning."""
         return {
+            "dataset": self.dataset_name,
             "fd": self.fd,
             "window_size": self.window_size,
             "max_rul": self.max_rul,
@@ -104,6 +104,12 @@ class AbstractReader(metaclass=abc.ABCMeta):
             "truncate_val": self.truncate_val,
             "truncate_degraded_only": self.truncate_degraded_only,
         }
+
+    @property
+    @abc.abstractmethod
+    def dataset_name(self) -> str:
+        """Name of the dataset."""
+        raise NotImplementedError
 
     @property
     @abc.abstractmethod

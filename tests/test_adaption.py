@@ -8,7 +8,7 @@ import torch
 from torch.utils.data import RandomSampler, TensorDataset
 
 import rul_datasets
-from rul_datasets import adaption, core
+from rul_datasets import adaption, core, CmapssReader
 from rul_datasets.reader import DummyReader
 from tests.templates import PretrainingDataModuleTemplate
 
@@ -16,16 +16,12 @@ from tests.templates import PretrainingDataModuleTemplate
 class TestDomainAdaptionDataModule(unittest.TestCase):
     def setUp(self):
         source_mock_runs = [np.random.randn(16, 14, 1)] * 3, [np.random.rand(16)] * 3
-        self.source_loader = mock.MagicMock(name="CMAPSSLoader")
+        self.source_loader = mock.MagicMock(CmapssReader)
         self.source_loader.fd = 3
         self.source_loader.percent_fail_runs = None
         self.source_loader.percent_broken = None
         self.source_loader.window_size = 1
         self.source_loader.max_rul = 125
-        self.source_loader.hparams = {
-            "fd": self.source_loader.fd,
-            "window_size": self.source_loader.window_size,
-        }
         self.source_loader.load_split.return_value = source_mock_runs
         self.source_data = mock.MagicMock(rul_datasets.RulDataModule)
         self.source_data.reader = self.source_loader
@@ -33,16 +29,12 @@ class TestDomainAdaptionDataModule(unittest.TestCase):
         self.source_data.to_dataset.return_value = TensorDataset(torch.zeros(1))
 
         target_mock_runs = [np.random.randn(16, 14, 1)] * 2, [np.random.rand(16)] * 2
-        self.target_loader = mock.MagicMock(name="CMAPSSLoader")
+        self.target_loader = mock.MagicMock(CmapssReader)
         self.target_loader.fd = 1
         self.target_loader.percent_fail_runs = 0.8
         self.target_loader.percent_broken = 0.8
         self.target_loader.window_size = 1
         self.target_loader.max_rul = 125
-        self.target_loader.hparams = {
-            "fd": self.target_loader.fd,
-            "window_size": self.target_loader.window_size,
-        }
         self.target_loader.load_split.return_value = target_mock_runs
         self.target_data = mock.MagicMock(rul_datasets.RulDataModule)
         self.target_data.reader = self.target_loader
@@ -143,13 +135,10 @@ class TestDomainAdaptionDataModule(unittest.TestCase):
 
     def test_hparams(self):
         expected_hparams = {
-            "fd_source": 3,
-            "fd_target": 1,
-            "batch_size": 16,
-            "window_size": 1,
-            "max_rul": 125,
-            "percent_broken": 0.8,
-            "percent_fail_runs": 0.8,
+            "source": self.dataset.source.hparams,
+            "target": self.dataset.target.hparams,
+            "paired_val": False,
+            "inductive": False,
         }
         self.assertDictEqual(expected_hparams, self.dataset.hparams)
 

@@ -23,9 +23,9 @@ CMAPSS_URL = "https://kr0k0tsch.de/rul-datasets/CMAPSSData.zip"
 class CmapssReader(AbstractReader):
     """
     This reader represents the NASA CMAPSS Turbofan Degradation dataset. Each of its
-    four sub-datasets contain a training and a test split. Upon first usage,
+    four sub-datasets contains a training and a test split. Upon first usage,
     the training split will be further divided into a development and a validation
-    split. 20% of the original training split are reserved for validation.
+    split. 20% of the original training split is reserved for validation.
 
     The features are provided as sliding windows over each time series in the
     dataset. The label of a window is the label of its last time step. The RUL labels
@@ -127,6 +127,10 @@ class CmapssReader(AbstractReader):
             feature_select = self._DEFAULT_CHANNELS
         self.feature_select = feature_select
         self.operation_condition_aware_scaling = operation_condition_aware_scaling
+
+    @property
+    def dataset_name(self) -> str:
+        return "cmapss"
 
     @property
     def fds(self) -> List[int]:
