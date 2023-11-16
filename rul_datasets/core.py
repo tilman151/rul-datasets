@@ -1,7 +1,6 @@
 """Basic data modules for experiments involving only a single subset of any RUL
 dataset. """
 
-from copy import deepcopy
 from typing import Dict, List, Optional, Tuple, Any, Callable
 
 import numpy as np
@@ -105,12 +104,14 @@ class RulDataModule(pl.LightningDataModule):
                 "to set a window size for re-windowing."
             )
 
-        hparams = deepcopy(self.reader.hparams)
-        hparams["batch_size"] = self.batch_size
-        hparams["feature_extractor"] = (
-            str(self.feature_extractor) if self.feature_extractor else None
-        )
-        hparams["window_size"] = self.window_size or hparams["window_size"]
+        hparams = {
+            "reader": self.reader.hparams,
+            "batch_size": self.batch_size,
+            "feature_extractor": (
+                str(self.feature_extractor) if self.feature_extractor else None
+            ),
+            "window_size": self.window_size,
+        }
         self.save_hyperparameters(hparams)
 
     @property

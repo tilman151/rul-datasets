@@ -49,14 +49,7 @@ class SemiSupervisedDataModule(pl.LightningDataModule):
         self._check_compatibility()
 
         self.save_hyperparameters(
-            {
-                "fd": self.labeled.reader.fd,
-                "batch_size": self.batch_size,
-                "window_size": self.labeled.reader.window_size,
-                "max_rul": self.labeled.reader.max_rul,
-                "percent_broken_unlabeled": self.unlabeled.reader.percent_broken,
-                "percent_fail_runs_labeled": self.labeled.reader.percent_fail_runs,
-            }
+            {"labeled": self.labeled.hparams, "unlabeled": self.unlabeled.hparams}
         )
 
     def _check_compatibility(self) -> None:

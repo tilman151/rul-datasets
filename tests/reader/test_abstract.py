@@ -7,7 +7,7 @@ import pytest
 from rul_datasets import reader
 
 
-class DummyReader(reader.AbstractReader):
+class DummyAbstractReader(reader.AbstractReader):
     fd: int
     window_size: int
     max_rul: int
@@ -16,6 +16,10 @@ class DummyReader(reader.AbstractReader):
     truncate_val: bool = True
 
     _NUM_TRAIN_RUNS = {1: 100}
+
+    @property
+    def dataset_name(self) -> str:
+        return "dummy_abstract"
 
     @property
     def fds(self):
@@ -36,17 +40,21 @@ class DummyReader(reader.AbstractReader):
 class TestAbstractLoader:
     @mock.patch("rul_datasets.reader.truncating.truncate_runs", return_value=([], []))
     def test_truncation_dev_split(self, mock_truncate_runs):
-        this = DummyReader(1, 30, 125, percent_broken=0.2, percent_fail_runs=0.8)
+        this = DummyAbstractReader(
+            1, 30, 125, percent_broken=0.2, percent_fail_runs=0.8
+        )
         this.load_split("dev")
         mock_truncate_runs.assert_called_with([], [], 0.2, 0.8, False)
 
     @mock.patch("rul_datasets.reader.truncating.truncate_runs", return_value=([], []))
     def test_truncation_val_split(self, mock_truncate_runs):
-        this = DummyReader(1, 30, 125, percent_broken=0.2, percent_fail_runs=0.8)
+        this = DummyAbstractReader(
+            1, 30, 125, percent_broken=0.2, percent_fail_runs=0.8
+        )
         this.load_split("val")
         mock_truncate_runs.assert_not_called()
 
-        this = DummyReader(
+        this = DummyAbstractReader(
             1, 30, 125, percent_broken=0.2, percent_fail_runs=0.8, truncate_val=True
         )
         this.load_split("val")
@@ -54,20 +62,22 @@ class TestAbstractLoader:
 
     @mock.patch("rul_datasets.reader.truncating.truncate_runs", return_value=([], []))
     def test_truncation_test_split(self, mock_truncate_runs):
-        this = DummyReader(1, 30, 125, percent_broken=0.2, percent_fail_runs=0.8)
+        this = DummyAbstractReader(
+            1, 30, 125, percent_broken=0.2, percent_fail_runs=0.8
+        )
         this.load_split("val")
         mock_truncate_runs.assert_not_called()
 
     def test_check_compatibility(self):
-        this = DummyReader(1, 30, 125)
-        this.check_compatibility(DummyReader(1, 30, 125))
+        this = DummyAbstractReader(1, 30, 125)
+        this.check_compatibility(DummyAbstractReader(1, 30, 125))
         with pytest.raises(ValueError):
-            this.check_compatibility(DummyReader(1, 20, 125))
+            this.check_compatibility(DummyAbstractReader(1, 20, 125))
         with pytest.raises(ValueError):
-            this.check_compatibility(DummyReader(1, 30, 120))
+            this.check_compatibility(DummyAbstractReader(1, 30, 120))
 
     def test_get_compatible_same(self):
-        this = DummyReader(1, 30, 125)
+        this = DummyAbstractReader(1, 30, 125)
         other = this.get_compatible()
         this.check_compatibility(other)
         assert other is not this
@@ -79,7 +89,7 @@ class TestAbstractLoader:
         assert this.truncate_val == other.truncate_val
 
     def test_get_compatible_different(self):
-        this = DummyReader(1, 30, 125)
+        this = DummyAbstractReader(1, 30, 125)
         other = this.get_compatible(2, 0.2, 0.8, False)
         this.check_compatibility(other)
         assert other is not this
@@ -92,21 +102,21 @@ class TestAbstractLoader:
         assert not other.truncate_val
 
     def test_get_complement_percentage(self):
-        this = DummyReader(1, 30, 125, percent_fail_runs=0.8)
+        this = DummyAbstractReader(1, 30, 125, percent_fail_runs=0.8)
         other = this.get_complement(0.8, False)
         assert other.percent_fail_runs == list(range(80, 100))
         assert 0.8 == other.percent_broken
         assert not other.truncate_val
 
     def test_get_complement_idx(self):
-        this = DummyReader(1, 30, 125, percent_fail_runs=list(range(80)))
+        this = DummyAbstractReader(1, 30, 125, percent_fail_runs=list(range(80)))
         other = this.get_complement(0.8, False)
         assert other.percent_fail_runs == list(range(80, 100))
         assert 0.8 == other.percent_broken
         assert not other.truncate_val
 
     def test_get_complement_empty(self):
-        this = DummyReader(1, 30, 125)  # Uses all runs
+        this = DummyAbstractReader(1, 30, 125)  # Uses all runs
         other = this.get_complement(0.8, False)
         assert not other.percent_fail_runs  # Complement is empty
         assert 0.8 == other.percent_broken
@@ -125,8 +135,8 @@ class TestAbstractLoader:
         ],
     )
     def test_is_mutually_exclusive(self, runs_this, runs_other, success):
-        this = DummyReader(1, percent_fail_runs=runs_this)
-        other = DummyReader(1, percent_fail_runs=runs_other)
+        this = DummyAbstractReader(1, percent_fail_runs=runs_this)
+        other = DummyAbstractReader(1, percent_fail_runs=runs_other)
 
         assert this.is_mutually_exclusive(other) == success
         assert other.is_mutually_exclusive(this) == success
@@ -136,7 +146,7 @@ class TestAbstractLoader:
         [("override", 30, 30), ("min", 15, 15), ("none", 30, 15)],
     )
     def test_consolidate_window_size(self, mode, expected_this, expected_other):
-        this = DummyReader(1, window_size=30)
+        this = DummyAbstractReader(1, window_size=30)
         other = this.get_compatible(2, consolidate_window_size=mode)
 
         assert this.window_size == expected_this
@@ -157,7 +167,7 @@ class TestAbstractLoader:
     )
     @mock.patch("rul_datasets.reader.truncating.truncate_runs", return_value=([], []))
     def test_alias(self, mock_truncate_runs, split, alias, truncate_val, exp_truncated):
-        this = DummyReader(1, truncate_val=truncate_val)
+        this = DummyAbstractReader(1, truncate_val=truncate_val)
         this.load_complete_split = mock.Mock(wraps=this.load_complete_split)
 
         this.load_split(split, alias)

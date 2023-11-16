@@ -33,9 +33,9 @@ class TestRulDataModule:
         assert mock_loader is dataset.reader
         assert 16 == dataset.batch_size
         assert dataset.hparams == {
-            "test": 0,
+            "reader": {"test": 0, "window_size": 30},
             "batch_size": 16,
-            "window_size": mock_loader.hparams["window_size"],
+            "window_size": None,
             "feature_extractor": None,
         }
 
@@ -49,9 +49,9 @@ class TestRulDataModule:
         assert mock_loader is dataset.reader
         assert 16 == dataset.batch_size
         assert dataset.hparams == {
-            "test": 0,
+            "reader": {"test": 0, "window_size": 30},
             "batch_size": 16,
-            "window_size": window_size or mock_loader.hparams["window_size"],
+            "window_size": window_size,
             "feature_extractor": str(fe),
         }
 
@@ -263,6 +263,10 @@ class DummyRul(reader.AbstractReader):
         }
 
     @property
+    def dataset_name(self) -> str:
+        return "dummy_rul"
+
+    @property
     def fds(self):
         return [1]
 
@@ -307,6 +311,10 @@ class DummyRulShortRuns(reader.AbstractReader):
             ],
         ),
     }
+
+    @property
+    def dataset_name(self) -> str:
+        return "dummy_rul_short_runs"
 
     @property
     def fds(self):

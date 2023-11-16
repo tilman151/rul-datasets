@@ -25,9 +25,9 @@ FEMTO_URL = "https://kr0k0tsch.de/rul-datasets/FEMTOBearingDataSet.zip"
 class FemtoReader(AbstractReader):
     """
     This reader represents the FEMTO (PRONOSTIA) Bearing dataset. Each of its three
-    sub-datasets contain a training and a test split. By default, the reader
+    sub-datasets contains a training and a test split. By default, the reader
     constructs a validation split for sub-datasets 1 and 2 each by taking the first
-    run of the test split. For sub-dataset 3 the second training run is used for
+    run of the test split. For sub-dataset 3, the second training run is used for
     validation because only one test run is available. The remaining training data is
     denoted as the development split. This run to split assignment can be overridden
     by setting `run_split_dist`.
@@ -129,6 +129,10 @@ class FemtoReader(AbstractReader):
         self.norm_rul = norm_rul
 
         self._preparator = FemtoPreparator(self.fd, self._FEMTO_ROOT, run_split_dist)
+
+    @property
+    def dataset_name(self) -> str:
+        return "femto"
 
     @property
     def fds(self) -> List[int]:

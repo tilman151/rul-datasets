@@ -57,6 +57,7 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
             source: The data module of the labeled source domain.
             target: The data module of the unlabeled target domain.
             paired_val: Whether to include paired data in validation.
+            inductive: Whether to use the target test set for training.
         """
         super().__init__()
 
@@ -73,13 +74,10 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
 
         self.save_hyperparameters(
             {
-                "fd_source": self.source.reader.fd,
-                "fd_target": self.target.reader.fd,
-                "batch_size": self.batch_size,
-                "window_size": self.source.reader.window_size,
-                "max_rul": self.source.reader.max_rul,
-                "percent_broken": self.target.reader.percent_broken,
-                "percent_fail_runs": self.target.reader.percent_fail_runs,
+                "source": self.source.hparams,
+                "target": self.target.hparams,
+                "paired_val": self.paired_val,
+                "inductive": self.inductive,
             }
         )
 

@@ -46,6 +46,7 @@ class DummyReader(AbstractReader):
     """
 
     _FDS = [1, 2]
+
     _DEFAULT_WINDOW_SIZE = 10
     _NOISE_FACTOR = {1: 0.01, 2: 0.02}
     _OFFSET = {1: 0.5, 2: 0.75}
@@ -62,12 +63,12 @@ class DummyReader(AbstractReader):
         truncate_degraded_only: bool = False,
     ):
         """
-        Create a new dummy reader for one of the two sub-datasets. The maximun RUL
+        Create a new dummy reader for one of the two sub-datasets. The maximum RUL
         value is set to 50 by default. Please be aware that changing this value will
         lead to different features, too, as they are calculated based on the RUL
         values.
 
-        For more information about using readers refer to the [reader]
+        For more information about using readers, refer to the [reader]
         [rul_datasets.reader] module page.
 
         Args:
@@ -93,6 +94,10 @@ class DummyReader(AbstractReader):
         features, _ = self._generate_split("dev")
         scaler = preprocessing.MinMaxScaler(feature_range=(-1, 1))
         self.scaler = scaling.fit_scaler(features, scaler)
+
+    @property
+    def dataset_name(self) -> str:
+        return "xjtu-sy"
 
     @property
     def fds(self) -> List[int]:

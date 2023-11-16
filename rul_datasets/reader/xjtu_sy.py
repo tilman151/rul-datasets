@@ -85,7 +85,7 @@ class XjtuSyReader(AbstractReader):
         constant. The `norm_rul` argument can then be used to scale the RUL of each
         run between zero and one.
 
-        For more information about using readers refer to the [reader]
+        For more information about using readers, refer to the [reader]
         [rul_datasets.reader] module page.
 
         Args:
@@ -114,7 +114,7 @@ class XjtuSyReader(AbstractReader):
 
         if (first_time_to_predict is not None) and (max_rul is not None):
             raise ValueError(
-                "FemtoReader cannot use 'first_time_to_predict' "
+                "XjtuSyReader cannot use 'first_time_to_predict' "
                 "and 'max_rul' in conjunction."
             )
 
@@ -122,6 +122,10 @@ class XjtuSyReader(AbstractReader):
         self.norm_rul = norm_rul
 
         self._preparator = XjtuSyPreparator(self.fd, self._XJTU_SY_ROOT, run_split_dist)
+
+    @property
+    def dataset_name(self) -> str:
+        return "xjtu-sy"
 
     @property
     def fds(self) -> List[int]:
