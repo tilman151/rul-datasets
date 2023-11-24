@@ -23,6 +23,11 @@ class AbstractReader(metaclass=abc.ABCMeta):
     Examples:
         >>> import rul_datasets
         >>> class MyReader(rul_datasets.reader.AbstractReader):
+        ...     @property
+        ...     def dataset_name(self):
+        ...         return "my_dataset"
+        ...
+        ...     @property
         ...     def fds(self):
         ...         return [1]
         ...
@@ -41,7 +46,7 @@ class AbstractReader(metaclass=abc.ABCMeta):
         >>> my_reader = MyReader(fd=1)
         >>> features, targets = my_reader.load_split("dev")
         >>> features[0].shape
-        torch.Size([100, 2, 30])
+        (100, 2, 30)
     """
 
     fd: int

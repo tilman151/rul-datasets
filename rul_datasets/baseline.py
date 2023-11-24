@@ -25,6 +25,8 @@ class BaselineDataModule(pl.LightningDataModule):
         >>> cmapss = rul_datasets.reader.CmapssReader(fd=1)
         >>> dm = rul_datasets.RulDataModule(cmapss, batch_size=32)
         >>> baseline_dm = rul_datasets.BaselineDataModule(dm)
+        >>> baseline_dm.prepare_data()
+        >>> baseline_dm.setup()
         >>> train_fd1 = baseline_dm.train_dataloader()
         >>> val_fd1 = baseline_dm.val_dataloader()
         >>> test_fd1, test_fd2, test_fd3, test_fd4 = baseline_dm.test_dataloader()

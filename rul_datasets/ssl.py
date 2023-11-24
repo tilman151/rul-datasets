@@ -22,6 +22,8 @@ class SemiSupervisedDataModule(pl.LightningDataModule):
         >>> labeled = rul_datasets.RulDataModule(fd1, 32)
         >>> unlabeled = rul_datasets.RulDataModule(fd1_complement, 32)
         >>> dm = rul_datasets.SemiSupervisedDataModule(labeled, unlabeled)
+        >>> dm.prepare_data()
+        >>> dm.setup()
         >>> train_ssl = dm.train_dataloader()
         >>> val = dm.val_dataloader()
         >>> test = dm.test_dataloader()
