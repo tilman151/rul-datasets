@@ -5,22 +5,28 @@ import pytest
 from rul_datasets import reader
 
 
-@pytest.fixture(scope="module", autouse=True)
-def prepare_femto():
-    for fd in range(1, 4):
-        reader.FemtoReader(fd).prepare_data()
+def test_additional_hparams():
+    femto = reader.FemtoReader(1, first_time_to_predict=[10] * 5, norm_rul=True)
+    assert femto.hparams["first_time_to_predict"] == [10] * 5
+    assert femto.hparams["norm_rul"]
+    assert femto.hparams["run_split_dist"] is None
 
 
 @pytest.mark.needs_data
-class TestFEMTOLoader:
+class TestFemtoReader:
     NUM_CHANNELS = 2
+
+    @pytest.fixture(scope="class", autouse=True)
+    def prepare_femto(self):
+        for fd in range(1, 4):
+            reader.FemtoReader(fd).prepare_data()
 
     @pytest.mark.parametrize("fd", [1, 2, 3])
     @pytest.mark.parametrize("window_size", [2560, 1500, 1000, 100])
     @pytest.mark.parametrize("split", ["dev", "val", "test"])
     def test_run_shape_and_dtype(self, fd, window_size, split):
-        femto_loader = reader.FemtoReader(fd, window_size=window_size)
-        features, targets = femto_loader.load_split(split)
+        femto_reader = reader.FemtoReader(fd, window_size=window_size)
+        features, targets = femto_reader.load_split(split)
         for run, run_target in zip(features, targets):
             self._assert_run_correct(run, run_target, window_size)
 

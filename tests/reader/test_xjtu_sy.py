@@ -7,15 +7,21 @@ from rul_datasets import reader
 from rul_datasets.reader.xjtu_sy import _download_xjtu_sy
 
 
-@pytest.fixture(scope="module", autouse=True)
-def prepare_xjtu_sy():
-    for fd in range(1, 4):
-        reader.XjtuSyReader(fd).prepare_data()
+def test_additional_hparams():
+    femto = reader.XjtuSyReader(1, first_time_to_predict=[10] * 5, norm_rul=True)
+    assert femto.hparams["first_time_to_predict"] == [10] * 5
+    assert femto.hparams["norm_rul"]
+    assert femto.hparams["run_split_dist"] is None
 
 
 @pytest.mark.needs_data
 class TestXjtuSyLoader:
     NUM_CHANNELS = 2
+
+    @pytest.fixture(scope="class", autouse=True)
+    def prepare_xjtu_sy(self):
+        for fd in range(1, 4):
+            reader.XjtuSyReader(fd).prepare_data()
 
     def test_default_window_size(self):
         xjtu = reader.XjtuSyReader(1)
