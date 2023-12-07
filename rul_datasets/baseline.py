@@ -133,80 +133,80 @@ class PretrainingBaselineDataModule(pl.LightningDataModule):
     ):
         super().__init__()
 
-        self.failed_loader = failed_data_module.reader
-        self.unfailed_loader = unfailed_data_module.reader
+        self.failed = failed_data_module
+        self.unfailed = unfailed_data_module
         self.num_samples = num_samples
         self.batch_size = failed_data_module.batch_size
         self.min_distance = min_distance
         self.distance_mode = distance_mode
-        self.window_size = self.unfailed_loader.window_size
+        self.window_size = self.unfailed.reader.window_size
         self.source = unfailed_data_module
 
         self._check_loaders()
 
         self.save_hyperparameters(
             {
-                "fd_source": self.unfailed_loader.fd,
+                "fd_source": self.unfailed.reader.fd,
                 "num_samples": self.num_samples,
                 "batch_size": self.batch_size,
                 "window_size": self.window_size,
-                "max_rul": self.unfailed_loader.max_rul,
+                "max_rul": self.unfailed.reader.max_rul,
                 "min_distance": self.min_distance,
-                "percent_broken": self.unfailed_loader.percent_broken,
-                "percent_fail_runs": self.failed_loader.percent_fail_runs,
-                "truncate_val": self.unfailed_loader.truncate_val,
+                "percent_broken": self.unfailed.reader.percent_broken,
+                "percent_fail_runs": self.failed.reader.percent_fail_runs,
+                "truncate_val": self.unfailed.reader.truncate_val,
                 "distance_mode": self.distance_mode,
             }
         )
 
     def _check_loaders(self):
-        self.failed_loader.check_compatibility(self.unfailed_loader)
-        if not self.failed_loader.fd == self.unfailed_loader.fd:
+        self.failed.reader.check_compatibility(self.unfailed.reader)
+        if not self.failed.reader.fd == self.unfailed.reader.fd:
             raise ValueError("Failed and unfailed data need to come from the same FD.")
-        if self.failed_loader.percent_fail_runs is None or isinstance(
-            self.failed_loader.percent_fail_runs, float
+        if self.failed.reader.percent_fail_runs is None or isinstance(
+            self.failed.reader.percent_fail_runs, float
         ):
             raise ValueError(
                 "Failed data needs list of failed runs "
                 "for pre-training but uses a float or is None."
             )
-        if self.unfailed_loader.percent_fail_runs is None or isinstance(
-            self.unfailed_loader.percent_fail_runs, float
+        if self.unfailed.reader.percent_fail_runs is None or isinstance(
+            self.unfailed.reader.percent_fail_runs, float
         ):
             raise ValueError(
                 "Unfailed data needs list of failed runs "
                 "for pre-training but uses a float or is None."
             )
-        if set(self.failed_loader.percent_fail_runs).intersection(
-            self.unfailed_loader.percent_fail_runs
+        if set(self.failed.reader.percent_fail_runs).intersection(
+            self.unfailed.reader.percent_fail_runs
         ):
             raise ValueError(
                 "Runs of failed and unfailed data overlap. "
                 "Please use mututally exclusive sets of runs."
             )
         if (
-            self.unfailed_loader.percent_broken is None
-            or self.unfailed_loader.percent_broken == 1.0
+            self.unfailed.reader.percent_broken is None
+            or self.unfailed.reader.percent_broken == 1.0
         ):
             raise ValueError(
                 "Unfailed data needs a percent_broken smaller than 1 for pre-training."
             )
         if (
-            self.failed_loader.percent_broken is not None
-            and self.failed_loader.percent_broken < 1.0
+            self.failed.reader.percent_broken is not None
+            and self.failed.reader.percent_broken < 1.0
         ):
             raise ValueError(
                 "Failed data cannot have a percent_broken smaller than 1, "
                 "otherwise it would not be failed data."
             )
-        if not self.unfailed_loader.truncate_val:
+        if not self.unfailed.reader.truncate_val:
             warnings.warn(
                 "Validation data of unfailed runs is not truncated. "
                 "The validation metrics will not be valid."
             )
 
     def prepare_data(self, *args, **kwargs):
-        self.unfailed_loader.prepare_data()
+        self.unfailed.reader.prepare_data()
 
     def setup(self, stage: Optional[str] = None):
         self.source.setup(stage)
@@ -229,7 +229,7 @@ class PretrainingBaselineDataModule(pl.LightningDataModule):
         min_distance = 1 if split == "val" else self.min_distance
         num_samples = 25000 if split == "val" else self.num_samples
         paired = PairedRulDataset(
-            [self.unfailed_loader, self.failed_loader],
+            [self.unfailed, self.failed],
             split,
             num_samples,
             min_distance,

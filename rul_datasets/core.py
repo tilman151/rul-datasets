@@ -377,7 +377,7 @@ class PairedRulDataset(IterableDataset):
 
     def __init__(
         self,
-        readers: List[AbstractReader],
+        dms: List[RulDataModule],
         split: str,
         num_samples: int,
         min_distance: int,
@@ -386,19 +386,19 @@ class PairedRulDataset(IterableDataset):
     ):
         super().__init__()
 
-        self.readers = readers
+        self.dms = dms
         self.split = split
         self.min_distance = min_distance
         self.num_samples = num_samples
         self.deterministic = deterministic
         self.mode = mode
 
-        for reader in self.readers:
-            reader.check_compatibility(self.readers[0])
+        for dm in self.dms:
+            dm.check_compatibility(self.dms[0])
 
         self._run_domain_idx: np.ndarray
-        self._features: List[np.ndarray]
-        self._labels: List[np.ndarray]
+        self._features: List[torch.Tensor]
+        self._labels: List[torch.Tensor]
         self._prepare_datasets()
 
         self._max_rul = self._get_max_rul()
@@ -412,13 +412,16 @@ class PairedRulDataset(IterableDataset):
             self._get_pair_func = self._get_labeled_pair_idx
 
     def _get_max_rul(self):
-        max_ruls = [reader.max_rul for reader in self.readers]
-        if any(m is None for m in max_ruls):
+        max_ruls = [dm.reader.max_rul for dm in self.dms]
+        if all(m is None for m in max_ruls):
+            max_rul = 1e10
+        elif any(m is None for m in max_ruls):
             raise ValueError(
-                "PairedRulDataset needs a set max_rul for all readers "
-                "but at least one of them has is None."
+                "PairedRulDataset needs a set max_rul for all or none of the readers "
+                "but at least one and not all of them has None."
             )
-        max_rul = max(max_ruls)
+        else:
+            max_rul = max(max_ruls)
 
         return max_rul
 
@@ -426,8 +429,8 @@ class PairedRulDataset(IterableDataset):
         run_domain_idx = []
         features = []
         labels = []
-        for domain_idx, reader in enumerate(self.readers):
-            run_features, run_labels = reader.load_split(self.split)
+        for domain_idx, dm in enumerate(self.dms):
+            run_features, run_labels = dm.load_split(self.split)
             for feat, lab in zip(run_features, run_labels):
                 if len(feat) > self.min_distance:
                     run_domain_idx.append(domain_idx)
@@ -530,14 +533,14 @@ class PairedRulDataset(IterableDataset):
 
     def _build_pair(
         self,
-        run: np.ndarray,
+        run: torch.Tensor,
         anchor_idx: int,
         query_idx: int,
         distance: int,
         domain_label: int,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        anchors = utils.feature_to_tensor(run[anchor_idx], torch.float)
-        queries = utils.feature_to_tensor(run[query_idx], torch.float)
+        anchors = run[anchor_idx]
+        queries = run[query_idx]
         domain_tensor = torch.tensor(domain_label, dtype=torch.float)
         distances = torch.tensor(distance, dtype=torch.float) / self._max_rul
         distances = torch.clamp_max(distances, max=1)  # max distance is max_rul

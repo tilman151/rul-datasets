@@ -128,8 +128,8 @@ class TestPretrainingBaselineDataModuleFullData(
         )
         for split in ["dev", "val"]:
             with self.subTest(split):
-                num_broken_runs = len(dataset.unfailed_loader.load_split(split)[0])
-                num_fail_runs = len(dataset.failed_loader.load_split(split)[0])
+                num_broken_runs = len(dataset.unfailed.reader.load_split(split)[0])
+                num_fail_runs = len(dataset.failed.reader.load_split(split)[0])
                 paired_dataset = dataset._get_paired_dataset(split)
                 self.assertEqual(
                     num_broken_runs + num_fail_runs, len(paired_dataset._features)

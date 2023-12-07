@@ -46,8 +46,8 @@ class TestBaseline(unittest.TestCase):
             )
             cmapss_dm = hydra.utils.instantiate(cfg.dm_pre)
             self.assertIsInstance(cmapss_dm, rul_datasets.PretrainingBaselineDataModule)
-            self.assertIsInstance(cmapss_dm.failed_loader, rul_datasets.CmapssReader)
-            self.assertIsInstance(cmapss_dm.failed_loader, rul_datasets.CmapssReader)
+            self.assertIsInstance(cmapss_dm.failed.reader, rul_datasets.CmapssReader)
+            self.assertIsInstance(cmapss_dm.failed.reader, rul_datasets.CmapssReader)
 
         with self.subTest("femto"):
             cfg = hydra.compose(
@@ -55,8 +55,8 @@ class TestBaseline(unittest.TestCase):
             )
             femto_dm = hydra.utils.instantiate(cfg.dm_pre)
             self.assertIsInstance(femto_dm, rul_datasets.PretrainingBaselineDataModule)
-            self.assertIsInstance(femto_dm.failed_loader, rul_datasets.FemtoReader)
-            self.assertIsInstance(femto_dm.failed_loader, rul_datasets.FemtoReader)
+            self.assertIsInstance(femto_dm.failed.reader, rul_datasets.FemtoReader)
+            self.assertIsInstance(femto_dm.failed.reader, rul_datasets.FemtoReader)
 
 
 class TestAdaption(unittest.TestCase):

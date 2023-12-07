@@ -69,8 +69,8 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
         self.batch_size = source.batch_size
         self.inductive = inductive
 
-        self.target_truncated = deepcopy(self.target.reader)
-        self.target_truncated.truncate_val = True
+        self.target_truncated = deepcopy(self.target)
+        self.target_truncated.reader.truncate_val = True
 
         self._check_compatibility()
 
@@ -463,58 +463,55 @@ class PretrainingAdaptionDataModule(pl.LightningDataModule):
         self.min_distance = min_distance
         self.distance_mode = distance_mode
 
-        self.target_loader = self.target.reader
-        self.source_loader = self.source.reader
-
         self._check_compatibility()
 
         self.save_hyperparameters(
             {
-                "fd_source": self.source_loader.fd,
-                "fd_target": self.target_loader.fd,
+                "fd_source": self.source.reader.fd,
+                "fd_target": self.target.reader.fd,
                 "num_samples": self.num_samples,
                 "batch_size": self.batch_size,
-                "window_size": self.source_loader.window_size,
-                "max_rul": self.source_loader.max_rul,
+                "window_size": self.source.reader.window_size,
+                "max_rul": self.source.reader.max_rul,
                 "min_distance": self.min_distance,
-                "percent_broken": self.target_loader.percent_broken,
-                "percent_fail_runs": self.target_loader.percent_fail_runs,
-                "truncate_target_val": self.target_loader.truncate_val,
+                "percent_broken": self.target.reader.percent_broken,
+                "percent_fail_runs": self.target.reader.percent_fail_runs,
+                "truncate_target_val": self.target.reader.truncate_val,
                 "distance_mode": self.distance_mode,
             }
         )
 
     def _check_compatibility(self):
         self.source.check_compatibility(self.target)
-        if self.source_loader.fd == self.target_loader.fd:
+        if self.source.reader.fd == self.target.reader.fd:
             raise ValueError(
                 f"FD of source and target has to be different for "
-                f"domain adaption, but is {self.source_loader.fd} bot times."
+                f"domain adaption, but is {self.source.reader.fd} both times."
             )
         if (
-            self.target_loader.percent_broken is None
-            or self.target_loader.percent_broken == 1.0
+            self.target.reader.percent_broken is None
+            or self.target.reader.percent_broken == 1.0
         ):
             raise ValueError(
                 "Target data needs a percent_broken smaller than 1 for pre-training."
             )
         if (
-            self.source_loader.percent_broken is not None
-            and self.source_loader.percent_broken < 1.0
+            self.source.reader.percent_broken is not None
+            and self.source.reader.percent_broken < 1.0
         ):
             raise ValueError(
                 "Source data cannot have a percent_broken smaller than 1, "
                 "otherwise it would not be failed, labeled data."
             )
-        if not self.target_loader.truncate_val:
+        if not self.target.reader.truncate_val:
             warnings.warn(
                 "Validation data of unfailed runs is not truncated. "
                 "The validation metrics will not be valid."
             )
 
     def prepare_data(self, *args, **kwargs):
-        self.source_loader.prepare_data()
-        self.target_loader.prepare_data()
+        self.source.reader.prepare_data()
+        self.target.reader.prepare_data()
 
     def setup(self, stage: Optional[str] = None):
         self.source.setup(stage)
@@ -539,7 +536,7 @@ class PretrainingAdaptionDataModule(pl.LightningDataModule):
         min_distance = 1 if split == "val" else self.min_distance
         num_samples = 50000 if split == "val" else self.num_samples
         paired = PairedRulDataset(
-            [self.source_loader, self.target_loader],
+            [self.source, self.target],
             split,
             num_samples,
             min_distance,
