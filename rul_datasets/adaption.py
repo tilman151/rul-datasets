@@ -85,7 +85,7 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
 
     def _check_compatibility(self):
         self.source.check_compatibility(self.target)
-        self.target.reader.check_compatibility(self.target_truncated)
+        self.target.reader.check_compatibility(self.target_truncated.reader)
         if self.source.reader.fd == self.target.reader.fd:
             raise ValueError(
                 f"FD of source and target has to be different for "
