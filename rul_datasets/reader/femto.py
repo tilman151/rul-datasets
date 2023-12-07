@@ -125,10 +125,26 @@ class FemtoReader(AbstractReader):
                 "and 'max_rul' in conjunction."
             )
 
+        self.run_split_dist = run_split_dist
         self.first_time_to_predict = first_time_to_predict
         self.norm_rul = norm_rul
 
-        self._preparator = FemtoPreparator(self.fd, self._FEMTO_ROOT, run_split_dist)
+        self._preparator = FemtoPreparator(
+            self.fd, self._FEMTO_ROOT, self.run_split_dist
+        )
+
+    @property
+    def hparams(self):
+        hparams = super().hparams
+        hparams.update(
+            {
+                "first_time_to_predict": self.first_time_to_predict,
+                "norm_rul": self.norm_rul,
+                "run_split_dist": self.run_split_dist,
+            }
+        )
+
+        return hparams
 
     @property
     def dataset_name(self) -> str:
