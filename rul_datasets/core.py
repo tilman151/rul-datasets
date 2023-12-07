@@ -411,10 +411,10 @@ class PairedRulDataset(IterableDataset):
         elif mode == "labeled":
             self._get_pair_func = self._get_labeled_pair_idx
 
-    def _get_max_rul(self):
+    def _get_max_rul(self) -> Optional[int]:
         max_ruls = [dm.reader.max_rul for dm in self.dms]
         if all(m is None for m in max_ruls):
-            max_rul = 1e10
+            max_rul = None
         elif any(m is None for m in max_ruls):
             raise ValueError(
                 "PairedRulDataset needs a set max_rul for all or none of the readers "
@@ -480,7 +480,7 @@ class PairedRulDataset(IterableDataset):
             low=0,
             high=run_length - self.min_distance,
         )
-        end_idx = min(run_length, anchor_idx + self._max_rul)
+        end_idx = min(run_length, anchor_idx + (self._max_rul or 1e10))
         query_idx = self._rng.integers(
             low=anchor_idx + self.min_distance,
             high=end_idx,
@@ -527,7 +527,7 @@ class PairedRulDataset(IterableDataset):
             high=run_length,
         )
         # RUL label difference is negative time step difference
-        distance = int(chosen_labels[anchor_idx] - chosen_labels[query_idx])
+        distance = chosen_labels[anchor_idx] - chosen_labels[query_idx]
 
         return chosen_run_idx, anchor_idx, query_idx, distance, domain_label
 
@@ -542,7 +542,9 @@ class PairedRulDataset(IterableDataset):
         anchors = run[anchor_idx]
         queries = run[query_idx]
         domain_tensor = torch.tensor(domain_label, dtype=torch.float)
-        distances = torch.tensor(distance, dtype=torch.float) / self._max_rul
-        distances = torch.clamp_max(distances, max=1)  # max distance is max_rul
+        distances = torch.tensor(distance, dtype=torch.float)
+        if self._max_rul is not None:  # normalize only if max_rul is set
+            distances /= self._max_rul
+            distances = torch.clamp_max(distances, max=1)
 
         return anchors, queries, distances, domain_tensor
