@@ -9,7 +9,7 @@ import pytest
 import torch
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, TensorDataset
 
-from rul_datasets import core, reader
+from rul_datasets import core, reader, RulDataModule
 
 
 @pytest.fixture()
@@ -249,6 +249,10 @@ class DummyRul(reader.AbstractReader):
     fd: int = 1
     window_size: int = 30
     max_rul: int = 125
+    percent_broken = None
+    percent_fail_runs = None
+    truncate_val = False
+    truncate_degraded_only = False
 
     def __init__(self, length):
         self.data = {
@@ -279,11 +283,11 @@ class DummyRul(reader.AbstractReader):
     def prepare_data(self):
         pass
 
-    def load_complete_split(self, split):
+    def load_complete_split(self, split, alias):
         return self.data[split]
 
-    def load_split(self, split):
-        return self.load_complete_split(split)
+    def load_split(self, split, alias):
+        return self.load_complete_split(split, alias)
 
 
 @dataclass
@@ -293,6 +297,10 @@ class DummyRulShortRuns(reader.AbstractReader):
     fd: int = 1
     window_size: int = 30
     max_rul: int = 125
+    percent_broken = None
+    percent_fail_runs = None
+    truncate_val = False
+    truncate_degraded_only = False
     data = {
         "dev": (
             [
@@ -329,14 +337,14 @@ class DummyRulShortRuns(reader.AbstractReader):
     def prepare_data(self):
         pass
 
-    def load_complete_split(self, split):
+    def load_complete_split(self, split, alias):
         if not split == "dev":
             raise ValueError(f"DummyRulShortRuns does not have a '{split}' split")
 
         return self.data["dev"]
 
-    def load_split(self, split):
-        return self.load_complete_split(split)
+    def load_split(self, split, alias):
+        return self.load_complete_split(split, alias)
 
 
 @pytest.fixture(scope="module")
@@ -346,12 +354,12 @@ def length():
 
 @pytest.fixture
 def cmapss_normal(length):
-    return DummyRul(length)
+    return RulDataModule(DummyRul(length), 32)
 
 
 @pytest.fixture
 def cmapss_short():
-    return DummyRulShortRuns()
+    return RulDataModule(DummyRulShortRuns(), 32)
 
 
 class TestPairedDataset:
@@ -405,12 +413,8 @@ class TestPairedDataset:
         for i, sample in enumerate(data):
             idx = 3 * i
             expected_run = data._features[fixed_idx[idx]]
-            expected_anchor = torch.tensor(expected_run[fixed_idx[idx + 1]]).transpose(
-                1, 0
-            )
-            expected_query = torch.tensor(expected_run[fixed_idx[idx + 2]]).transpose(
-                1, 0
-            )
+            expected_anchor = torch.tensor(expected_run[fixed_idx[idx + 1]])
+            expected_query = torch.tensor(expected_run[fixed_idx[idx + 2]])
             expected_distance = min(125, fixed_idx[idx + 2] - fixed_idx[idx + 1]) / 125
             expected_domain_idx = 0
             assert 0 == torch.dist(expected_anchor, sample[0])
@@ -523,10 +527,13 @@ class TestPairedDataset:
 
     def test_compatability_check(self):
         mock_check_compat = mock.MagicMock(name="check_compatibility")
-        loaders = [DummyRulShortRuns(), DummyRulShortRuns(window_size=20)]
-        for lod in loaders:
-            lod.check_compatibility = mock_check_compat
+        dms = [
+            RulDataModule(DummyRulShortRuns(), 32),
+            RulDataModule(DummyRulShortRuns(window_size=20), 32),
+        ]
+        for dm in dms:
+            dm.check_compatibility = mock_check_compat
 
-        core.PairedRulDataset(loaders, "dev", 1000, 1)
+        core.PairedRulDataset(dms, "dev", 1000, 1)
 
         assert 2 == mock_check_compat.call_count
