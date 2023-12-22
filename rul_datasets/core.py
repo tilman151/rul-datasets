@@ -14,7 +14,7 @@ from rul_datasets.reader import AbstractReader
 
 class RulDataModule(pl.LightningDataModule):
     """
-    A [data module][pytorch_lightning.core.LightningDataModule] to provide windowed
+    A [data module][lightning.pytorch.core.LightningDataModule] to provide windowed
     time series features with RUL targets. It exposes the splits of the underlying
     dataset for easy usage with PyTorch and PyTorch Lightning.
 
