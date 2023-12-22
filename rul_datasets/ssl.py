@@ -11,7 +11,7 @@ from rul_datasets.core import RulDataModule
 
 class SemiSupervisedDataModule(pl.LightningDataModule):
     """
-    A higher-order [data module][pytorch_lightning.core.LightningDataModule] used for
+    A higher-order [data module][lightning.pytorch.core.LightningDataModule] used for
     semi-supervised learning with a labeled data module and an unlabeled one. It
     makes sure that both data modules come from the same sub-dataset.
 

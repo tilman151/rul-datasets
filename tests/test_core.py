@@ -37,6 +37,7 @@ class TestRulDataModule:
             "batch_size": 16,
             "window_size": None,
             "feature_extractor": None,
+            "degraded_only": None,
         }
 
     @pytest.mark.parametrize("window_size", [2, None])
@@ -53,7 +54,17 @@ class TestRulDataModule:
             "batch_size": 16,
             "window_size": window_size,
             "feature_extractor": str(fe),
+            "degraded_only": None,
         }
+
+    @pytest.mark.parametrize("degraded_only", [None, ["dev"], ["val", "test"]])
+    def test_created_correctly_with_degraded_only(self, mock_loader, degraded_only):
+        dataset = core.RulDataModule(
+            mock_loader, batch_size=16, degraded_only=degraded_only
+        )
+
+        assert "degraded_only" in dataset.hparams
+        assert dataset.hparams["degraded_only"] == degraded_only
 
     def test_prepare_data(self, mock_loader):
         dataset = core.RulDataModule(mock_loader, batch_size=16)
@@ -70,6 +81,36 @@ class TestRulDataModule:
         )
         mock_runs = tuple(torch.tensor(np.concatenate(r)) for r in mock_runs)
         assert dataset._data == {"dev": mock_runs, "val": mock_runs, "test": mock_runs}
+
+    @pytest.mark.parametrize("split", ["dev", "val", "test"])
+    def test_load_split_degraded_only(self, mock_loader, mocker, split):
+        mock_loader.max_rul = 125
+        dataset = core.RulDataModule(mock_loader, batch_size=16, degraded_only=[split])
+        spy__filter_out_healthy = mocker.spy(dataset, "_filter_out_healthy")
+
+        dataset.load_split(split)
+        spy__filter_out_healthy.assert_called()
+        spy__filter_out_healthy.reset_mock()
+        for other_split in {"dev", "val", "test"} - {split}:
+            dataset.load_split(other_split)
+            spy__filter_out_healthy.assert_not_called()
+
+    @pytest.mark.parametrize("degraded_only", [True, False])
+    def test_load_split_degraded_only_override(
+        self, mock_loader, mocker, degraded_only
+    ):
+        mock_loader.max_rul = 125
+        dataset = core.RulDataModule(
+            mock_loader, batch_size=16, degraded_only=None if degraded_only else ["dev"]
+        )
+        spy__filter_out_healthy = mocker.spy(dataset, "_filter_out_healthy")
+
+        dataset.load_split("dev", degraded_only=degraded_only)
+
+        if degraded_only:
+            spy__filter_out_healthy.assert_called()
+        else:
+            spy__filter_out_healthy.assert_not_called()
 
     def test_empty_dataset(self, mock_loader):
         """Should not crash on empty dataset."""
@@ -248,21 +289,23 @@ class TestRulDataModule:
 class DummyRul(reader.AbstractReader):
     fd: int = 1
     window_size: int = 30
-    max_rul: int = 125
     percent_broken = None
     percent_fail_runs = None
     truncate_val = False
     truncate_degraded_only = False
 
-    def __init__(self, length):
+    def __init__(self, length, norm_rul=False):
+        self.norm_rul = norm_rul
+        self.max_rul = None if norm_rul else 125
+        norm = 125 if norm_rul else 1
         self.data = {
             "dev": (
                 [np.zeros((length, self.window_size, 5))],
-                [np.clip(np.arange(length, 0, step=-1), a_min=None, a_max=125)],
+                [np.clip(np.arange(length, 0, step=-1), a_min=None, a_max=125) / norm],
             ),
             "val": (
                 [np.zeros((100, self.window_size, 5))],
-                [np.clip(np.arange(100, 0, step=-1), a_min=None, a_max=125)],
+                [np.clip(np.arange(100, 0, step=-1), a_min=None, a_max=125) / norm],
             ),
         }
 
@@ -355,6 +398,11 @@ def length():
 @pytest.fixture
 def cmapss_normal(length):
     return RulDataModule(DummyRul(length), 32)
+
+
+@pytest.fixture
+def cmapss_normed(length):
+    return RulDataModule(DummyRul(length, norm_rul=True), 32)
 
 
 @pytest.fixture
@@ -537,3 +585,12 @@ class TestPairedDataset:
         core.PairedRulDataset(dms, "dev", 1000, 1)
 
         assert 2 == mock_check_compat.call_count
+
+    @pytest.mark.parametrize("degraded_only", [True, False])
+    def test_degraded_only(self, degraded_only, cmapss_normal, mocker):
+        spy_load_split = mocker.spy(cmapss_normal, "load_split")
+        core.PairedRulDataset(
+            [cmapss_normal], "dev", 1000, 1, degraded_only=degraded_only
+        )
+
+        spy_load_split.assert_called_with("dev", degraded_only=degraded_only)

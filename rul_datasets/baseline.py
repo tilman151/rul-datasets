@@ -13,7 +13,7 @@ from rul_datasets.core import PairedRulDataset, RulDataModule
 
 class BaselineDataModule(pl.LightningDataModule):
     """
-    A higher-order [data module][pytorch_lightning.core.LightningDataModule] that
+    A higher-order [data module][lightning.pytorch.core.LightningDataModule] that
     takes a [RulDataModule][rul_datasets.core.RulDataModule]. It provides the
     training and validation splits of the sub-dataset selected in the underlying data
     module but provides the test splits of all available subsets of the dataset. This

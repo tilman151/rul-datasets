@@ -1,7 +1,7 @@
 """Basic data modules for experiments involving only a single subset of any RUL
 dataset. """
 
-from typing import Dict, List, Optional, Tuple, Any, Callable, cast, Union
+from typing import Dict, List, Optional, Tuple, Any, Callable, cast, Union, Literal
 
 import numpy as np
 import pytorch_lightning as pl
@@ -14,7 +14,7 @@ from rul_datasets.reader import AbstractReader
 
 class RulDataModule(pl.LightningDataModule):
     """
-    A [data module][pytorch_lightning.core.LightningDataModule] to provide windowed
+    A [data module][lightning.pytorch.core.LightningDataModule] to provide windowed
     time series features with RUL targets. It exposes the splits of the underlying
     dataset for easy usage with PyTorch and PyTorch Lightning.
 
@@ -52,6 +52,12 @@ class RulDataModule(pl.LightningDataModule):
         ...     feature_extractor=lambda x: np.mean(x, axis=1),
         ...     window_size=10
         ... )
+
+        Only Degraded Validation and Test Samples
+
+        >>> import rul_datasets
+        >>> cmapss = rul_datasets.reader.CmapssReader(fd=1)
+        >>> dm = rul_datasets.RulDataModule(cmapss, 32, degraded_only=["val", "test"])
     """
 
     _data: Dict[str, Tuple[torch.Tensor, torch.Tensor]]
@@ -62,13 +68,14 @@ class RulDataModule(pl.LightningDataModule):
         batch_size: int,
         feature_extractor: Optional[Callable] = None,
         window_size: Optional[int] = None,
+        degraded_only: Optional[List[Literal["dev", "val", "test"]]] = None,
     ):
         """
         Create a new RUL data module from a reader.
 
         This data module exposes a training, validation and test data loader for the
         underlying dataset. First, `prepare_data` is called to download and
-        pre-process the dataset. Afterwards, `setup_data` is called to load all
+        pre-process the dataset. Afterward, `setup_data` is called to load all
         splits into memory.
 
         If a `feature_extractor` is supplied, the data module extracts new features
@@ -85,11 +92,13 @@ class RulDataModule(pl.LightningDataModule):
         `[num_windows, window_size, features]`.
 
         Args:
-            reader: The dataset reader for the desired dataset, e.g. CmapssLoader.
-            batch_size: The size of the batches build by the data loaders.
+            reader: The dataset reader for the desired dataset, e.g., CmapssLoader.
+            batch_size: The size of the batches built by the data loaders.
             feature_extractor: A feature extractor that extracts feature vectors from
                                windows.
             window_size: The new window size to apply after the feature extractor.
+            degraded_only: Whether to load only degraded samples for the `dev`, 'val'
+                           or 'test' split.
         """
         super().__init__()
 
@@ -97,6 +106,7 @@ class RulDataModule(pl.LightningDataModule):
         self.batch_size = batch_size
         self.feature_extractor = feature_extractor
         self.window_size = window_size
+        self.degraded_only = degraded_only
 
         if (self.feature_extractor is None) and (self.window_size is not None):
             raise ValueError(
@@ -111,6 +121,7 @@ class RulDataModule(pl.LightningDataModule):
                 str(self.feature_extractor) if self.feature_extractor else None
             ),
             "window_size": self.window_size,
+            "degraded_only": self.degraded_only,
         }
         self.save_hyperparameters(hparams)
 
@@ -217,24 +228,40 @@ class RulDataModule(pl.LightningDataModule):
         }
 
     def load_split(
-        self, split: str, alias: Optional[str] = None
+        self,
+        split: str,
+        alias: Optional[str] = None,
+        degraded_only: Optional[bool] = None,
     ) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
         """
         Load a split from the underlying reader and apply the feature extractor.
 
         By setting alias, it is possible to load a split aliased as another split,
-        e.g. load the test split and treat it as the dev split. The data of the split is
-        loaded but all pre-processing steps of alias are carried out.
+        e.g., load the test split and treat it as the dev split. The data of the split
+        is loaded, but all pre-processing steps of alias are carried out.
+
+        If `degraded_only` is set, only degraded samples are loaded. This is only
+        possible if the underlying reader has a `max_rul` set or `norm_rul` is set to
+        `True`. The `degraded_only` argument takes precedence over the `degraded_only`
+        of the data module.
 
         Args:
             split: The desired split to load.
             alias: The split as which the loaded data should be treated.
+            degraded_only: Whether to only load degraded samples.
         Returns:
             The feature and target tensors of the split's runs.
         """
         features, targets = self.reader.load_split(split, alias)
         features, targets = self._apply_feature_extractor_per_run(features, targets)
         tensor_features, tensor_targets = utils.to_tensor(features, targets)
+        if degraded_only is None:
+            degraded_only = (
+                self.degraded_only is not None
+                and (alias or split) in self.degraded_only
+            )
+        if degraded_only:
+            self._filter_out_healthy(tensor_features, tensor_targets)
 
         return tensor_features, tensor_targets
 
@@ -268,6 +295,21 @@ class RulDataModule(pl.LightningDataModule):
             targets = targets[cutoff:]
 
         return features, targets
+
+    def _filter_out_healthy(self, tensor_features, tensor_targets):
+        if self.reader.max_rul is not None:
+            thresh = self.reader.max_rul
+        elif hasattr(self.reader, "norm_rul") and self.reader.norm_rul:
+            thresh = 1.0
+        else:
+            raise ValueError(
+                "Cannot filter degraded samples if no max_rul is set and "
+                "norm_rul is False."
+            )
+        for i in range(len(tensor_targets)):
+            degraded = tensor_targets[i] < thresh
+            tensor_features[i] = tensor_features[i][degraded]
+            tensor_targets[i] = tensor_targets[i][degraded]
 
     def train_dataloader(self, *args: Any, **kwargs: Any) -> DataLoader:
         """
@@ -383,6 +425,7 @@ class PairedRulDataset(IterableDataset):
         min_distance: int,
         deterministic: bool = False,
         mode: str = "linear",
+        degraded_only: bool = False,
     ):
         super().__init__()
 
@@ -392,6 +435,7 @@ class PairedRulDataset(IterableDataset):
         self.num_samples = num_samples
         self.deterministic = deterministic
         self.mode = mode
+        self.degraded_only = degraded_only
 
         for dm in self.dms:
             dm.check_compatibility(self.dms[0])
@@ -430,7 +474,9 @@ class PairedRulDataset(IterableDataset):
         features = []
         labels = []
         for domain_idx, dm in enumerate(self.dms):
-            run_features, run_labels = dm.load_split(self.split)
+            run_features, run_labels = dm.load_split(
+                self.split, degraded_only=self.degraded_only
+            )
             for feat, lab in zip(run_features, run_labels):
                 if len(feat) > self.min_distance:
                     run_domain_idx.append(domain_idx)

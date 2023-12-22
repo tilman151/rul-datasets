@@ -1,7 +1,7 @@
 # RUL Datasets
 
 This library contains a collection of common benchmark datasets for **remaining useful lifetime (RUL)** estimation.
-They are provided as [LightningDataModules][pytorch_lightning.core.LightningDataModule] to be readily used in [PyTorch Lightning](https://pytorch-lightning.readthedocs.io/en/latest/).
+They are provided as [LightningDataModules][lightning.pytorch.core.LightningDataModule] to be readily used in [PyTorch Lightning](https://pytorch-lightning.readthedocs.io/en/latest/).
 
 Currently, four datasets are supported:
 

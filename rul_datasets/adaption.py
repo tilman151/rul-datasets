@@ -16,7 +16,7 @@ from rul_datasets.core import PairedRulDataset, RulDataModule
 
 class DomainAdaptionDataModule(pl.LightningDataModule):
     """
-    A higher-order [data module][pytorch_lightning.core.LightningDataModule] used for
+    A higher-order [data module][lightning.pytorch.core.LightningDataModule] used for
     unsupervised domain adaption of a labeled source to an unlabeled target domain.
     The training data of both domains is wrapped in a [AdaptionDataset]
     [rul_datasets.adaption.AdaptionDataset] which provides a random sample of the
@@ -217,7 +217,7 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
 
 class LatentAlignDataModule(DomainAdaptionDataModule):
     """
-    A higher-order [data module][pytorch_lightning.core.LightningDataModule] based on
+    A higher-order [data module][lightning.pytorch.core.LightningDataModule] based on
     [DomainAdaptionDataModule][rul_datasets.adaption.DomainAdaptionDataModule].
 
     It is specifically made to work with the latent space alignment approach by Zhang
