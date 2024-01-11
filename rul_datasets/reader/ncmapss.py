@@ -2,11 +2,11 @@ import os
 import warnings
 from typing import Tuple, List, Optional, Union, Dict
 
-import h5py
+import h5py  # type: ignore[import]
 import numpy as np
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler  # type: ignore[import]
 
-from rul_datasets import get_data_root
+from rul_datasets.reader.data_root import get_data_root
 from rul_datasets.reader import AbstractReader, scaling
 
 
@@ -189,7 +189,6 @@ class NCmapssReader(AbstractReader):
         cycle_end_idx = self._get_end_idx(auxiliary[:, 1])
         split_features = np.split(features, cycle_end_idx[:-1])
         split_features = self._downsample(split_features)
-        split_features = (f[: self.window_size] for f in split_features)
         split_features = [
             np.pad(
                 f,
@@ -197,7 +196,7 @@ class NCmapssReader(AbstractReader):
                 "constant",
                 constant_values=self.padding_value,
             )
-            for f in split_features
+            for f in (f[: self.window_size] for f in split_features)
         ]
         features = np.stack(split_features, axis=0)
         targets = targets[cycle_end_idx - 1]
