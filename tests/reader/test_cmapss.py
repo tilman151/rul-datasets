@@ -35,8 +35,8 @@ class TestCMAPSSLoader:
         assert win == run.shape[1]
         assert self.NUM_CHANNELS == run.shape[2]
         assert len(run) == len(run_target)
-        assert np.float == run.dtype
-        assert np.float == run_target.dtype
+        assert float == run.dtype
+        assert float == run_target.dtype
 
     @pytest.mark.parametrize(
         ("fd", "window_size"), [(1, 30), (2, 20), (3, 30), (4, 15)]
