@@ -1,4 +1,4 @@
-"""The NASA CMAPSS Turbofan Degradation dataset is a collection of simulated
+"""The NASA C-MAPSS Turbofan Degradation dataset is a collection of simulated
 degradation experiments on jet engines. It contains four sub-datasets named FD1, FD2,
 FD3 and FD4 which differ in operation conditions and possible failure types."""
 
@@ -97,7 +97,7 @@ class CmapssReader(AbstractReader):
         Ragab et al. This only affects FD002 and FD004 due to them having multiple
         operation conditions.
 
-        For more information about using readers refer to the [reader]
+        For more information about using readers, refer to the [reader]
         [rul_datasets.reader] module page.
 
         Args:

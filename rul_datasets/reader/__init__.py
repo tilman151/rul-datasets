@@ -3,13 +3,14 @@
 * **C-MAPSS** Turbofan Degradation Dataset
 * **FEMTO** (PRONOSTIA) Bearing Dataset
 * **XJTU-SY** Bearing Dataset
+* **N-C-MAPSS** New Turbofan Degradation Dataset
 
 Readers are the foundation of the RUL Datasets library. They provide access to the
 data on disk and convert them into a common format so that other parts of the library
 can interact with it. The common format is as follows:
 
 1. Each dataset consists of multiple sub-datasets. The indices of these sub-datasets
-are called `FD`, following CMAPSS convention.
+are called `FD`, following C-MAPSS convention.
 
 1. Each sub-dataset contains a development (`dev`), a validation (`val`) and test split
 (`test`).
@@ -18,7 +19,7 @@ are called `FD`, following CMAPSS convention.
 represent run-to-failure experiments.
 
 1. At each time step of a time series we have a window of features and a target RUL
-value. The target is the RUL value of the last time step of the window.
+value. The target is the RUL value of the window's last time step.
 
 A reader class, e.g. the [CmapssReader][rul_datasets.reader.cmapss.CmapssReader]
 represents a dataset and can manipulate it to your liking. A reader object has access

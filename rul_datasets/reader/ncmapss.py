@@ -1,3 +1,16 @@
+"""The New C-MAPSS Turbofan Degradation dataset is based on the same simulation as
+[C-MAPSS][rul_datasets.reader.cmapss]. In contrast to the original dataset,
+it contains fewer engine units, but each of them is recorded in more detail and under
+more realistic operation conditions. Each unit has flight cycles recorded from the
+healthy state until failure with RUL values assigned to the whole cycle. Inside a
+flight cycle, data is recorded with a 1Hz resolution The dataset is split into seven
+sub-datasets (`FD=1` to `FD=7`) that differ in the number of engine units and the
+types of failures present.
+
+Note:
+    An eighth sub-dataset exists but is not present here as one of its data files seems
+    corrupted. The dataset authors were already contacted about this issue."""
+
 import os
 import warnings
 from typing import Tuple, List, Optional, Union, Dict
@@ -11,6 +24,57 @@ from rul_datasets.reader import AbstractReader, scaling
 
 
 class NCmapssReader(AbstractReader):
+    """
+    This reader provides access to the New C-MAPSS Turbofan Degradation dataset. Each
+    of its seven sub-datasets contains a default train/val/test split which can be
+    overridden by the `run_split_dist` argument.
+
+    The features are provided as a windowed time series for each unit. The windows
+    represent one flight cycle and are, by default, padded to the longest cycle in
+    the sub-dataset. The window size can be overridden by the `window_size` argument
+    which truncates each cycle at the end. Additionally, the features can be
+    downsampled in time by taking the average of `resolution_seconds` consecutive
+    time steps. The default channels are the four operating conditions,
+    the 14 physical, and 14 virtual sensors in this order.
+
+    The features are min-max scaled between zero and one. The scaler is fitted on the
+    development data only. It is refit for each custom `run_split_dist` when
+    `prepare_data` is called.
+
+    Examples:
+        Default channels
+        >>> reader = NCmapssReader(fd=1)
+        >>> reader.prepare_data()
+        >>> features, labels = reader.load_split("dev")
+        >>> features[0].shape
+        (100, 20294, 32)
+
+        Physical sensors only
+        >>> reader = NCmapssReader(fd=1, feature_select=list(range(4, 18)))
+        >>> reader.prepare_data()
+        >>> features, labels = reader.load_split("dev")
+        >>> features[0].shape
+        (100, 20294, 14)
+
+        Custom split and window size
+        >>> reader = NCmapssReader(
+        ...     fd=1,
+        ...     run_split_dist={"dev": [0, 1], "val": [2], "test": [3]},
+        ...     window_size=100,  # first 100 steps of each cycle
+        ... )
+        >>> reader.prepare_data()
+        >>> features, labels = reader.load_split("dev")
+        >>> features[0].shape
+        (100, 100, 32)
+
+        Downsampled features
+        >>> reader = NCmapssReader(fd=1, resolution_seconds=10)
+        >>> reader.prepare_data()
+        >>> features, labels = reader.load_split("dev")
+        >>> features[0].shape  # window size is automatically adjusted
+        (100, 2029, 32)
+    """
+
     _WINDOW_SIZES = {
         1: 20294,
         2: 27116,
@@ -54,6 +118,41 @@ class NCmapssReader(AbstractReader):
         resolution_seconds: int = 1,
         padding_value: float = 0.0,
     ) -> None:
+        """
+        Create a new reader for the New C-MAPSS dataset. The maximum RUL value is set
+        to 65 by default. The default channels are the four operating conditions,
+        the 14 physical, and 14 virtual sensors in this order.
+
+        The default window size is, by default, the longest flight cycle in the
+        sub-dataset. Shorter cycles are padded on the left. The default padding value
+        is zero but can be overridden, e.g., as -1 to make filtering for padding easier
+        later on.
+
+        The default `run_split_dist` is the same as in the original dataset, but with
+        the last unit of the original train split designated for validation.
+
+        If the features are downsampled in time, the default window size is
+        automatically adjusted to `window_size // resolution_seconds`. Any manually
+        set `window_size` needs to take this into account as it is applied after
+        downsampling.
+
+        For more information about using readers, refer to the [reader]
+        [rul_datasets.reader] module page.
+
+        Args:
+            fd: The sub-dataset to use. Must be in `[1, 7]`.
+            max_rul: The maximum RUL value.
+            percent_broken: The maximum relative degradation per unit.
+            percent_fail_runs: The percentage or index list of available units.
+            feature_select: The indices of the features to use.
+            truncate_val: Truncate the validation data with `percent_broken`, too.
+            run_split_dist: The assignment of units to each split.
+            truncate_degraded_only: Only truncate the degraded part of the data
+                                    (< max RUL).
+            resolution_seconds: The number of consecutive seconds to average over for
+                                downsampling.
+            padding_value: The value to use for padding the flight cycles.
+        """
         super().__init__(
             fd,
             window_size,
@@ -95,9 +194,18 @@ class NCmapssReader(AbstractReader):
 
     @property
     def fds(self) -> List[int]:
+        """Indices of the available sub-datasets."""
         return list(self._WINDOW_SIZES)
 
     def prepare_data(self) -> None:
+        """
+        Prepare the N-C-MAPSS dataset. This function needs to be called before using the
+        dataset for the first time.
+
+        The dataset is assumed to be present in the data root directory. The training
+        data is then split into development and validation set. Afterward, a scaler
+        is fit on the development features if it was not already done previously.
+        """
         if not os.path.exists(self._get_scaler_path()):
             features, _, _ = self._load_data("dev")
             scaler = scaling.fit_scaler(features, MinMaxScaler())
@@ -234,6 +342,7 @@ class NCmapssReader(AbstractReader):
         return scaling.load_scaler(self._get_scaler_path())
 
     def _calc_default_window_size(self):
+        """Only for development purposes."""
         features, targets, auxiliary = self._load_raw_data()
         features, targets, auxiliary = self._split_by_unit(features, targets, auxiliary)
         max_window_size = []
