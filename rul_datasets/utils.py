@@ -7,6 +7,9 @@ import torch
 from tqdm import tqdm  # type: ignore
 
 
+GDRIVE_URL_BASE = "https://docs.google.com/uc?export=download"
+
+
 def get_files_in_path(path: str, condition: Optional[Callable] = None) -> List[str]:
     """
     Return the paths of all files in a path that satisfy a condition in alphabetical
@@ -88,10 +91,28 @@ def download_file(url: str, save_path: str) -> None:
     response = requests.get(url, stream=True)
     if not response.status_code == 200:
         raise RuntimeError(f"Download failed. Server returned {response.status_code}")
-    content_len = int(response.headers["Content-Length"]) // 1024
+    _write_content(response, save_path)
+
+
+def download_gdrive_file(file_id: str, save_path: str) -> None:
+    session = requests.Session()
+    response = session.get(GDRIVE_URL_BASE, params={"id": file_id}, stream=True)
+    if response.text.startswith("<!DOCTYPE html>"):
+        params = {"id": file_id, "confirm": "t"}
+        response = session.post(GDRIVE_URL_BASE, params=params, stream=True)
+    _write_content(response, save_path)
+
+
+def _write_content(response: requests.Response, save_path: str) -> None:
+    content_len = int(response.headers["Content-Length"])
     with open(save_path, mode="wb") as f:
-        for data in tqdm(response.iter_content(chunk_size=1024), total=content_len):
-            f.write(data)
+        pbar = tqdm(unit="B", unit_scale=True, unit_divisor=1024, total=content_len)
+        pbar.clear()
+        for chunk in response.iter_content(chunk_size=32768):
+            if chunk:
+                pbar.update(len(chunk))
+                f.write(chunk)
+        pbar.close()
 
 
 def to_tensor(
