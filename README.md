@@ -7,11 +7,12 @@
 This library contains a collection of common benchmark datasets for **remaining useful lifetime (RUL)** estimation.
 They are provided as [LightningDataModules](https://pytorch-lightning.readthedocs.io/en/stable/api/pytorch_lightning.core.LightningDataModule.html#pytorch_lightning.core.LightningDataModule) to be readily used in [PyTorch Lightning](https://pytorch-lightning.readthedocs.io/en/latest/).
 
-Currently, four datasets are supported:
+Currently, five datasets are supported:
 
 * **C-MAPSS** Turbofan Degradation Dataset
 * **FEMTO** (PRONOSTIA) Bearing Dataset
 * **XJTU-SY** Bearing Dataset
+* **N-C-MAPSS** New Turbofan Degradation Dataset
 * **Dummy** A tiny, simple dataset for debugging
 
 All datasets share the same API, so they can be used as drop-in replacements for each other.
