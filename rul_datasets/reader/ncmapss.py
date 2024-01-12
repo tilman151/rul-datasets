@@ -130,6 +130,7 @@ class NCmapssReader(AbstractReader):
     ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         features, targets, auxiliary = self._load_data(split)
         features = scaling.scale_features(features, self._load_scaler())
+        features = [f[:, self.feature_select] for f in features]
         windowed = [
             self._window_by_cycle(*unit) for unit in zip(features, targets, auxiliary)
         ]

@@ -122,3 +122,11 @@ def test_window_size_auto_adjust():
         reader = NCmapssReader(1, resolution_seconds=10)
 
     assert reader.window_size == reader.default_window_size(reader.fd) // 10
+
+
+@pytest.mark.needs_data
+def test_feature_select(prepared_ncmapss):
+    reader = NCmapssReader(1, feature_select=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+    features, _ = reader.load_complete_split("dev", "dev")
+
+    assert features[0].shape[2] == 10
