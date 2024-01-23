@@ -363,12 +363,12 @@ class NCmapssReader(AbstractReader):
 
 
 def _download_ncmapss(data_root):
-    os.makedirs(data_root)
     with tempfile.TemporaryDirectory() as tmp_path:
         print("Download N-C-MAPSS dataset from Google Drive")
         download_path = os.path.join(tmp_path, "data.zip")
         utils.download_gdrive_file(NCMAPSS_DRIVE_ID, download_path)
         print("Extract N-C-MAPSS dataset")
+        os.makedirs(data_root)
         with zipfile.ZipFile(download_path, mode="r") as f:
             for zipinfo in f.infolist():
                 zipinfo.filename = os.path.basename(zipinfo.filename)
