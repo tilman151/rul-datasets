@@ -100,6 +100,14 @@ def download_gdrive_file(file_id: str, save_path: str) -> None:
     if response.text.startswith("<!DOCTYPE html>"):
         params = {"id": file_id, "confirm": "t"}
         response = session.post(GDRIVE_URL_BASE, params=params, stream=True)
+    if response.status_code == 429:
+        raise RuntimeError(
+            "Download failed. Server returned 429. "
+            "This is usually caused by too many requests. "
+            "Please try again later."
+        )
+    elif not response.status_code == 200:
+        raise RuntimeError(f"Download failed. Server returned {response.status_code}")
     _write_content(response, save_path)
 
 
@@ -112,6 +120,7 @@ def _write_content(response: requests.Response, save_path: str) -> None:
             if chunk:
                 pbar.update(len(chunk))
                 f.write(chunk)
+                f.flush()
         pbar.close()
 
 

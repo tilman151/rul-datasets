@@ -9,7 +9,7 @@ from .adaption import (
 )
 from .baseline import BaselineDataModule, PretrainingBaselineDataModule
 from .core import RulDataModule
-from .reader import CmapssReader, FemtoReader, XjtuSyReader
+from .reader import CmapssReader, FemtoReader, XjtuSyReader, NCmapssReader
 from .reader.data_root import get_data_root, set_data_root
 from .ssl import SemiSupervisedDataModule
 
