@@ -36,11 +36,14 @@ def test_additional_hparams():
 def test_prepare_data(should_run, mocker):
     mocker.patch("os.path.exists", return_value=not should_run)
     mock_save_scaler = mocker.patch("rul_datasets.reader.ncmapss.scaling.save_scaler")
+    mock_download = mocker.patch("rul_datasets.reader.ncmapss._download_ncmapss")
 
     NCmapssReader(1).prepare_data()
     if should_run:
+        mock_download.assert_called_once()
         mock_save_scaler.assert_called_once()
     else:
+        mock_download.assert_not_called()
         mock_save_scaler.assert_not_called()
 
 
