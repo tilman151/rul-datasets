@@ -54,25 +54,28 @@ def test_get_targets_from_file_paths(file_path_func):
 @pytest.mark.parametrize(
     "window_size", [1, 5, 10, pytest.param(11, marks=pytest.mark.xfail)]
 )
-def test_extract_windows(window_size):
-    inputs = np.arange(10)
-    windows = utils.extract_windows(inputs, window_size)
+@pytest.mark.parametrize("dilation", [1, 2, 3])
+def test_extract_windows(window_size, dilation):
+    inputs = np.arange(30)
+    windows = utils.extract_windows(inputs, window_size, dilation)
 
-    expected_num_windows = len(inputs) - window_size + 1
+    expected_num_windows = len(inputs) - (window_size - 1) * dilation
     for i in range(expected_num_windows):
-        expected_window = inputs[i : (i + window_size)]
+        expected_window = inputs[i : (i + window_size * dilation) : dilation]
         npt.assert_equal(windows[i], expected_window)
 
 
 @pytest.mark.parametrize("num_targets", [0, 1, 2])
-def test_to_tensor(num_targets):
-    features = [np.random.randn(10, 100, 2)]
+@pytest.mark.parametrize("num_batch_dims", [0, 1, 2, 3])
+def test_to_tensor(num_targets, num_batch_dims):
+    batch_dims = (10,) * num_batch_dims
+    features = [np.random.randn(*batch_dims, 100, 2)]
     targets = [[np.arange(10)]] * num_targets
 
     tensor_features, *tensor_targets = utils.to_tensor(features, *targets)
 
     assert isinstance(tensor_features, list)
-    assert tensor_features[0].shape == (10, 2, 100)
+    assert tensor_features[0].shape == (*batch_dims, 2, 100)
     assert tensor_features[0].dtype == torch.float32
 
     assert len(tensor_targets) == num_targets

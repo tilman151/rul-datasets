@@ -60,7 +60,7 @@ def get_targets_from_file_paths(
     return targets
 
 
-def extract_windows(seq: np.ndarray, window_size: int) -> np.ndarray:
+def extract_windows(seq: np.ndarray, window_size: int, dilation: int = 1) -> np.ndarray:
     """
     Extract sliding windows from a sequence.
 
@@ -68,20 +68,27 @@ def extract_windows(seq: np.ndarray, window_size: int) -> np.ndarray:
     1` extracted windows. The resulting array has the shape [num_windows, window_size,
     num_channels].
 
+    If dilation is set to a value greater than one, the window will not contain
+    consecutive time steps. Instead, the time steps are spaced by the dilation value.
+    In this case, the number of extracted windows is `len(seq) - (window_size - 1) *
+    dilation`.
+
     Args:
         seq: sequence to extract windows from
         window_size: length of the sliding window
+        dilation: dilation of the sliding window
     Returns:
         array of sliding windows
     """
     if window_size > len(seq):
         raise ValueError(
-            f"Cannot extract windows of size {window_size} "
+            f"Cannot extract windows of size {window_size} with dilation {dilation}"
             f"from a sequence of length {len(seq)}."
         )
 
-    num_frames = seq.shape[0] - window_size + 1
-    window_idx = np.arange(window_size)[None, :] + np.arange(num_frames)[:, None]
+    num_frames = seq.shape[0] - (window_size - 1) * dilation
+    window_idx = np.arange(window_size)[None, :] * dilation
+    window_idx = window_idx + np.arange(num_frames)[:, None]
     windows = seq[window_idx]
 
     return windows
@@ -137,7 +144,15 @@ def to_tensor(
 
 
 def feature_to_tensor(features: np.ndarray, dtype: torch.dtype) -> torch.Tensor:
-    if len(features.shape) == 2:
-        return torch.tensor(features, dtype=dtype).permute(1, 0)
-    else:
-        return torch.tensor(features, dtype=dtype).permute(0, 2, 1)
+    """
+    Convert a numpy array to a torch tensor of `dtype` and swap the last dimensions.
+
+    The function assumes that the last dimension of the numpy array is the channel
+    dimension, and the second to last is the time dimension. All preceding dimensions
+    are considered to be batch dimensions.
+
+    Args:
+        features: numpy array to convert
+        dtype: dtype of the resulting tensor
+    """
+    return torch.transpose(torch.tensor(features, dtype=dtype), -1, -2)
