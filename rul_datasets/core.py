@@ -6,10 +6,16 @@ from typing import Dict, List, Optional, Tuple, Any, Callable, cast, Union, Lite
 import numpy as np
 import pytorch_lightning as pl
 import torch
-from torch.utils.data import DataLoader, IterableDataset, TensorDataset, get_worker_info
+from torch.utils.data import (
+    DataLoader,
+    IterableDataset,
+    TensorDataset,
+    get_worker_info,
+    Dataset,
+)
 
 from rul_datasets import utils
-from rul_datasets.reader import AbstractReader
+from rul_datasets.reader import AbstractReader, saving
 
 
 class RulDataModule(pl.LightningDataModule):
@@ -60,7 +66,7 @@ class RulDataModule(pl.LightningDataModule):
         >>> dm = rul_datasets.RulDataModule(cmapss, 32, degraded_only=["val", "test"])
     """
 
-    _data: Dict[str, Tuple[torch.Tensor, torch.Tensor]]
+    _data: Dict[str, Tuple[List[torch.Tensor], List[torch.Tensor]]]
 
     def __init__(
         self,
@@ -126,7 +132,7 @@ class RulDataModule(pl.LightningDataModule):
         self.save_hyperparameters(hparams)
 
     @property
-    def data(self) -> Dict[str, Tuple[torch.Tensor, torch.Tensor]]:
+    def data(self) -> Dict[str, Tuple[List[torch.Tensor], List[torch.Tensor]]]:
         """
         A dictionary of the training, validation and test splits.
 
@@ -222,9 +228,9 @@ class RulDataModule(pl.LightningDataModule):
             stage: Ignored. Only for adhering to parent class interface.
         """
         self._data = {
-            "dev": self._setup_split("dev"),
-            "val": self._setup_split("val"),
-            "test": self._setup_split("test"),
+            "dev": self.load_split("dev"),
+            "val": self.load_split("val"),
+            "test": self.load_split("test"),
         }
 
     def load_split(
@@ -264,17 +270,6 @@ class RulDataModule(pl.LightningDataModule):
             self._filter_out_healthy(tensor_features, tensor_targets)
 
         return tensor_features, tensor_targets
-
-    def _setup_split(
-        self, split: str, alias: Optional[str] = None
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        features, targets = self.load_split(split, alias)
-        if features:
-            cat_features, cat_targets = torch.cat(features), torch.cat(targets)
-        else:
-            cat_features, cat_targets = torch.empty(0, 0, 0), torch.empty(0)
-
-        return cat_features, cat_targets
 
     def _apply_feature_extractor_per_run(
         self, features: List[np.ndarray], targets: List[np.ndarray]
@@ -387,7 +382,7 @@ class RulDataModule(pl.LightningDataModule):
             pin_memory=True,
         )
 
-    def to_dataset(self, split: str, alias: Optional[str] = None) -> TensorDataset:
+    def to_dataset(self, split: str, alias: Optional[str] = None) -> "RulDataset":
         """
         Create a dataset of a split.
 
@@ -408,10 +403,41 @@ class RulDataModule(pl.LightningDataModule):
         if (alias is None) or (split == alias):
             features, targets = self._data[split]
         else:
-            features, targets = self._setup_split(split, alias)
-        split_dataset = TensorDataset(features, targets)
+            features, targets = self.load_split(split, alias)
+        split_dataset = RulDataset(features, targets)
 
         return split_dataset
+
+
+class RulDataset(Dataset):
+    """Internal dataset to hold multiple runs."""
+
+    def __init__(
+        self, features: List[torch.Tensor], targets: List[torch.Tensor]
+    ) -> None:
+        """
+        Create a new dataset from multiple runs.
+
+        Args:
+            features: The features of each run.
+            targets: The targets of each run.
+        """
+        super().__init__()
+
+        self.features = features
+        self.targets = targets
+
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
+        for feat, tar in zip(self.features, self.targets):
+            if index < len(feat):
+                return feat[index], tar[index]
+            else:
+                index -= len(feat)
+
+        raise IndexError(f"Index {index} out of range.")
+
+    def __len__(self) -> int:
+        return sum(len(f) for f in self.features)
 
 
 class PairedRulDataset(IterableDataset):

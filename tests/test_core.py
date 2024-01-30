@@ -79,7 +79,7 @@ class TestRulDataModule:
         mock_loader.load_split.assert_has_calls(
             [mock.call("dev", None), mock.call("val", None), mock.call("test", None)]
         )
-        mock_runs = tuple(torch.tensor(np.concatenate(r)) for r in mock_runs)
+        mock_runs = tuple([torch.as_tensor(x) for x in r] for r in mock_runs)
         assert dataset._data == {"dev": mock_runs, "val": mock_runs, "test": mock_runs}
 
     @pytest.mark.parametrize("split", ["dev", "val", "test"])
@@ -211,8 +211,8 @@ class TestRulDataModule:
 
         for i, split in enumerate(["dev", "val", "test"]):
             tensor_dataset = dataset.to_dataset(split)
-            assert isinstance(tensor_dataset, TensorDataset)
-            assert i == len(tensor_dataset.tensors[0])
+            assert isinstance(tensor_dataset, core.RulDataset)
+            assert i == len(tensor_dataset.features)
 
     def test_check_compatability(self, mock_loader):
         fe = lambda x: np.mean(x, axis=2)
