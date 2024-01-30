@@ -9,7 +9,7 @@ import pytest
 import torch
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, TensorDataset
 
-from rul_datasets import core, reader, RulDataModule
+from rul_datasets import core, reader, RulDataModule, utils
 
 
 @pytest.fixture()
@@ -79,7 +79,6 @@ class TestRulDataModule:
         mock_loader.load_split.assert_has_calls(
             [mock.call("dev", None), mock.call("val", None), mock.call("test", None)]
         )
-        mock_runs = tuple([torch.as_tensor(x) for x in r] for r in mock_runs)
         assert dataset._data == {"dev": mock_runs, "val": mock_runs, "test": mock_runs}
 
     @pytest.mark.parametrize("split", ["dev", "val", "test"])
@@ -461,8 +460,8 @@ class TestPairedDataset:
         for i, sample in enumerate(data):
             idx = 3 * i
             expected_run = data._features[fixed_idx[idx]]
-            expected_anchor = torch.tensor(expected_run[fixed_idx[idx + 1]])
-            expected_query = torch.tensor(expected_run[fixed_idx[idx + 2]])
+            expected_anchor = utils.feature_to_tensor(expected_run[fixed_idx[idx + 1]])
+            expected_query = utils.feature_to_tensor(expected_run[fixed_idx[idx + 2]])
             expected_distance = min(125, fixed_idx[idx + 2] - fixed_idx[idx + 1]) / 125
             expected_domain_idx = 0
             assert 0 == torch.dist(expected_anchor, sample[0])
