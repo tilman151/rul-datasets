@@ -414,26 +414,37 @@ class RulDataset(Dataset):
     """
 
     def __init__(
-        self, features: List[np.ndarray], *targets: Tuple[List[np.ndarray]]
+        self,
+        features: List[np.ndarray],
+        *targets: Tuple[List[np.ndarray]],
+        copy_tensors: bool = False,
     ) -> None:
         """
         Create a new dataset from multiple runs.
 
+        If `copy_tensors` is true, the tensors are copied to avoid side effects when
+        modifying them. Otherwise, the tensors use the same memory as the original
+        Numpy arrays to save space.
+
         Args:
             features: The features of each run.
             targets: The targets of each run.
+            copy_tensors: Whether to copy the tensors or not.
         """
         super().__init__()
 
         self.features = features
         self.targets = targets
+        self.copy_tensors = copy_tensors
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, ...]:
         if isinstance(index, slice):
             raise NotImplementedError("Slicing is not supported by this dataset.")
         for i in range(len(self.features)):
             if index < len(self.features[i]):
-                tensor_feat = utils.feature_to_tensor(self.features[i][index])
+                tensor_feat = utils.feature_to_tensor(
+                    self.features[i][index], copy=self.copy_tensors
+                )
                 tensor_tar = tuple(torch.as_tensor(t[i][index]) for t in self.targets)
                 return tensor_feat, *tensor_tar
             else:

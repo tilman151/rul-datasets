@@ -165,19 +165,18 @@ def _write_content(response: requests.Response, save_path: str) -> None:
 
 
 def to_tensor(
-    features: List[np.ndarray], *targets: List[np.ndarray]
+    features: List[np.ndarray], *targets: List[np.ndarray], copy: bool = False
 ) -> Tuple[List[torch.Tensor], ...]:
     dtype = torch.float32
-    tensor_feats = [feature_to_tensor(f, dtype) for f in features]
-    tensor_targets = [
-        [torch.as_tensor(t, dtype=dtype) for t in target] for target in targets
-    ]
+    tensor_feats = [feature_to_tensor(f, dtype, copy) for f in features]
+    convert = torch.tensor if copy else torch.as_tensor
+    tensor_targets = [[convert(t, dtype=dtype) for t in target] for target in targets]
 
     return tensor_feats, *tensor_targets
 
 
 def feature_to_tensor(
-    features: np.ndarray, dtype: torch.dtype = torch.float32
+    features: np.ndarray, dtype: torch.dtype = torch.float32, copy: bool = False
 ) -> torch.Tensor:
     """
     Convert a numpy array to a torch tensor of `dtype` and swap the last dimensions.
@@ -189,5 +188,10 @@ def feature_to_tensor(
     Args:
         features: numpy array to convert
         dtype: dtype of the resulting tensor
+        copy: whether to copy the array before converting it
     """
-    return torch.transpose(torch.as_tensor(features, dtype=dtype), -1, -2)
+    if copy:
+        features = np.copy(features)
+    tensor = torch.transpose(torch.as_tensor(features, dtype=dtype), -1, -2)
+
+    return tensor
