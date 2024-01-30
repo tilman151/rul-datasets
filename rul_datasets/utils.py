@@ -1,13 +1,11 @@
 import os
 import tempfile
-import uuid
-from typing import List, Optional, Callable, Dict, Tuple, Literal, Union
+from typing import List, Optional, Callable, Dict, Tuple, Literal
 
 import numpy as np
 import requests  # type: ignore
 import torch
 from tqdm import tqdm  # type: ignore
-
 
 GDRIVE_URL_BASE = "https://docs.google.com/uc?export=download"
 
