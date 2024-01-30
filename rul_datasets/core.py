@@ -416,7 +416,7 @@ class RulDataset(Dataset):
     def __init__(
         self,
         features: List[np.ndarray],
-        *targets: Tuple[List[np.ndarray]],
+        *targets: List[np.ndarray],
         copy_tensors: bool = False,
     ) -> None:
         """

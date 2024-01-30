@@ -169,7 +169,7 @@ def to_tensor(
 ) -> Tuple[List[torch.Tensor], ...]:
     dtype = torch.float32
     tensor_feats = [feature_to_tensor(f, dtype, copy) for f in features]
-    convert = torch.tensor if copy else torch.as_tensor
+    convert: Callable = torch.tensor if copy else torch.as_tensor  # type: ignore
     tensor_targets = [[convert(t, dtype=dtype) for t in target] for target in targets]
 
     return tensor_feats, *tensor_targets

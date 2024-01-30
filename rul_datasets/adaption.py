@@ -2,15 +2,13 @@
 
 import warnings
 from copy import deepcopy
-from typing import List, Optional, Any, Tuple, Callable, Sequence, Union, cast
+from typing import List, Optional, Any, Tuple, Callable, Sequence, cast
 
 import numpy as np
 import pytorch_lightning as pl
 import torch
-from torch.utils.data import DataLoader, Dataset
-from torch.utils.data.dataset import ConcatDataset, TensorDataset
+from torch.utils.data import DataLoader, Dataset, ConcatDataset
 
-from rul_datasets import utils
 from rul_datasets.core import PairedRulDataset, RulDataModule, RulDataset
 
 
