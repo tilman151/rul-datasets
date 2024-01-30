@@ -140,7 +140,6 @@ class PretrainingBaselineDataModule(pl.LightningDataModule):
         self.min_distance = min_distance
         self.distance_mode = distance_mode
         self.window_size = self.unfailed.reader.window_size
-        self.source = unfailed_data_module
 
         self._check_loaders()
 
@@ -209,7 +208,8 @@ class PretrainingBaselineDataModule(pl.LightningDataModule):
         self.unfailed.reader.prepare_data()
 
     def setup(self, stage: Optional[str] = None):
-        self.source.setup(stage)
+        self.unfailed.setup(stage)
+        self.failed.setup(stage)
 
     def train_dataloader(self, *args, **kwargs) -> DataLoader:
         return DataLoader(
@@ -220,9 +220,9 @@ class PretrainingBaselineDataModule(pl.LightningDataModule):
         combined_loader = DataLoader(
             self._get_paired_dataset("val"), batch_size=self.batch_size, pin_memory=True
         )
-        source_loader = self.source.val_dataloader()
+        unfailed_loader = self.unfailed.val_dataloader()
 
-        return [combined_loader, source_loader]
+        return [combined_loader, unfailed_loader]
 
     def _get_paired_dataset(self, split: str) -> PairedRulDataset:
         deterministic = split == "val"

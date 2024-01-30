@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.dataset import ConcatDataset, TensorDataset
 
 from rul_datasets import utils
-from rul_datasets.core import PairedRulDataset, RulDataModule
+from rul_datasets.core import PairedRulDataset, RulDataModule, RulDataset
 
 
 class DomainAdaptionDataModule(pl.LightningDataModule):
@@ -235,7 +235,7 @@ class LatentAlignDataModule(DomainAdaptionDataModule):
         >>> fd2 = rul_datasets.CmapssReader(fd=2, percent_broken=0.8)
         >>> src = rul_datasets.RulDataModule(fd1, 32)
         >>> trg = rul_datasets.RulDataModule(fd2, 32)
-        >>> dm = rul_datasets.LatentAlignDataModule(src, trg, split_by_max_rul=125)
+        >>> dm = rul_datasets.LatentAlignDataModule(src, trg, split_by_max_rul=True)
         >>> dm.prepare_data()
         >>> dm.setup()
         >>> train_1_2 = dm.train_dataloader()
@@ -286,12 +286,15 @@ class LatentAlignDataModule(DomainAdaptionDataModule):
 
     def _get_training_dataset(self) -> "AdaptionDataset":
         source_healthy, source_degraded = split_healthy(
-            *self.source.load_split("dev"), by_max_rul=True
+            *self.source.data["dev"], by_max_rul=True
+        )
+        target_features, target_labels = (  # reload only if needed to save memory
+            self.target.data["dev"]
+            if not self.inductive
+            else self.target.load_split("test", alias="dev")
         )
         target_healthy, target_degraded = split_healthy(
-            *self.target.load_split("test" if self.inductive else "dev", alias="dev"),
-            self.split_by_max_rul,
-            self.split_by_steps,
+            target_features, target_labels, self.split_by_max_rul, self.split_by_steps
         )
         healthy: Dataset = ConcatDataset([source_healthy, target_healthy])
         dataset = AdaptionDataset(source_degraded, target_degraded, healthy)
@@ -300,11 +303,11 @@ class LatentAlignDataModule(DomainAdaptionDataModule):
 
 
 def split_healthy(
-    features: Union[List[np.ndarray], List[torch.Tensor]],
-    targets: Union[List[np.ndarray], List[torch.Tensor]],
+    features: List[np.ndarray],
+    targets: List[np.ndarray],
     by_max_rul: bool = False,
     by_steps: Optional[int] = None,
-) -> Tuple[TensorDataset, TensorDataset]:
+) -> Tuple[RulDataset, RulDataset]:
     """
     Split the feature and target time series into healthy and degrading parts and
     return a dataset of each.
@@ -329,19 +332,13 @@ def split_healthy(
     if not by_max_rul and (by_steps is None):
         raise ValueError("Either 'by_max_rul' or 'by_steps' need to be set.")
 
-    if isinstance(features[0], np.ndarray):
-        features, targets = cast(Tuple[List[np.ndarray], ...], (features, targets))
-        _features, _targets = utils.to_tensor(features, targets)
-    else:
-        _features, _targets = cast(Tuple[List[torch.Tensor], ...], (features, targets))
-
     healthy = []
     degraded = []
-    for feature, target in zip(_features, _targets):
+    for feature, target in zip(features, targets):
         sections = _get_sections(by_max_rul, by_steps, target)
-        healthy_feat, degraded_feat = torch.split(feature, sections)
-        healthy_target, degraded_target = torch.split(target, sections)
-        degradation_steps = torch.arange(1, len(degraded_target) + 1)
+        healthy_feat, degraded_feat = np.split(feature, sections)
+        healthy_target, degraded_target = np.split(target, sections)
+        degradation_steps = np.arange(1, len(degraded_target) + 1)
         healthy.append((healthy_feat, healthy_target))
         degraded.append((degraded_feat, degradation_steps, degraded_target))
 
@@ -352,22 +349,22 @@ def split_healthy(
 
 
 def _get_sections(
-    by_max_rul: bool, by_steps: Optional[int], target: torch.Tensor
+    by_max_rul: bool, by_steps: Optional[int], target: np.ndarray
 ) -> List[int]:
     # cast is needed for mypy and has no runtime effect
     if by_max_rul:
-        split_idx = cast(int, target.flip(0).argmax().item())
-        sections = [len(target) - split_idx, split_idx]
+        split_idx = cast(int, np.flip(target, axis=0).argmax())
+        sections = [len(target) - split_idx]
     else:
         by_steps = min(cast(int, by_steps), len(target))
-        sections = [by_steps, len(target) - by_steps]
+        sections = [by_steps]
 
     return sections
 
 
-def _to_dataset(data: Sequence[Tuple[torch.Tensor, ...]]) -> TensorDataset:
-    tensor_data = [torch.cat(h) for h in zip(*data)]
-    dataset = TensorDataset(*tensor_data)
+def _to_dataset(data: Sequence[Tuple[np.ndarray, ...]]) -> RulDataset:
+    features, *targets = list(zip(*data))
+    dataset = RulDataset(features, *targets)
 
     return dataset
 

@@ -289,7 +289,7 @@ class RulDataModule(pl.LightningDataModule):
 
         return features, targets
 
-    def _filter_out_healthy(self, tensor_features, tensor_targets):
+    def _filter_out_healthy(self, features, targets):
         if self.reader.max_rul is not None:
             thresh = self.reader.max_rul
         elif hasattr(self.reader, "norm_rul") and self.reader.norm_rul:
@@ -299,10 +299,10 @@ class RulDataModule(pl.LightningDataModule):
                 "Cannot filter degraded samples if no max_rul is set and "
                 "norm_rul is False."
             )
-        for i in range(len(tensor_targets)):
-            degraded = tensor_targets[i] < thresh
-            tensor_features[i] = tensor_features[i][degraded]
-            tensor_targets[i] = tensor_targets[i][degraded]
+        for i in range(len(targets)):
+            degraded = targets[i] < thresh
+            features[i] = features[i][degraded]
+            targets[i] = targets[i][degraded]
 
     def train_dataloader(self, *args: Any, **kwargs: Any) -> DataLoader:
         """
@@ -413,7 +413,9 @@ class RulDataset(Dataset):
     Its length is the sum of all runs' lengths.
     """
 
-    def __init__(self, features: List[np.ndarray], targets: List[np.ndarray]) -> None:
+    def __init__(
+        self, features: List[np.ndarray], *targets: Tuple[List[np.ndarray]]
+    ) -> None:
         """
         Create a new dataset from multiple runs.
 
@@ -426,16 +428,16 @@ class RulDataset(Dataset):
         self.features = features
         self.targets = targets
 
-    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, ...]:
         if isinstance(index, slice):
             raise NotImplementedError("Slicing is not supported by this dataset.")
-        for feat, tar in zip(self.features, self.targets):
-            if index < len(feat):
-                tensor_feat = utils.feature_to_tensor(feat[index], torch.float32)
-                tensor_tar = torch.as_tensor(tar[index])
-                return tensor_feat, tensor_tar
+        for i in range(len(self.features)):
+            if index < len(self.features[i]):
+                tensor_feat = utils.feature_to_tensor(self.features[i][index])
+                tensor_tar = tuple(torch.as_tensor(t[i][index]) for t in self.targets)
+                return tensor_feat, *tensor_tar
             else:
-                index -= len(feat)
+                index -= len(self.features[i])
 
         raise IndexError(f"Index {index} out of range.")
 
@@ -444,7 +446,10 @@ class RulDataset(Dataset):
 
 
 class PairedRulDataset(IterableDataset):
-    """A dataset of sample pairs drawn from the same time series."""
+    """A dataset of sample pairs drawn from the same time series.
+
+    The dataset uses the runs exactly as loaded by the passed data modules. Options
+    like `degraded_only` need to be set there."""
 
     def __init__(
         self,
@@ -454,7 +459,6 @@ class PairedRulDataset(IterableDataset):
         min_distance: int,
         deterministic: bool = False,
         mode: str = "linear",
-        degraded_only: bool = False,
     ):
         super().__init__()
 
@@ -464,7 +468,6 @@ class PairedRulDataset(IterableDataset):
         self.num_samples = num_samples
         self.deterministic = deterministic
         self.mode = mode
-        self.degraded_only = degraded_only
 
         for dm in self.dms:
             dm.check_compatibility(self.dms[0])
@@ -503,9 +506,7 @@ class PairedRulDataset(IterableDataset):
         features = []
         labels = []
         for domain_idx, dm in enumerate(self.dms):
-            run_features, run_labels = dm.load_split(
-                self.split, degraded_only=self.degraded_only
-            )
+            run_features, run_labels = dm.data[self.split]
             for feat, lab in zip(run_features, run_labels):
                 if len(feat) > self.min_distance:
                     run_domain_idx.append(domain_idx)

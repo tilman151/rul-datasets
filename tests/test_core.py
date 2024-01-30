@@ -306,6 +306,10 @@ class DummyRul(reader.AbstractReader):
                 [np.zeros((100, self.window_size, 5))],
                 [np.clip(np.arange(100, 0, step=-1), a_min=None, a_max=125) / norm],
             ),
+            "test": (
+                [np.zeros((10, self.window_size, 5))],
+                [np.clip(np.arange(10, 0, step=-1), a_min=None, a_max=125) / norm],
+            ),
         }
 
     @property
@@ -360,6 +364,8 @@ class DummyRulShortRuns(reader.AbstractReader):
                 np.ones(1) * 500,
             ],
         ),
+        "val": ([], []),
+        "test": ([], []),
     }
 
     @property
@@ -380,10 +386,7 @@ class DummyRulShortRuns(reader.AbstractReader):
         pass
 
     def load_complete_split(self, split, alias):
-        if not split == "dev":
-            raise ValueError(f"DummyRulShortRuns does not have a '{split}' split")
-
-        return self.data["dev"]
+        return self.data[split]
 
     def load_split(self, split, alias):
         return self.load_complete_split(split, alias)
@@ -396,17 +399,26 @@ def length():
 
 @pytest.fixture
 def cmapss_normal(length):
-    return RulDataModule(DummyRul(length), 32)
+    dm = RulDataModule(DummyRul(length), 32)
+    dm.setup()
+
+    return dm
 
 
 @pytest.fixture
 def cmapss_normed(length):
-    return RulDataModule(DummyRul(length, norm_rul=True), 32)
+    dm = RulDataModule(DummyRul(length, norm_rul=True), 32)
+    dm.setup()
+
+    return dm
 
 
 @pytest.fixture
 def cmapss_short():
-    return RulDataModule(DummyRulShortRuns(), 32)
+    dm = RulDataModule(DummyRulShortRuns(), 32)
+    dm.setup()
+
+    return dm
 
 
 class TestPairedDataset:
@@ -579,17 +591,9 @@ class TestPairedDataset:
             RulDataModule(DummyRulShortRuns(window_size=20), 32),
         ]
         for dm in dms:
+            dm.setup()
             dm.check_compatibility = mock_check_compat
 
         core.PairedRulDataset(dms, "dev", 1000, 1)
 
         assert 2 == mock_check_compat.call_count
-
-    @pytest.mark.parametrize("degraded_only", [True, False])
-    def test_degraded_only(self, degraded_only, cmapss_normal, mocker):
-        spy_load_split = mocker.spy(cmapss_normal, "load_split")
-        core.PairedRulDataset(
-            [cmapss_normal], "dev", 1000, 1, degraded_only=degraded_only
-        )
-
-        spy_load_split.assert_called_with("dev", degraded_only=degraded_only)
