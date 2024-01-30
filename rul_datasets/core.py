@@ -410,7 +410,10 @@ class RulDataModule(pl.LightningDataModule):
 
 
 class RulDataset(Dataset):
-    """Internal dataset to hold multiple runs."""
+    """Internal dataset to hold multiple runs.
+
+    Its length is the sum of all runs' lengths.
+    """
 
     def __init__(
         self, features: List[torch.Tensor], targets: List[torch.Tensor]
@@ -428,6 +431,8 @@ class RulDataset(Dataset):
         self.targets = targets
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
+        if isinstance(index, slice):
+            raise NotImplementedError("Slicing is not supported by this dataset.")
         for feat, tar in zip(self.features, self.targets):
             if index < len(feat):
                 return feat[index], tar[index]
