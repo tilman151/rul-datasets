@@ -1,4 +1,6 @@
 import os
+import tempfile
+import uuid
 from typing import List, Optional, Callable, Dict, Tuple
 
 import numpy as np
@@ -60,7 +62,9 @@ def get_targets_from_file_paths(
     return targets
 
 
-def extract_windows(seq: np.ndarray, window_size: int, dilation: int = 1) -> np.ndarray:
+def extract_windows(
+    seq: np.ndarray, window_size: int, dilation: int = 1, memmap: bool = False
+) -> np.ndarray:
     """
     Extract sliding windows from a sequence.
 
@@ -77,19 +81,32 @@ def extract_windows(seq: np.ndarray, window_size: int, dilation: int = 1) -> np.
         seq: sequence to extract windows from
         window_size: length of the sliding window
         dilation: dilation of the sliding window
+        memmap: return the windows mapped to disk storage
     Returns:
         array of sliding windows
     """
     if window_size > len(seq):
         raise ValueError(
-            f"Cannot extract windows of size {window_size} with dilation {dilation}"
+            f"Cannot extract windows of size {window_size} with dilation {dilation} "
             f"from a sequence of length {len(seq)}."
         )
 
     num_frames = seq.shape[0] - (window_size - 1) * dilation
     window_idx = np.arange(window_size)[None, :] * dilation
     window_idx = window_idx + np.arange(num_frames)[:, None]
-    windows = seq[window_idx]
+    if memmap:
+        with tempfile.NamedTemporaryFile() as tmp_file:
+            windows = np.memmap(
+                tmp_file.name,
+                dtype=np.float32,
+                mode="w+",
+                shape=window_idx.shape + seq.shape[1:],
+            )
+        for i, idx in enumerate(window_idx):
+            windows[i] = seq[idx]
+            windows.flush()
+    else:
+        windows = seq[window_idx]
 
     return windows
 
@@ -137,7 +154,7 @@ def to_tensor(
     dtype = torch.float32
     tensor_feats = [feature_to_tensor(f, dtype) for f in features]
     tensor_targets = [
-        [torch.tensor(t, dtype=dtype) for t in target] for target in targets
+        [torch.as_tensor(t, dtype=dtype) for t in target] for target in targets
     ]
 
     return tensor_feats, *tensor_targets
@@ -155,4 +172,4 @@ def feature_to_tensor(features: np.ndarray, dtype: torch.dtype) -> torch.Tensor:
         features: numpy array to convert
         dtype: dtype of the resulting tensor
     """
-    return torch.transpose(torch.tensor(features, dtype=dtype), -1, -2)
+    return torch.transpose(torch.as_tensor(features, dtype=dtype), -1, -2)
