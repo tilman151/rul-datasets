@@ -9,7 +9,7 @@ import pytest
 import torch
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, TensorDataset
 
-from rul_datasets import core, reader, RulDataModule
+from rul_datasets import core, reader, RulDataModule, utils
 
 
 @pytest.fixture()
@@ -79,7 +79,6 @@ class TestRulDataModule:
         mock_loader.load_split.assert_has_calls(
             [mock.call("dev", None), mock.call("val", None), mock.call("test", None)]
         )
-        mock_runs = tuple(torch.tensor(np.concatenate(r)) for r in mock_runs)
         assert dataset._data == {"dev": mock_runs, "val": mock_runs, "test": mock_runs}
 
     @pytest.mark.parametrize("split", ["dev", "val", "test"])
@@ -211,8 +210,8 @@ class TestRulDataModule:
 
         for i, split in enumerate(["dev", "val", "test"]):
             tensor_dataset = dataset.to_dataset(split)
-            assert isinstance(tensor_dataset, TensorDataset)
-            assert i == len(tensor_dataset.tensors[0])
+            assert isinstance(tensor_dataset, core.RulDataset)
+            assert i == len(tensor_dataset.features)
 
     def test_check_compatability(self, mock_loader):
         fe = lambda x: np.mean(x, axis=2)
@@ -307,6 +306,10 @@ class DummyRul(reader.AbstractReader):
                 [np.zeros((100, self.window_size, 5))],
                 [np.clip(np.arange(100, 0, step=-1), a_min=None, a_max=125) / norm],
             ),
+            "test": (
+                [np.zeros((10, self.window_size, 5))],
+                [np.clip(np.arange(10, 0, step=-1), a_min=None, a_max=125) / norm],
+            ),
         }
 
     @property
@@ -361,6 +364,8 @@ class DummyRulShortRuns(reader.AbstractReader):
                 np.ones(1) * 500,
             ],
         ),
+        "val": ([], []),
+        "test": ([], []),
     }
 
     @property
@@ -381,10 +386,7 @@ class DummyRulShortRuns(reader.AbstractReader):
         pass
 
     def load_complete_split(self, split, alias):
-        if not split == "dev":
-            raise ValueError(f"DummyRulShortRuns does not have a '{split}' split")
-
-        return self.data["dev"]
+        return self.data[split]
 
     def load_split(self, split, alias):
         return self.load_complete_split(split, alias)
@@ -397,17 +399,26 @@ def length():
 
 @pytest.fixture
 def cmapss_normal(length):
-    return RulDataModule(DummyRul(length), 32)
+    dm = RulDataModule(DummyRul(length), 32)
+    dm.setup()
+
+    return dm
 
 
 @pytest.fixture
 def cmapss_normed(length):
-    return RulDataModule(DummyRul(length, norm_rul=True), 32)
+    dm = RulDataModule(DummyRul(length, norm_rul=True), 32)
+    dm.setup()
+
+    return dm
 
 
 @pytest.fixture
 def cmapss_short():
-    return RulDataModule(DummyRulShortRuns(), 32)
+    dm = RulDataModule(DummyRulShortRuns(), 32)
+    dm.setup()
+
+    return dm
 
 
 class TestPairedDataset:
@@ -461,8 +472,8 @@ class TestPairedDataset:
         for i, sample in enumerate(data):
             idx = 3 * i
             expected_run = data._features[fixed_idx[idx]]
-            expected_anchor = torch.tensor(expected_run[fixed_idx[idx + 1]])
-            expected_query = torch.tensor(expected_run[fixed_idx[idx + 2]])
+            expected_anchor = utils.feature_to_tensor(expected_run[fixed_idx[idx + 1]])
+            expected_query = utils.feature_to_tensor(expected_run[fixed_idx[idx + 2]])
             expected_distance = min(125, fixed_idx[idx + 2] - fixed_idx[idx + 1]) / 125
             expected_domain_idx = 0
             assert 0 == torch.dist(expected_anchor, sample[0])
@@ -580,17 +591,9 @@ class TestPairedDataset:
             RulDataModule(DummyRulShortRuns(window_size=20), 32),
         ]
         for dm in dms:
+            dm.setup()
             dm.check_compatibility = mock_check_compat
 
         core.PairedRulDataset(dms, "dev", 1000, 1)
 
         assert 2 == mock_check_compat.call_count
-
-    @pytest.mark.parametrize("degraded_only", [True, False])
-    def test_degraded_only(self, degraded_only, cmapss_normal, mocker):
-        spy_load_split = mocker.spy(cmapss_normal, "load_split")
-        core.PairedRulDataset(
-            [cmapss_normal], "dev", 1000, 1, degraded_only=degraded_only
-        )
-
-        spy_load_split.assert_called_with("dev", degraded_only=degraded_only)

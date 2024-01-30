@@ -375,9 +375,9 @@ def test_latent_align_data_module(mock_split_healthy, by_max_rul, by_steps):
     source = mock.MagicMock(core.RulDataModule)
     source.batch_size = 32
     source.reader.window_size = 30
-    source.load_split.return_value = ([torch.zeros(1)],) * 2
+    source.data = {"dev": ([torch.zeros(1)],) * 2}
     target = mock.MagicMock(core.RulDataModule)
-    target.load_split.return_value = ([torch.ones(1)],) * 2
+    target.data = {"dev": ([torch.ones(1)],) * 2}
 
     dm = adaption.LatentAlignDataModule(
         source, target, split_by_max_rul=by_max_rul, split_by_steps=by_steps
@@ -388,13 +388,13 @@ def test_latent_align_data_module(mock_split_healthy, by_max_rul, by_steps):
     mock_split_healthy.assert_has_calls(
         [
             mock.call(
-                source.load_split.return_value[0],
-                source.load_split.return_value[1],
+                source.data["dev"][0],
+                source.data["dev"][1],
                 by_max_rul=True,
             ),
             mock.call(
-                target.load_split.return_value[0],
-                target.load_split.return_value[1],
+                target.data["dev"][0],
+                target.data["dev"][1],
                 by_max_rul,
                 by_steps,
             ),
@@ -406,14 +406,24 @@ def test_latent_align_data_module(mock_split_healthy, by_max_rul, by_steps):
     "rul_datasets.adaption.split_healthy",
     return_value=(TensorDataset(torch.zeros(1)),) * 2,
 )
-@pytest.mark.parametrize(["inductive", "exp_split"], [(True, "test"), (False, "dev")])
-def test_latent_align_data_module_inductive(_, inductive, exp_split):
-    source = mock.MagicMock(core.RulDataModule)
+@pytest.mark.parametrize("inductive", [True, False])
+def test_latent_align_data_module_inductive(_, inductive, mocker):
+    source = mocker.MagicMock(core.RulDataModule)
     source.batch_size = 32
     source.reader.window_size = 30
-    source.load_split.return_value = ([torch.zeros(1)],) * 2
-    target = mock.MagicMock(core.RulDataModule)
-    target.load_split.return_value = ([torch.zeros(1)],) * 2
+    source.data.__getitem__.return_value = (
+        mock.sentinel.source_features,
+        mocker.sentinel.source_targets,
+    )
+    target = mocker.MagicMock(core.RulDataModule)
+    target.load_split.return_value = (
+        mock.sentinel.target_features,
+        mocker.sentinel.target_targets,
+    )
+    target.data.__getitem__.return_value = (
+        mock.sentinel.target_features,
+        mocker.sentinel.target_targets,
+    )
 
     dm = adaption.LatentAlignDataModule(
         source, target, inductive=inductive, split_by_max_rul=True
@@ -421,8 +431,12 @@ def test_latent_align_data_module_inductive(_, inductive, exp_split):
 
     dm.train_dataloader()
 
-    source.load_split.assert_called_once_with("dev")
-    target.load_split.assert_called_once_with(exp_split, alias="dev")
+    source.data.__getitem__.assert_called_once_with("dev")
+    if inductive:
+        # data should only be reloaded if necessary
+        target.load_split.assert_called_once_with("test", alias="dev")
+    else:
+        target.data.__getitem__.assert_called_once_with("dev")
 
 
 def test_latent_align_with_dummy():
@@ -439,15 +453,10 @@ def test_latent_align_with_dummy():
         assert len(batch) == 6
 
 
-@pytest.mark.parametrize(
-    ["features", "targets"],
-    [
-        ([np.random.randn(11, 100, 2)], [np.minimum(np.arange(11)[::-1], 5)]),
-        ([torch.randn(11, 2, 100)], [torch.clamp_max(torch.arange(11).flip(0), 5)]),
-    ],
-)
 @pytest.mark.parametrize(["by_max_rul", "by_steps"], [(True, None), (False, 6)])
-def test_split_healthy(features, targets, by_max_rul, by_steps):
+def test_split_healthy(by_max_rul, by_steps):
+    features = [np.random.randn(11, 100, 2)]
+    targets = [np.minimum(np.arange(11)[::-1], 5)]
     healthy, degraded = adaption.split_healthy(features, targets, by_max_rul, by_steps)
 
     assert len(healthy) == 6

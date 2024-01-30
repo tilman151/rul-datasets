@@ -7,7 +7,7 @@ import torch
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import TensorDataset
 
-from rul_datasets.core import PairedRulDataset
+from rul_datasets.core import PairedRulDataset, RulDataset
 from rul_datasets.reader import AbstractReader
 
 
@@ -40,7 +40,7 @@ class PretrainingDataModuleTemplate:
             self.assertEqual(torch.Size(()), domain_labels.shape)
 
     def _check_tensor_dataset(self, data):
-        self.assertIsInstance(data, TensorDataset)
+        self.assertIsInstance(data, RulDataset)
         self._check_cmapss_shapes(data)
 
     def _check_cmapss_shapes(self, data):

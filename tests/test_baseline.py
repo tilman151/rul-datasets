@@ -11,59 +11,63 @@ import rul_datasets
 from tests.templates import PretrainingDataModuleTemplate
 
 
-class TestBaselineDataModule(unittest.TestCase):
-    def setUp(self):
-        self.mock_loader = mock.MagicMock(name="AbstractLoader")
-        self.mock_loader.fd = 1
-        self.mock_loader.fds = [1, 2, 3]
-        self.mock_loader.hparams = {
-            "fd": self.mock_loader.fd,
-            "window_size": self.mock_loader.window_size,
+class TestBaselineDataModule:
+    @pytest.fixture()
+    def mock_reader(self):
+        mock_reader = mock.MagicMock(name="AbstractLoader")
+        mock_reader.fd = 1
+        mock_reader.fds = [1, 2, 3]
+        mock_reader.hparams = {
+            "fd": mock_reader.fd,
+            "window_size": mock_reader.window_size,
         }
-        self.mock_runs = [np.zeros((1, 1, 1))], [np.zeros(1)]
-        self.mock_loader.load_split.return_value = self.mock_runs
+        mock_runs = [np.zeros((1, 1, 1))], [np.zeros(1)]
+        mock_reader.load_split.return_value = mock_runs
 
-        self.base_module = rul_datasets.RulDataModule(self.mock_loader, batch_size=16)
-        self.dataset = rul_datasets.BaselineDataModule(self.base_module)
-        self.dataset.prepare_data()
-        self.dataset.setup()
+        return mock_reader
 
-    def test_test_sets_created_correctly(self):
-        for fd in self.mock_loader.fds:
-            self.assertIn(fd, self.dataset.subsets)
-            self.assertEqual(fd, self.dataset.subsets[fd].reader.fd)
-            if fd == self.dataset.data_module.reader.fd:
-                self.assertIs(self.dataset.data_module, self.dataset.subsets[fd])
+    @pytest.fixture()
+    def dataset(self, mock_reader):
+        base_module = rul_datasets.RulDataModule(mock_reader, batch_size=16)
+        dataset = rul_datasets.BaselineDataModule(base_module)
+        dataset.prepare_data()
+        dataset.setup()
+
+        return dataset
+
+    def test_test_sets_created_correctly(self, mock_reader, dataset):
+        for fd in mock_reader.fds:
+            assert fd in dataset.subsets
+            assert fd == dataset.subsets[fd].reader.fd
+            if fd == dataset.data_module.reader.fd:
+                assert dataset.data_module is dataset.subsets[fd]
             else:
-                self.assertIsNone(self.dataset.subsets[fd].reader.percent_fail_runs)
-                self.assertIsNone(self.dataset.subsets[fd].reader.percent_broken)
+                assert dataset.subsets[fd].reader.percent_fail_runs is None
+                assert dataset.subsets[fd].reader.percent_broken is None
 
-    def test_selected_source_on_train(self):
-        baseline_train_dataset = self.dataset.train_dataloader().dataset
-        source_train_dataset = self.dataset.data_module.train_dataloader().dataset
-        self._assert_datasets_equal(baseline_train_dataset, source_train_dataset)
+    def test_selected_source_on_train(self, dataset, mocker):
+        mocker.patch.object(
+            dataset.data_module, "train_dataloader", return_value=mocker.sentinel.dl
+        )
+        assert dataset.train_dataloader() is mocker.sentinel.dl
 
-    def test_selected_source_on_val(self):
-        baseline_val_dataset = self.dataset.val_dataloader().dataset
-        source_val_dataset = self.dataset.data_module.val_dataloader().dataset
-        self._assert_datasets_equal(baseline_val_dataset, source_val_dataset)
+    def test_selected_source_on_val(self, dataset, mocker):
+        mocker.patch.object(
+            dataset.data_module, "val_dataloader", return_value=mocker.sentinel.dl
+        )
+        assert dataset.val_dataloader() is mocker.sentinel.dl
 
-    def test_selected_all_on_test(self):
-        baseline_test_loaders = self.dataset.test_dataloader()
-        for fd, baseline_test_loader in enumerate(baseline_test_loaders, start=1):
-            baseline_test_dataset = baseline_test_loader.dataset
-            test_dataset = self.dataset.subsets[fd].test_dataloader().dataset
-            self._assert_datasets_equal(baseline_test_dataset, test_dataset)
+    def test_selected_all_on_test(self, dataset, mocker):
+        for fd in [1, 2, 3]:
+            sentinel = getattr(mocker.sentinel, f"dl_{fd}")
+            mocker.patch.object(
+                dataset.subsets[fd], "test_dataloader", return_value=sentinel
+            )
+        for fd, baseline_test_loader in enumerate(dataset.test_dataloader(), start=1):
+            assert baseline_test_loader is getattr(mocker.sentinel, f"dl_{fd}")
 
-    def _assert_datasets_equal(self, baseline_dataset, inner_dataset):
-        num_samples = len(baseline_dataset)
-        baseline_data = baseline_dataset[:num_samples]
-        inner_data = inner_dataset[:num_samples]
-        for baseline, inner in zip(baseline_data, inner_data):
-            self.assertEqual(0, torch.sum(baseline - inner))
-
-    def test_hparams(self):
-        self.assertDictEqual(self.base_module.hparams, self.dataset.hparams)
+    def test_hparams(self, dataset):
+        assert dataset.hparams, dataset.data_module.hparams
 
 
 class TestPretrainingBaselineDataModuleFullData(

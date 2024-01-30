@@ -1,5 +1,6 @@
 import os
 import random
+import sys
 
 import numpy as np
 import numpy.testing as npt
@@ -63,6 +64,34 @@ def test_extract_windows(window_size, dilation):
     for i in range(expected_num_windows):
         expected_window = inputs[i : (i + window_size * dilation) : dilation]
         npt.assert_equal(windows[i], expected_window)
+
+
+def test_extract_windows_memmap_identical(tmp_path):
+    inputs = np.random.randn(100, 16)
+
+    windows = utils.extract_windows(inputs, 10, 1)
+    windows_memmap = utils.extract_windows(inputs, 10, 1, mode="memmap")
+
+    npt.assert_almost_equal(windows, windows_memmap)
+
+
+def test_extract_windows_memmap_auto_deletes():
+    tmp_file_name = None
+
+    def _extract_tmp_file_name(event_name, args):
+        """Grabs temporary file name from 'tempfile.mkstemp' audit event."""
+        if event_name == "tempfile.mkstemp":
+            nonlocal tmp_file_name
+            tmp_file_name = args[0]
+
+    sys.addaudithook(_extract_tmp_file_name)
+    inputs = np.random.randn(100, 16)
+
+    windows = utils.extract_windows(inputs, 10, 1, mode="memmap")
+
+    windows.max()  # check if memmap is accessible
+    del windows
+    assert not os.path.exists(tmp_file_name)  # check if memmap is deleted
 
 
 @pytest.mark.parametrize("num_targets", [0, 1, 2])

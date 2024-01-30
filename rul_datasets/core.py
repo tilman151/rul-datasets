@@ -6,7 +6,12 @@ from typing import Dict, List, Optional, Tuple, Any, Callable, cast, Union, Lite
 import numpy as np
 import pytorch_lightning as pl
 import torch
-from torch.utils.data import DataLoader, IterableDataset, TensorDataset, get_worker_info
+from torch.utils.data import (
+    DataLoader,
+    IterableDataset,
+    get_worker_info,
+    Dataset,
+)
 
 from rul_datasets import utils
 from rul_datasets.reader import AbstractReader
@@ -60,7 +65,7 @@ class RulDataModule(pl.LightningDataModule):
         >>> dm = rul_datasets.RulDataModule(cmapss, 32, degraded_only=["val", "test"])
     """
 
-    _data: Dict[str, Tuple[torch.Tensor, torch.Tensor]]
+    _data: Dict[str, Tuple[List[np.ndarray], List[np.ndarray]]]
 
     def __init__(
         self,
@@ -126,7 +131,7 @@ class RulDataModule(pl.LightningDataModule):
         self.save_hyperparameters(hparams)
 
     @property
-    def data(self) -> Dict[str, Tuple[torch.Tensor, torch.Tensor]]:
+    def data(self) -> Dict[str, Tuple[List[np.ndarray], List[np.ndarray]]]:
         """
         A dictionary of the training, validation and test splits.
 
@@ -222,9 +227,9 @@ class RulDataModule(pl.LightningDataModule):
             stage: Ignored. Only for adhering to parent class interface.
         """
         self._data = {
-            "dev": self._setup_split("dev"),
-            "val": self._setup_split("val"),
-            "test": self._setup_split("test"),
+            "dev": self.load_split("dev"),
+            "val": self.load_split("val"),
+            "test": self.load_split("test"),
         }
 
     def load_split(
@@ -232,7 +237,7 @@ class RulDataModule(pl.LightningDataModule):
         split: str,
         alias: Optional[str] = None,
         degraded_only: Optional[bool] = None,
-    ) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+    ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         """
         Load a split from the underlying reader and apply the feature extractor.
 
@@ -254,27 +259,15 @@ class RulDataModule(pl.LightningDataModule):
         """
         features, targets = self.reader.load_split(split, alias)
         features, targets = self._apply_feature_extractor_per_run(features, targets)
-        tensor_features, tensor_targets = utils.to_tensor(features, targets)
         if degraded_only is None:
             degraded_only = (
                 self.degraded_only is not None
                 and (alias or split) in self.degraded_only
             )
         if degraded_only:
-            self._filter_out_healthy(tensor_features, tensor_targets)
+            self._filter_out_healthy(features, targets)
 
-        return tensor_features, tensor_targets
-
-    def _setup_split(
-        self, split: str, alias: Optional[str] = None
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        features, targets = self.load_split(split, alias)
-        if features:
-            cat_features, cat_targets = torch.cat(features), torch.cat(targets)
-        else:
-            cat_features, cat_targets = torch.empty(0, 0, 0), torch.empty(0)
-
-        return cat_features, cat_targets
+        return features, targets
 
     def _apply_feature_extractor_per_run(
         self, features: List[np.ndarray], targets: List[np.ndarray]
@@ -296,7 +289,7 @@ class RulDataModule(pl.LightningDataModule):
 
         return features, targets
 
-    def _filter_out_healthy(self, tensor_features, tensor_targets):
+    def _filter_out_healthy(self, features, targets):
         if self.reader.max_rul is not None:
             thresh = self.reader.max_rul
         elif hasattr(self.reader, "norm_rul") and self.reader.norm_rul:
@@ -306,10 +299,10 @@ class RulDataModule(pl.LightningDataModule):
                 "Cannot filter degraded samples if no max_rul is set and "
                 "norm_rul is False."
             )
-        for i in range(len(tensor_targets)):
-            degraded = tensor_targets[i] < thresh
-            tensor_features[i] = tensor_features[i][degraded]
-            tensor_targets[i] = tensor_targets[i][degraded]
+        for i in range(len(targets)):
+            degraded = targets[i] < thresh
+            features[i] = features[i][degraded]
+            targets[i] = targets[i][degraded]
 
     def train_dataloader(self, *args: Any, **kwargs: Any) -> DataLoader:
         """
@@ -387,7 +380,7 @@ class RulDataModule(pl.LightningDataModule):
             pin_memory=True,
         )
 
-    def to_dataset(self, split: str, alias: Optional[str] = None) -> TensorDataset:
+    def to_dataset(self, split: str, alias: Optional[str] = None) -> "RulDataset":
         """
         Create a dataset of a split.
 
@@ -408,14 +401,66 @@ class RulDataModule(pl.LightningDataModule):
         if (alias is None) or (split == alias):
             features, targets = self._data[split]
         else:
-            features, targets = self._setup_split(split, alias)
-        split_dataset = TensorDataset(features, targets)
+            features, targets = self.load_split(split, alias)
+        split_dataset = RulDataset(features, targets)
 
         return split_dataset
 
 
+class RulDataset(Dataset):
+    """Internal dataset to hold multiple runs.
+
+    Its length is the sum of all runs' lengths.
+    """
+
+    def __init__(
+        self,
+        features: List[np.ndarray],
+        *targets: List[np.ndarray],
+        copy_tensors: bool = False,
+    ) -> None:
+        """
+        Create a new dataset from multiple runs.
+
+        If `copy_tensors` is true, the tensors are copied to avoid side effects when
+        modifying them. Otherwise, the tensors use the same memory as the original
+        Numpy arrays to save space.
+
+        Args:
+            features: The features of each run.
+            targets: The targets of each run.
+            copy_tensors: Whether to copy the tensors or not.
+        """
+        super().__init__()
+
+        self.features = features
+        self.targets = targets
+        self.copy_tensors = copy_tensors
+
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, ...]:
+        if isinstance(index, slice):
+            raise NotImplementedError("Slicing is not supported by this dataset.")
+        for i in range(len(self.features)):
+            if index < len(self.features[i]):
+                tensor_feat = utils.feature_to_tensor(
+                    self.features[i][index], copy=self.copy_tensors
+                )
+                tensor_tar = tuple(torch.as_tensor(t[i][index]) for t in self.targets)
+                return tensor_feat, *tensor_tar
+            else:
+                index -= len(self.features[i])
+
+        raise IndexError(f"Index {index} out of range.")
+
+    def __len__(self) -> int:
+        return sum(len(f) for f in self.features)
+
+
 class PairedRulDataset(IterableDataset):
-    """A dataset of sample pairs drawn from the same time series."""
+    """A dataset of sample pairs drawn from the same time series.
+
+    The dataset uses the runs exactly as loaded by the passed data modules. Options
+    like `degraded_only` need to be set there."""
 
     def __init__(
         self,
@@ -425,7 +470,6 @@ class PairedRulDataset(IterableDataset):
         min_distance: int,
         deterministic: bool = False,
         mode: str = "linear",
-        degraded_only: bool = False,
     ):
         super().__init__()
 
@@ -435,14 +479,13 @@ class PairedRulDataset(IterableDataset):
         self.num_samples = num_samples
         self.deterministic = deterministic
         self.mode = mode
-        self.degraded_only = degraded_only
 
         for dm in self.dms:
             dm.check_compatibility(self.dms[0])
 
         self._run_domain_idx: np.ndarray
-        self._features: List[torch.Tensor]
-        self._labels: List[torch.Tensor]
+        self._features: List[np.ndarray]
+        self._labels: List[np.ndarray]
         self._prepare_datasets()
 
         self._max_rul = self._get_max_rul()
@@ -474,9 +517,7 @@ class PairedRulDataset(IterableDataset):
         features = []
         labels = []
         for domain_idx, dm in enumerate(self.dms):
-            run_features, run_labels = dm.load_split(
-                self.split, degraded_only=self.degraded_only
-            )
+            run_features, run_labels = dm.data[self.split]
             for feat, lab in zip(run_features, run_labels):
                 if len(feat) > self.min_distance:
                     run_domain_idx.append(domain_idx)
@@ -518,7 +559,7 @@ class PairedRulDataset(IterableDataset):
 
     def _get_pair_idx(self) -> Tuple[int, int, int, Union[int, float], int]:
         chosen_run_idx = self._rng.integers(0, len(self._features))
-        domain_label = self._run_domain_idx[chosen_run_idx]
+        domain_label = cast(int, self._run_domain_idx[chosen_run_idx])
         chosen_run = self._features[chosen_run_idx]
 
         run_length = chosen_run.shape[0]
@@ -537,7 +578,7 @@ class PairedRulDataset(IterableDataset):
 
     def _get_pair_idx_piecewise(self) -> Tuple[int, int, int, Union[int, float], int]:
         chosen_run_idx = self._rng.integers(0, len(self._features))
-        domain_label = self._run_domain_idx[chosen_run_idx]
+        domain_label = cast(int, self._run_domain_idx[chosen_run_idx])
         chosen_run = self._features[chosen_run_idx]
 
         run_length = chosen_run.shape[0]
@@ -559,7 +600,7 @@ class PairedRulDataset(IterableDataset):
 
     def _get_labeled_pair_idx(self) -> Tuple[int, int, int, Union[int, float], int]:
         chosen_run_idx = self._rng.integers(0, len(self._features))
-        domain_label = self._run_domain_idx[chosen_run_idx]
+        domain_label = cast(int, self._run_domain_idx[chosen_run_idx])
         chosen_run = self._features[chosen_run_idx]
         chosen_labels = self._labels[chosen_run_idx]
 
@@ -579,14 +620,14 @@ class PairedRulDataset(IterableDataset):
 
     def _build_pair(
         self,
-        run: torch.Tensor,
+        run: np.ndarray,
         anchor_idx: int,
         query_idx: int,
         distance: Union[int, float],
         domain_label: int,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        anchors = run[anchor_idx]
-        queries = run[query_idx]
+        anchors = utils.feature_to_tensor(run[anchor_idx], torch.float32)
+        queries = utils.feature_to_tensor(run[query_idx], torch.float32)
         domain_tensor = torch.tensor(domain_label, dtype=torch.float)
         distances = torch.tensor(distance, dtype=torch.float)
         if self._max_rul is not None:  # normalize only if max_rul is set

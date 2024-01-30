@@ -1,11 +1,11 @@
 import os
-from typing import List, Optional, Callable, Dict, Tuple
+import tempfile
+from typing import List, Optional, Callable, Dict, Tuple, Literal
 
 import numpy as np
 import requests  # type: ignore
 import torch
 from tqdm import tqdm  # type: ignore
-
 
 GDRIVE_URL_BASE = "https://docs.google.com/uc?export=download"
 
@@ -60,7 +60,12 @@ def get_targets_from_file_paths(
     return targets
 
 
-def extract_windows(seq: np.ndarray, window_size: int, dilation: int = 1) -> np.ndarray:
+def extract_windows(
+    seq: np.ndarray,
+    window_size: int,
+    dilation: int = 1,
+    mode: Literal["memory", "memmap"] = "memory",
+) -> np.ndarray:
     """
     Extract sliding windows from a sequence.
 
@@ -77,19 +82,47 @@ def extract_windows(seq: np.ndarray, window_size: int, dilation: int = 1) -> np.
         seq: sequence to extract windows from
         window_size: length of the sliding window
         dilation: dilation of the sliding window
+        mode: create windows either in memory or on disk
     Returns:
         array of sliding windows
     """
-    if window_size > len(seq):
+    if (window_size * dilation) > len(seq):
         raise ValueError(
-            f"Cannot extract windows of size {window_size} with dilation {dilation}"
+            f"Cannot extract windows of size {window_size} with dilation {dilation} "
             f"from a sequence of length {len(seq)}."
         )
+    if mode == "memory":
+        windows = _extract_windows_in_memory(seq, window_size, dilation)
+    elif mode == "memmap":
+        windows = _extract_windows_memmap(seq, window_size, dilation)
+    else:
+        raise ValueError(f"Unknown mode {mode}.")
 
+    return windows
+
+
+def _extract_windows_in_memory(seq, window_size, dilation):
     num_frames = seq.shape[0] - (window_size - 1) * dilation
     window_idx = np.arange(window_size)[None, :] * dilation
     window_idx = window_idx + np.arange(num_frames)[:, None]
     windows = seq[window_idx]
+
+    return windows
+
+
+def _extract_windows_memmap(seq, window_size, dilation):
+    num_frames = seq.shape[0] - (window_size - 1) * dilation
+    window_idx = np.arange(window_size)[None, :] * dilation
+    with tempfile.NamedTemporaryFile() as tmp_file:
+        windows = np.memmap(
+            tmp_file.name,
+            dtype=np.float32,
+            mode="w+",
+            shape=(num_frames, window_size, *seq.shape[1:]),
+        )
+    for i in range(num_frames):
+        windows[i] = seq[window_idx + i]
+    windows.flush()
 
     return windows
 
@@ -132,18 +165,19 @@ def _write_content(response: requests.Response, save_path: str) -> None:
 
 
 def to_tensor(
-    features: List[np.ndarray], *targets: List[np.ndarray]
+    features: List[np.ndarray], *targets: List[np.ndarray], copy: bool = False
 ) -> Tuple[List[torch.Tensor], ...]:
     dtype = torch.float32
-    tensor_feats = [feature_to_tensor(f, dtype) for f in features]
-    tensor_targets = [
-        [torch.tensor(t, dtype=dtype) for t in target] for target in targets
-    ]
+    tensor_feats = [feature_to_tensor(f, dtype, copy) for f in features]
+    convert: Callable = torch.tensor if copy else torch.as_tensor  # type: ignore
+    tensor_targets = [[convert(t, dtype=dtype) for t in target] for target in targets]
 
     return tensor_feats, *tensor_targets
 
 
-def feature_to_tensor(features: np.ndarray, dtype: torch.dtype) -> torch.Tensor:
+def feature_to_tensor(
+    features: np.ndarray, dtype: torch.dtype = torch.float32, copy: bool = False
+) -> torch.Tensor:
     """
     Convert a numpy array to a torch tensor of `dtype` and swap the last dimensions.
 
@@ -154,5 +188,10 @@ def feature_to_tensor(features: np.ndarray, dtype: torch.dtype) -> torch.Tensor:
     Args:
         features: numpy array to convert
         dtype: dtype of the resulting tensor
+        copy: whether to copy the array before converting it
     """
-    return torch.transpose(torch.tensor(features, dtype=dtype), -1, -2)
+    if copy:
+        features = np.copy(features)
+    tensor = torch.transpose(torch.as_tensor(features, dtype=dtype), -1, -2)
+
+    return tensor
