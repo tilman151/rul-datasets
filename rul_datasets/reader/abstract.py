@@ -139,6 +139,7 @@ class AbstractReader(metaclass=abc.ABCMeta):
 
         Args:
             fd: The index of a sub-dataset.
+
         Returns:
             The default window size for the sub-dataset.
         """
@@ -170,6 +171,7 @@ class AbstractReader(metaclass=abc.ABCMeta):
         Args:
             split: The name of the split to load.
             alias: The split as which the loaded data should be treated.
+
         Returns:
             features: The complete, scaled features of the desired split.
             targets: The capped target values corresponding to the features.
@@ -194,6 +196,7 @@ class AbstractReader(metaclass=abc.ABCMeta):
         Args:
             split: The desired split to load.
             alias: The split as which the loaded data should be treated.
+
         Returns:
             features: The scaled, truncated features of the desired split.
             targets: The truncated targets of the desired split.
@@ -250,6 +253,7 @@ class AbstractReader(metaclass=abc.ABCMeta):
             percent_fail_runs: Override this value in the new reader.
             truncate_val: Override this value in the new reader.
             consolidate_window_size: How to consolidate the window size of the readers.
+
         Returns:
             A compatible reader with optional overrides.
         """
@@ -300,6 +304,7 @@ class AbstractReader(metaclass=abc.ABCMeta):
         Args:
             percent_broken: Override this value in the new reader.
             truncate_val: Override this value in the new reader.
+
         Returns:
             A compatible reader with all development runs missing in this one.
         """
@@ -338,6 +343,7 @@ class AbstractReader(metaclass=abc.ABCMeta):
 
         Args:
             other: The reader to check exclusivity against.
+
         Returns:
             Whether the readers are mutually exclusive.
         """

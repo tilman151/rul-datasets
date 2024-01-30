@@ -86,6 +86,7 @@ class OperationConditionAwareScaler(BaseEstimator, TransformerMixin):
         Args:
             features: The feature array to be scaled.
             operation_conditions: The condition values compared against the boundaries.
+
         Returns:
             The partially fitted scaler.
         """
@@ -112,6 +113,7 @@ class OperationConditionAwareScaler(BaseEstimator, TransformerMixin):
         Args:
             features: The features to be scaled.
             operation_conditions: The condition values compared against the boundaries.
+
         Returns:
             The scaled features.
         """
@@ -160,6 +162,7 @@ def fit_scaler(
         features: The RUL features.
         scaler: The scaler to be fit. Defaults to a StandardScaler.
         operation_conditions: The operation conditions for condition aware scaling.
+
     Returns:
         The fitted scaler.
     """
@@ -218,6 +221,7 @@ def load_scaler(save_path: str) -> Scaler:
 
     Args:
         save_path: The path the scaler was saved to.
+
     Returns:
         The loaded scaler.
     """
@@ -233,7 +237,7 @@ def scale_features(
     operation_conditions: Optional[List[np.ndarray]] = None,
 ) -> List[np.ndarray]:
     """
-    Scaler the RUL features with a given scaler.
+    Scale the RUL features with a given scaler.
 
     The features can have a shape of `[num_time_steps, channels]` or `[num_windows,
     window_size, channels]`. The scaler needs to work on the channel dimension. If it
@@ -246,6 +250,7 @@ def scale_features(
         features: The RUL features to be scaled.
         scaler: The already fitted scaler.
         operation_conditions: The operation conditions for condition aware scaling.
+
     Returns:
         The scaled features.
     """

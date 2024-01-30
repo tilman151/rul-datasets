@@ -190,6 +190,7 @@ class RulDataModule(pl.LightningDataModule):
 
         Args:
             other: Data module to check exclusivity against.
+
         Returns:
             Whether both data modules are mutually exclusive.
         """
@@ -254,6 +255,7 @@ class RulDataModule(pl.LightningDataModule):
             split: The desired split to load.
             alias: The split as which the loaded data should be treated.
             degraded_only: Whether to only load degraded samples.
+
         Returns:
             The feature and target tensors of the split's runs.
         """
@@ -319,6 +321,7 @@ class RulDataModule(pl.LightningDataModule):
         Args:
             *args: Ignored. Only for adhering to parent class interface.
             **kwargs: Ignored. Only for adhering to parent class interface.
+
         Returns:
             The training data loader
         """
@@ -347,6 +350,7 @@ class RulDataModule(pl.LightningDataModule):
         Args:
             *args: Ignored. Only for adhering to parent class interface.
             **kwargs: Ignored. Only for adhering to parent class interface.
+
         Returns:
             The validation data loader
         """
@@ -370,6 +374,7 @@ class RulDataModule(pl.LightningDataModule):
         Args:
             *args: Ignored. Only for adhering to parent class interface.
             **kwargs: Ignored. Only for adhering to parent class interface.
+
         Returns:
             The test data loader
         """
@@ -395,6 +400,7 @@ class RulDataModule(pl.LightningDataModule):
         Args:
             split: The split to place inside the dataset.
             alias: The split the loaded data should be treated as.
+
         Returns:
             A dataset containing the requested split.
         """

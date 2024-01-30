@@ -115,6 +115,7 @@ class SemiSupervisedDataModule(pl.LightningDataModule):
         Args:
             *args: Ignored. Only for adhering to parent class interface.
             **kwargs: Ignored. Only for adhering to parent class interface.
+
         Returns:
             The training data loader
         """
@@ -132,6 +133,7 @@ class SemiSupervisedDataModule(pl.LightningDataModule):
         Args:
             *args: Ignored. Only for adhering to parent class interface.
             **kwargs: Ignored. Only for adhering to parent class interface.
+
         Returns:
             The labeled validation data loader.
         """
@@ -144,6 +146,7 @@ class SemiSupervisedDataModule(pl.LightningDataModule):
         Args:
             *args: Ignored. Only for adhering to parent class interface.
             **kwargs: Ignored. Only for adhering to parent class interface.
+
         Returns:
             The labeled test data loader.
         """

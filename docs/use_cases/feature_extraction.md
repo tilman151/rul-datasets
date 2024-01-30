@@ -3,7 +3,8 @@ It may be useful to extract hand-crafted features, i.e. RMS or P2P, from this vi
 The [RulDataModule][rul_datasets.core.RulDataModule] provides the option to use a custom feature extractor on each window of data.
 
 The feature extractor can be anything that can be called as a function.
-It should take a numpy array with the shape `[num_windows, window_size, num_features]` and return another array.
+It should take a feature array with the shape `[num_windows, window_size, num_features]` and a target array with the shape `[num_windows]`.
+The return value should be the transformed feature and target arrays.
 Depending on whether a `window_size` is supplied to the data module, the expected output shape of the feature extractor is:
 
 * `window_size is None`: `[num_new_windows, new_window_size, features]`

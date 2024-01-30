@@ -12,16 +12,17 @@ GDRIVE_URL_BASE = "https://docs.google.com/uc?export=download"
 
 def get_files_in_path(path: str, condition: Optional[Callable] = None) -> List[str]:
     """
-    Return the paths of all files in a path that satisfy a condition in alphabetical
-    order.
+        Return the paths of all files in a path that satisfy a condition in alphabetical
+        order.
 
-    If the condition is `None` all files are returned.
+        If the condition is `None` all files are returned.
 
-    Args:
-        path: the path to look into
-        condition: the include-condition for files
+        Args:
+            path: the path to look into
+            condition: the include-condition for files
+
     Returns:
-        all files that satisfy the condition in alphabetical order
+            all files that satisfy the condition in alphabetical order
     """
     if condition is None:
         feature_files = [f for f in os.listdir(path)]
@@ -83,6 +84,7 @@ def extract_windows(
         window_size: length of the sliding window
         dilation: dilation of the sliding window
         mode: create windows either in memory or on disk
+
     Returns:
         array of sliding windows
     """
