@@ -1,7 +1,7 @@
 import os
 import tempfile
 import uuid
-from typing import List, Optional, Callable, Dict, Tuple
+from typing import List, Optional, Callable, Dict, Tuple, Literal, Union
 
 import numpy as np
 import requests  # type: ignore
@@ -63,7 +63,10 @@ def get_targets_from_file_paths(
 
 
 def extract_windows(
-    seq: np.ndarray, window_size: int, dilation: int = 1, memmap: bool = False
+    seq: np.ndarray,
+    window_size: int,
+    dilation: int = 1,
+    mode: Literal["memory", "memmap"] = "memory",
 ) -> np.ndarray:
     """
     Extract sliding windows from a sequence.
@@ -81,32 +84,47 @@ def extract_windows(
         seq: sequence to extract windows from
         window_size: length of the sliding window
         dilation: dilation of the sliding window
-        memmap: return the windows mapped to disk storage
+        mode: create windows either in memory or on disk
     Returns:
         array of sliding windows
     """
-    if window_size > len(seq):
+    if (window_size * dilation) > len(seq):
         raise ValueError(
             f"Cannot extract windows of size {window_size} with dilation {dilation} "
             f"from a sequence of length {len(seq)}."
         )
+    if mode == "memory":
+        windows = _extract_windows_in_memory(seq, window_size, dilation)
+    elif mode == "memmap":
+        windows = _extract_windows_memmap(seq, window_size, dilation)
+    else:
+        raise ValueError(f"Unknown mode {mode}.")
 
+    return windows
+
+
+def _extract_windows_in_memory(seq, window_size, dilation):
     num_frames = seq.shape[0] - (window_size - 1) * dilation
     window_idx = np.arange(window_size)[None, :] * dilation
     window_idx = window_idx + np.arange(num_frames)[:, None]
-    if memmap:
-        with tempfile.NamedTemporaryFile() as tmp_file:
-            windows = np.memmap(
-                tmp_file.name,
-                dtype=np.float32,
-                mode="w+",
-                shape=window_idx.shape + seq.shape[1:],
-            )
-        for i, idx in enumerate(window_idx):
-            windows[i] = seq[idx]
-            windows.flush()
-    else:
-        windows = seq[window_idx]
+    windows = seq[window_idx]
+
+    return windows
+
+
+def _extract_windows_memmap(seq, window_size, dilation):
+    num_frames = seq.shape[0] - (window_size - 1) * dilation
+    window_idx = np.arange(window_size)[None, :] * dilation
+    with tempfile.NamedTemporaryFile() as tmp_file:
+        windows = np.memmap(
+            tmp_file.name,
+            dtype=np.float32,
+            mode="w+",
+            shape=(num_frames, window_size, *seq.shape[1:]),
+        )
+    for i in range(num_frames):
+        windows[i] = seq[window_idx + i]
+    windows.flush()
 
     return windows
 
@@ -160,7 +178,9 @@ def to_tensor(
     return tensor_feats, *tensor_targets
 
 
-def feature_to_tensor(features: np.ndarray, dtype: torch.dtype) -> torch.Tensor:
+def feature_to_tensor(
+    features: np.ndarray, dtype: torch.dtype = torch.float32
+) -> torch.Tensor:
     """
     Convert a numpy array to a torch tensor of `dtype` and swap the last dimensions.
 

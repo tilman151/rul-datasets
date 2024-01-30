@@ -69,8 +69,8 @@ def test_extract_windows(window_size, dilation):
 def test_extract_windows_memmap_identical(tmp_path):
     inputs = np.random.randn(100, 16)
 
-    windows = utils.extract_windows(inputs, 10, 1, memmap=False)
-    windows_memmap = utils.extract_windows(inputs, 10, 1, memmap=True)
+    windows = utils.extract_windows(inputs, 10, 1)
+    windows_memmap = utils.extract_windows(inputs, 10, 1, mode="memmap")
 
     npt.assert_almost_equal(windows, windows_memmap)
 
@@ -87,7 +87,7 @@ def test_extract_windows_memmap_auto_deletes():
     sys.addaudithook(_extract_tmp_file_name)
     inputs = np.random.randn(100, 16)
 
-    windows = utils.extract_windows(inputs, 10, 1, memmap=True)
+    windows = utils.extract_windows(inputs, 10, 1, mode="memmap")
 
     windows.max()  # check if memmap is accessible
     del windows
