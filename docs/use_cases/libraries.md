@@ -9,24 +9,28 @@ The RUL Datasets library implements several data modules that are 100% compatibl
 import pytorch_lightning as pl
 import rul_datasets
 
-import rul_estimator
+import rul_estimator  # (1)!
 
 
 cmapss_fd1 = rul_datasets.CmapssReader(fd=1)
 dm = rul_datasets.RulDataModule(cmapss_fd1, batch_size=32)
 
-my_rul_estimator = rul_estimator.MyRulEstimator() # (1)!
+my_rul_estimator = rul_estimator.MyRulEstimator() # (2)!
 
 trainer = pl.Trainer(max_epochs=100)
-trainer.fit(my_rul_estimator, dm) # (2)!
+trainer.fit(my_rul_estimator, dm) # (3)!
 
 trainer.test(my_rul_estimator, dm)
 ```
 
-1. This should be a subclass of [LightningModule][pytorch_lightning.core.LightningModule].
-2. The trainer calls the data module's `prepare_data` and `setup` functions automatically.
+1. This is a hypothetical module containing your model.
+2. This should be a subclass of [LightningModule][lightning.pytorch.core.LightningModule].
+3. The trainer calls the data module's `prepare_data` and `setup` functions automatically.
 
 The RUL datasets library loads all data into memory at once and uses the main process for creating batches, i.e. `num_workers=0` for all dataloaders.
+Unnecessary copies are avoided by using shared memory for both Numpy and PyTorch.
+This means that modifying a batch directly, e.g., `features += 1` should be avoided.
+
 When data is held in memory, multiple data loading processes are unnecessary and may even slow down training.
 The warning produced by PyTorch Lightning that `num_workers` is too low is, therefore, suppressed.
 

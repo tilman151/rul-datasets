@@ -42,6 +42,7 @@ def load(save_path: str, memmap: bool = False) -> Tuple[np.ndarray, np.ndarray]:
         save_path: Path that was supplied to the
                    [save][rul_datasets.reader.saving.save] function.
         memmap: whether to use memmap to avoid loading the whole run into memory
+
     Returns:
         features: The feature array saved in `save_path`
         targets: The target array saved in `save_path`
@@ -64,6 +65,7 @@ def load_multiple(
     Args:
         save_paths: The list of run files to load.
         memmap: See [load][rul_datasets.reader.saving.load]
+
     Returns:
         features: The feature arrays saved in `save_paths`
         targets: The target arrays saved in `save_paths`
@@ -84,6 +86,7 @@ def exists(save_path: str) -> bool:
     Args:
         save_path: the `save_path` the [save][rul_datasets.reader.saving.save]
                    function was called with
+
     Returns:
         Whether the files exist
     """

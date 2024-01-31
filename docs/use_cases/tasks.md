@@ -96,8 +96,8 @@ For validation and testing, the data module returns data loaders for the full la
 ## Unsupervised Domain Adaption
 
 Unsupervised domain adaption uses a labeled dataset form a source domain to train a model for a target domain for which only unlabeled data is available.
-All included dataset consist of multiple sub-datasets that can be viewed as different domains.
-As the sub-dataset still bear a sufficient similarity to each other, domain adaption between them should be possible.
+All included datasets consist of multiple sub-datasets that can be viewed as different domains.
+As the sub-datasets still bear a sufficient similarity to each other, domain adaption between them should be possible.
 The `get_compatible` function is useful to construct a reader for a different sub-dataset from an existing one:
 
 ```pycon

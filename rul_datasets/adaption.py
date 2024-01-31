@@ -134,6 +134,7 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
         Args:
             *args: Ignored. Only for adhering to parent class interface.
             **kwargs: Ignored. Only for adhering to parent class interface.
+
         Returns:
             The training data loader
         """
@@ -156,6 +157,7 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
         Args:
             *args: Ignored. Only for adhering to parent class interface.
             **kwargs: Ignored. Only for adhering to parent class interface.
+
         Returns:
             The source, target and an optional paired validation data loader.
         """
@@ -184,6 +186,7 @@ class DomainAdaptionDataModule(pl.LightningDataModule):
         Args:
             *args: Ignored. Only for adhering to parent class interface.
             **kwargs: Ignored. Only for adhering to parent class interface.
+
         Returns:
             The source and target test data loader.
         """
@@ -323,9 +326,10 @@ def split_healthy(
         targets: List of target time series.
         by_max_rul: Whether to split healthy and degrading data by max RUL value.
         by_steps: Split healthy and degrading data after this number of time steps.
+
     Returns:
         healthy: Dataset of healthy data.
-        degrading: Dataset of degrading data.
+        degraded: Dataset of degrading data.
     """
     if not by_max_rul and (by_steps is None):
         raise ValueError("Either 'by_max_rul' or 'by_steps' need to be set.")
