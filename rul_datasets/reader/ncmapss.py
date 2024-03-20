@@ -123,10 +123,11 @@ class NCmapssReader(AbstractReader):
         truncate_degraded_only: bool = False,
         resolution_seconds: int = 1,
         padding_value: float = 0.0,
+        scaling_range: [float, float] = None,
     ) -> None:
         """
         Create a new reader for the New C-MAPSS dataset. The maximum RUL value is set
-        to 65 by default. The default channels are the four operating conditions,
+       to 65 by default. The default channels are the four operating conditions,
         the 14 physical, and 14 virtual sensors in this order.
 
         The default window size is, by default, the longest flight cycle in the
@@ -172,6 +173,7 @@ class NCmapssReader(AbstractReader):
         self.run_split_dist = run_split_dist or self._get_default_split(self.fd)
         self.resolution_seconds = resolution_seconds
         self.padding_value = padding_value
+        self.scaling_range = scaling_range
 
         if self.resolution_seconds > 1 and window_size is None:
             warnings.warn(
@@ -189,6 +191,7 @@ class NCmapssReader(AbstractReader):
                 "run_split_dist": self.run_split_dist,
                 "feature_select": self.feature_select,
                 "padding_value": self.padding_value,
+                "scaling_range": self.scaling_range,
             }
         )
 
@@ -214,10 +217,10 @@ class NCmapssReader(AbstractReader):
         """
         if not os.path.exists(self._NCMAPSS_ROOT):
             _download_ncmapss(self._NCMAPSS_ROOT)
-        if not os.path.exists(self._get_scaler_path()):
-            features, _, _ = self._load_data("dev")
-            scaler = scaling.fit_scaler(features, MinMaxScaler())
-            scaling.save_scaler(scaler, self._get_scaler_path())
+        #if not os.path.exists(self._get_scaler_path()):
+        features, _, _ = self._load_data("dev")
+        scaler = scaling.fit_scaler(features, MinMaxScaler())
+        scaling.save_scaler(scaler, self._get_scaler_path())
 
     def _get_scaler_path(self):
         file_name = f"scaler_{self.fd}_{self.run_split_dist['dev']}.pkl"
@@ -301,7 +304,7 @@ class NCmapssReader(AbstractReader):
         return [units[i] for i in self.run_split_dist[split]]
 
     def _window_by_cycle(
-        self, features: np.ndarray, targets: np.ndarray, auxiliary: np.ndarray
+            self, features: np.ndarray, targets: np.ndarray, auxiliary: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray]:
         cycle_end_idx = self._get_end_idx(auxiliary[:, 1])
         split_features = np.split(features, cycle_end_idx[:-1])

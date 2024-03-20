@@ -47,6 +47,22 @@ def test_prepare_data(should_run, mocker):
         mock_save_scaler.assert_not_called()
 
 
+
+@pytest.mark.needs_data
+@pytest.mark.parametrize("scaling_range", [(-1.0, 1.0), (0.0, 2.0)])
+def test_scaling_range(scaling_range):
+    reader = NCmapssReader(fd=1, scaling_range=scaling_range)
+    reader.prepare_data()
+    features, _ = reader.load_split("dev")
+
+    reader = NCmapssReader(fd=1, scaling_range=(0, 1))
+    reader.prepare_data()
+    features_default, _ = reader.load_split("dev")
+
+   assert not np.array_equal(features[0][:, :, 1], features_default[0][:, :, 1])
+
+
+
 @pytest.mark.needs_data
 @pytest.mark.parametrize("fd", list(range(1, 8)))
 @pytest.mark.parametrize("split", ["dev", "val", "test"])
