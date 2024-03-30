@@ -123,6 +123,7 @@ class NCmapssReader(AbstractReader):
         truncate_degraded_only: bool = False,
         resolution_seconds: int = 1,
         padding_value: float = 0.0,
+        scaling_range: Optional[Tuple[int, int]] = (0, 1),
     ) -> None:
         """
         Create a new reader for the New C-MAPSS dataset. The maximum RUL value is set
@@ -172,6 +173,7 @@ class NCmapssReader(AbstractReader):
         self.run_split_dist = run_split_dist or self._get_default_split(self.fd)
         self.resolution_seconds = resolution_seconds
         self.padding_value = padding_value
+        self.scaling_range = scaling_range
 
         if self.resolution_seconds > 1 and window_size is None:
             warnings.warn(
@@ -189,6 +191,7 @@ class NCmapssReader(AbstractReader):
                 "run_split_dist": self.run_split_dist,
                 "feature_select": self.feature_select,
                 "padding_value": self.padding_value,
+                "scaling_range": self.scaling_range,
             }
         )
 
@@ -216,11 +219,13 @@ class NCmapssReader(AbstractReader):
             _download_ncmapss(self._NCMAPSS_ROOT)
         if not os.path.exists(self._get_scaler_path()):
             features, _, _ = self._load_data("dev")
-            scaler = scaling.fit_scaler(features, MinMaxScaler())
+            scaler = scaling.fit_scaler(features, MinMaxScaler(self.scaling_range))
             scaling.save_scaler(scaler, self._get_scaler_path())
 
     def _get_scaler_path(self):
-        file_name = f"scaler_{self.fd}_{self.run_split_dist['dev']}.pkl"
+        file_name = (
+            f"scaler_{self.fd}_{self.run_split_dist['dev']}_{self.scaling_range}.pkl"
+        )
         file_path = os.path.join(self._NCMAPSS_ROOT, file_name)
 
         return file_path
