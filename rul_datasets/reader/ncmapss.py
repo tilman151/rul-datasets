@@ -126,39 +126,39 @@ class NCmapssReader(AbstractReader):
         scaling_range: Optional[Tuple[int, int]] = (0, 1),
     ) -> None:
         """
-         Create a new reader for the New C-MAPSS dataset. The maximum RUL value is set
+        Create a new reader for the New C-MAPSS dataset. The maximum RUL value is set
         to 65 by default. The default channels are the four operating conditions,
-         the 14 physical, and 14 virtual sensors in this order.
+        the 14 physical, and 14 virtual sensors in this order.
 
-         The default window size is, by default, the longest flight cycle in the
-         sub-dataset. Shorter cycles are padded on the left. The default padding value
-         is zero but can be overridden, e.g., as -1 to make filtering for padding easier
-         later on.
+        The default window size is, by default, the longest flight cycle in the
+        sub-dataset. Shorter cycles are padded on the left. The default padding value
+        is zero but can be overridden, e.g., as -1 to make filtering for padding easier
+        later on.
 
-         The default `run_split_dist` is the same as in the original dataset, but with
-         the last unit of the original train split designated for validation.
+        The default `run_split_dist` is the same as in the original dataset, but with
+        the last unit of the original train split designated for validation.
 
-         If the features are downsampled in time, the default window size is
-         automatically adjusted to `window_size // resolution_seconds`. Any manually
-         set `window_size` needs to take this into account as it is applied after
-         downsampling.
+        If the features are downsampled in time, the default window size is
+        automatically adjusted to `window_size // resolution_seconds`. Any manually
+        set `window_size` needs to take this into account as it is applied after
+        downsampling.
 
-         For more information about using readers, refer to the [reader]
-         [rul_datasets.reader] module page.
+        For more information about using readers, refer to the [reader]
+        [rul_datasets.reader] module page.
 
-         Args:
-             fd: The sub-dataset to use. Must be in `[1, 7]`.
-             max_rul: The maximum RUL value.
-             percent_broken: The maximum relative degradation per unit.
-             percent_fail_runs: The percentage or index list of available units.
-             feature_select: The indices of the features to use.
-             truncate_val: Truncate the validation data with `percent_broken`, too.
-             run_split_dist: The assignment of units to each split.
-             truncate_degraded_only: Only truncate the degraded part of the data
-                                     (< max RUL).
-             resolution_seconds: The number of consecutive seconds to average over for
-                                 downsampling.
-             padding_value: The value to use for padding the flight cycles.
+        Args:
+            fd: The sub-dataset to use. Must be in `[1, 7]`.
+            max_rul: The maximum RUL value.
+            percent_broken: The maximum relative degradation per unit.
+            percent_fail_runs: The percentage or index list of available units.
+            feature_select: The indices of the features to use.
+            truncate_val: Truncate the validation data with `percent_broken`, too.
+            run_split_dist: The assignment of units to each split.
+            truncate_degraded_only: Only truncate the degraded part of the data
+                                    (< max RUL).
+            resolution_seconds: The number of consecutive seconds to average over for
+                                downsampling.
+            padding_value: The value to use for padding the flight cycles.
         """
         super().__init__(
             fd,
