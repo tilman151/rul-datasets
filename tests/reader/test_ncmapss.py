@@ -88,6 +88,16 @@ def test_scaling(fd, prepared_ncmapss):
 
 
 @pytest.mark.needs_data
+@pytest.mark.parametrize("max_rul", [65, None])
+def test_max_rul(max_rul, prepared_ncmapss):
+    reader = NCmapssReader(1, max_rul=max_rul)
+    _, targets = reader.load_split("dev")
+
+    for targ in targets:
+        assert np.all(targ <= (max_rul or np.inf))
+
+
+@pytest.mark.needs_data
 def test__split_by_unit(prepared_ncmapss):
     reader = NCmapssReader(1)
     features, targets, auxiliary = reader._load_raw_data()

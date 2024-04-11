@@ -256,6 +256,8 @@ class NCmapssReader(AbstractReader):
             self._window_by_cycle(*unit) for unit in zip(features, targets, auxiliary)
         ]
         features, targets = zip(*windowed)
+        if self.max_rul is not None:
+            targets = [np.clip(t, 0, self.max_rul) for t in targets]
 
         return list(features), list(targets)
 
