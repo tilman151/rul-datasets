@@ -123,7 +123,7 @@ class NCmapssReader(AbstractReader):
         truncate_degraded_only: bool = False,
         resolution_seconds: int = 1,
         padding_value: float = 0.0,
-        scaling_range: Optional[Tuple[int, int]] = (0, 1),
+        scaling_range: Tuple[int, int] = (0, 1),
     ) -> None:
         """
         Create a new reader for the New C-MAPSS dataset. The maximum RUL value is set
