@@ -123,7 +123,7 @@ class NCmapssReader(AbstractReader):
         truncate_degraded_only: bool = False,
         resolution_seconds: int = 1,
         padding_value: float = 0.0,
-        scaling_range: Optional[Tuple[int, int]] = (0, 1),
+        scaling_range: Tuple[int, int] = (0, 1),
     ) -> None:
         """
         Create a new reader for the New C-MAPSS dataset. The maximum RUL value is set
@@ -173,7 +173,7 @@ class NCmapssReader(AbstractReader):
         self.run_split_dist = run_split_dist or self._get_default_split(self.fd)
         self.resolution_seconds = resolution_seconds
         self.padding_value = padding_value
-        self.scaling_range = scaling_range
+        self.scaling_range = tuple(scaling_range)
 
         if self.resolution_seconds > 1 and window_size is None:
             warnings.warn(

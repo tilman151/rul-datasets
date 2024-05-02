@@ -158,3 +158,11 @@ def test_feature_select(prepared_ncmapss):
     features, _ = reader.load_complete_split("dev", "dev")
 
     assert features[0].shape[2] == 10
+
+
+@pytest.mark.parametrize("scaling_range", [(0, 1), [0, 1]])
+def test_scaling_range_is_tuple(scaling_range):
+    reader = NCmapssReader(1, scaling_range=scaling_range)
+
+    assert isinstance(reader.scaling_range, tuple)
+    assert reader.scaling_range == (0, 1)
