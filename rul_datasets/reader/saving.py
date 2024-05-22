@@ -8,7 +8,7 @@ import numpy as np
 from tqdm import tqdm  # type: ignore
 
 
-def save(save_path: str, features: np.ndarray, targets: np.ndarray) -> None:
+def save(save_path: str, features: np.ndarray, *targets: np.ndarray) -> None:
     """
     Save features and targets of a run to .npy files.
 
@@ -21,15 +21,20 @@ def save(save_path: str, features: np.ndarray, targets: np.ndarray) -> None:
     Args:
           save_path: The path including file name to save the arrays to.
           features: The feature array to save.
-          targets: The targets array to save.
+          targets: The targets arrays to save.
     """
     feature_path = _get_feature_path(save_path)
     np.save(feature_path, features, allow_pickle=False)
-    target_path = _get_target_path(save_path)
-    np.save(target_path, targets, allow_pickle=False)
+    if len(targets) == 1:  # keeps backward compat for when only one target was allowed
+        target_path = _get_target_path(save_path, None)
+        np.save(target_path, targets[0], allow_pickle=False)
+    else:
+        for i, target in enumerate(targets):
+            target_path = _get_target_path(save_path, i)
+            np.save(target_path, target, allow_pickle=False)
 
 
-def load(save_path: str, memmap: bool = False) -> Tuple[np.ndarray, np.ndarray]:
+def load(save_path: str, memmap: bool = False) -> Tuple[np.ndarray, ...]:
     """
     Load features and targets of a run from .npy files.
 
@@ -50,15 +55,24 @@ def load(save_path: str, memmap: bool = False) -> Tuple[np.ndarray, np.ndarray]:
     memmap_mode: Optional[Literal["r"]] = "r" if memmap else None
     feature_path = _get_feature_path(save_path)
     features = np.load(feature_path, memmap_mode, allow_pickle=False)
-    target_path = _get_target_path(save_path)
-    targets = np.load(target_path, memmap_mode, allow_pickle=False)
+    if os.path.exists(_get_target_path(save_path, None)):
+        # keeps backward compat for when only one target was allowed
+        target_path = _get_target_path(save_path, None)
+        targets = [np.load(target_path, memmap_mode, allow_pickle=False)]
+    else:
+        i = 0
+        targets = []
+        while os.path.exists(_get_target_path(save_path, i)):
+            target_path = _get_target_path(save_path, i)
+            targets.append(np.load(target_path, memmap_mode, allow_pickle=False))
+            i += 1
 
-    return features, targets
+    return features, *targets
 
 
 def load_multiple(
     save_paths: List[str], memmap: bool = False
-) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+) -> Tuple[List[np.ndarray], ...]:
     """
     Load multiple runs with the [load][rul_datasets.reader.saving.load] function.
 
@@ -72,11 +86,11 @@ def load_multiple(
     """
     if save_paths:
         runs = [load(save_path, memmap) for save_path in save_paths]
-        features, targets = [list(x) for x in zip(*runs)]
+        features, *targets = [list(x) for x in zip(*runs)]
     else:
-        features, targets = [], []
+        features, targets = [], [[]]
 
-    return features, targets
+    return features, *targets
 
 
 def exists(save_path: str) -> bool:
@@ -90,13 +104,14 @@ def exists(save_path: str) -> bool:
     Returns:
         Whether the files exist
     """
-    feature_path = _get_feature_path(save_path)
-    target_path = _get_target_path(save_path)
+    feature_exists = os.path.exists(_get_feature_path(save_path))
+    target_no_index_exists = os.path.exists(_get_target_path(save_path, None))
+    target_index_exists = os.path.exists(_get_target_path(save_path, 0))
 
-    return os.path.exists(feature_path) and os.path.exists(target_path)
+    return feature_exists and (target_no_index_exists or target_index_exists)
 
 
-def _get_feature_path(save_path):
+def _get_feature_path(save_path: str) -> str:
     if save_path.endswith(".npy"):
         save_path = save_path[:-4]
     feature_path = f"{save_path}_features.npy"
@@ -104,10 +119,11 @@ def _get_feature_path(save_path):
     return feature_path
 
 
-def _get_target_path(save_path):
+def _get_target_path(save_path: str, target_index: Optional[int]) -> str:
     if save_path.endswith(".npy"):
         save_path = save_path[:-4]
-    target_path = f"{save_path}_targets.npy"
+    suffix = "" if target_index is None else f"_{target_index}"
+    target_path = f"{save_path}_targets{suffix}.npy"
 
     return target_path
 
