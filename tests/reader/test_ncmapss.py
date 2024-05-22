@@ -103,14 +103,29 @@ def test_max_rul(max_rul, prepared_ncmapss):
 
 
 @pytest.mark.needs_data
-def test__split_by_unit(prepared_ncmapss):
-    reader = NCmapssReader(1)
+@pytest.mark.parametrize("fd", range(1, 8))
+def test__split_by_unit(fd, prepared_ncmapss):
+    reader = NCmapssReader(fd)
     features, targets, auxiliary = reader._load_raw_data()
     features, targets, auxiliary = reader._split_by_unit(features, targets, auxiliary)
 
     for i in range(len(auxiliary)):
         assert len(features[i]) == len(targets[i])
         assert np.unique(auxiliary[i][:, 0]).size == 1  # only one unit id present
+
+
+@pytest.mark.needs_data
+@pytest.mark.parametrize("fd", range(1, 8))
+def test__get_end_idx_for_cycles(fd, prepared_ncmapss):
+    reader = NCmapssReader(fd)
+    features, targets, auxiliary = reader._load_raw_data()
+    features, targets, auxiliary = reader._split_by_unit(features, targets, auxiliary)
+
+    for aux in auxiliary:
+        cycle_end_idx = reader._get_end_idx(aux[:, 1])
+        split_aux = np.split(aux, cycle_end_idx[:-1])
+        for cycle in split_aux:
+            assert np.unique(cycle[:, 1]).size == 1  # only one cycle id present
 
 
 @pytest.mark.needs_data
