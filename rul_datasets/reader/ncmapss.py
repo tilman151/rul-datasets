@@ -15,6 +15,7 @@ import os
 import tempfile
 import warnings
 import zipfile
+from pathlib import Path
 from typing import Tuple, List, Optional, Union, Dict
 
 import h5py  # type: ignore[import]
@@ -23,8 +24,7 @@ from sklearn.preprocessing import MinMaxScaler  # type: ignore[import]
 
 from rul_datasets import utils
 from rul_datasets.reader.data_root import get_data_root
-from rul_datasets.reader import AbstractReader, scaling
-
+from rul_datasets.reader import AbstractReader, scaling, saving
 
 NCMAPSS_DRIVE_ID = "1X9pHm2E3U0bZZbXIhJubVGSL3rtzqFkn"
 
@@ -206,23 +206,37 @@ class NCmapssReader(AbstractReader):
         """Indices of the available sub-datasets."""
         return list(self._WINDOW_SIZES)
 
-    def prepare_data(self) -> None:
+    def prepare_data(self, cache: bool = True) -> None:
         """
-        Prepare the N-C-MAPSS dataset. This function needs to be called before using the
-        dataset for the first time.
+        Prepare the N-C-MAPSS dataset. This function needs to be called before using
+        the dataset for the first time. The dataset is cached for faster loading in
+        the future. This behavior can be disabled to save disk space by setting
+        `cache` to `False`.
 
         The dataset is assumed to be present in the data root directory. The training
         data is then split into development and validation set. Afterward, a scaler
         is fit on the development features if it was not already done previously.
+
+        Args:
+            cache: Whether to cache the data for faster loading in the future.
         """
         if not os.path.exists(self._NCMAPSS_ROOT):
             _download_ncmapss(self._NCMAPSS_ROOT)
+        if cache and not self._cache_exists():
+            self._cache_data()
         if not os.path.exists(self._get_scaler_path()):
             features, _, _ = self._load_data("dev")
             scaler = scaling.fit_scaler(features, MinMaxScaler(self.scaling_range))
             scaling.save_scaler(scaler, self._get_scaler_path())
 
-    def _get_scaler_path(self):
+    def _cache_data(self) -> None:
+        os.makedirs(self._get_cache_path(), exist_ok=True)
+        features, targets, auxiliary = self._load_raw_data()
+        features, targets, auxiliary = self._split_by_unit(features, targets, auxiliary)
+        for i, (f, t, a) in enumerate(zip(features, targets, auxiliary)):
+            saving.save(str(self._get_cache_path() / f"{i}.npy"), f, t, a)
+
+    def _get_scaler_path(self) -> str:
         file_name = (
             f"scaler_{self.fd}_{self.run_split_dist['dev']}_{self.scaling_range}.pkl"
         )
@@ -264,6 +278,21 @@ class NCmapssReader(AbstractReader):
     def _load_data(
         self, split: str
     ) -> Tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
+        if self._cache_exists():
+            features, targets, auxiliary = self._load_cached_data(split)
+        else:
+            features, targets, auxiliary = self._load_original_data(split)
+
+        return features, targets, auxiliary
+
+    def _load_cached_data(self, split: str):
+        unit_idx = self.run_split_dist[split]
+        save_paths = [str(self._get_cache_path() / f"{i}.npy") for i in unit_idx]
+        features, targets, auxiliary = saving.load_multiple(save_paths)
+
+        return features, targets, auxiliary
+
+    def _load_original_data(self, split):
         features, targets, auxiliary = self._load_raw_data()
         features, targets, auxiliary = self._split_by_unit(features, targets, auxiliary)
         features = self._select_units(features, split)
@@ -367,6 +396,12 @@ class NCmapssReader(AbstractReader):
             max_window_size.append(max(*[len(f) for f in split_features]))
 
         return max(*max_window_size)
+
+    def _cache_exists(self) -> bool:
+        return saving.exists(str(self._get_cache_path() / "0.npy"))
+
+    def _get_cache_path(self):
+        return Path(self._NCMAPSS_ROOT) / f"DS{self.fd:02d}"
 
 
 def _download_ncmapss(data_root):

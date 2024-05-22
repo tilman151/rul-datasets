@@ -1,13 +1,18 @@
+import os
+import shutil
+from pathlib import Path
+
 import numpy as np
 import pytest
 
+import rul_datasets
 from rul_datasets.reader.ncmapss import NCmapssReader
 
 
 @pytest.fixture()
 def prepared_ncmapss():
     for fd in range(1, 8):
-        NCmapssReader(fd).prepare_data()
+        NCmapssReader(fd).prepare_data(cache=False)
 
 
 @pytest.mark.parametrize("fd", list(range(1, 8)))
@@ -166,3 +171,31 @@ def test_scaling_range_is_tuple(scaling_range):
 
     assert isinstance(reader.scaling_range, tuple)
     assert reader.scaling_range == (0, 1)
+
+
+@pytest.mark.needs_data
+def test_cache(prepared_ncmapss, tmp_path):
+    ncmapss_files = Path(NCmapssReader._NCMAPSS_ROOT).rglob("*")
+    linked_files = []
+    for file in ncmapss_files:
+        if str(file).endswith(".h5"):
+            linked_file = tmp_path / file.name
+            os.symlink(file, linked_file)
+            linked_files.append(linked_file)
+
+    reader = NCmapssReader(1)
+    cached_reader = NCmapssReader(1)
+    cached_reader._NCMAPSS_ROOT = tmp_path
+    cached_reader.prepare_data(cache=True)
+
+    # remove linked files so that only cached files can be used
+    for file in linked_files:
+        os.remove(file)
+
+    org_features, org_targets = reader.load_split("dev")
+    cached_features, cached_targets = cached_reader.load_split("dev")
+
+    for org_feat, cached_feat in zip(org_features, cached_features):
+        np.testing.assert_almost_equal(org_feat, cached_feat)
+    for org_targ, cached_targ in zip(org_targets, cached_targets):
+        np.testing.assert_almost_equal(org_targ, cached_targ)
