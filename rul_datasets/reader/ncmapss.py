@@ -358,8 +358,9 @@ class NCmapssReader(AbstractReader):
 
     @staticmethod
     def _get_end_idx(identifiers):
-        _, split_idx = np.unique(identifiers, return_counts=True)
-        split_idx = np.cumsum(split_idx)
+        _, split_idx = np.unique(identifiers, return_index=True)
+        split_idx = np.sort(split_idx)
+        split_idx = np.concatenate([split_idx[1:], [len(identifiers)]])
 
         return split_idx
 
