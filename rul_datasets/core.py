@@ -4,7 +4,7 @@ dataset. """
 from typing import Dict, List, Optional, Tuple, Any, Callable, cast, Union, Literal
 
 import numpy as np
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 from torch.utils.data import (
     DataLoader,
@@ -202,7 +202,7 @@ class RulDataModule(pl.LightningDataModule):
 
         This calls the `prepare_data` function of the underlying reader. All
         previously completed preparation steps are skipped. It is called
-        automatically by `pytorch_lightning` and executed on the first GPU in
+        automatically by `lightning.pytorch` and executed on the first GPU in
         distributed mode.
 
         Args:

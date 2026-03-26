@@ -1,12 +1,12 @@
 ## PyTorch Lightning
 
-This library was developed to be used in [PyTorch Lightning](https://pytorch-lightning.readthedocs.io/en/stable/) first and foremost.
+This library was developed to be used in [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/) first and foremost.
 Lightning helps writing clean and reproducible deep learning code that can run on most common training hardware.
 Datasets are represented by [LightningDataModules][lightning.pytorch.core.LightningDataModule] which give access to data loaders for each data split.
 The RUL Datasets library implements several data modules that are 100% compatible with Lightning:
 
 ```python
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import rul_datasets
 
 import rul_estimator  # (1)!

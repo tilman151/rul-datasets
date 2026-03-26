@@ -4,7 +4,7 @@ from unittest import mock
 
 import pytest
 import torch
-from pytorch_lightning import LightningDataModule
+from lightning.pytorch import LightningDataModule
 from torch.utils.data import TensorDataset
 
 from rul_datasets.core import PairedRulDataset, RulDataset

@@ -2,7 +2,7 @@
 import warnings
 from typing import Any, Optional
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 from torch.utils.data import DataLoader
 
 from rul_datasets.adaption import AdaptionDataset
@@ -84,7 +84,7 @@ class SemiSupervisedDataModule(pl.LightningDataModule):
 
         This calls the `prepare_data` function for source and target domain. All
         previously completed preparation steps are skipped. It is called
-        automatically by `pytorch_lightning` and executed on the first GPU in
+        automatically by `lightning.pytorch` and executed on the first GPU in
         distributed mode.
 
         Args:

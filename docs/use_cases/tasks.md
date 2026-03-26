@@ -21,7 +21,7 @@ torch.Size([32])
 You can conduct experiments on all sub-datasets by simply switching the reader instance:
 
 ```python
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import rul_datasets
 
 import rul_estimator
