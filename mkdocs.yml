@@ -58,7 +58,7 @@ plugins:
       handlers:
         python:
           import:
-            - https://pytorch-lightning.readthedocs.io/en/stable/objects.inv
+            - https://lightning.ai/docs/pytorch/stable/objects.inv
             - https://pytorch.org/docs/stable/objects.inv
             - https://scikit-learn.org/stable/objects.inv
             - https://numpy.org/doc/stable/objects.inv

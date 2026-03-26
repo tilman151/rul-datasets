@@ -5,7 +5,7 @@ import warnings
 from copy import deepcopy
 from typing import List, Optional, Any
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 from torch.utils.data import DataLoader
 
 from rul_datasets.core import PairedRulDataset, RulDataModule
@@ -76,7 +76,7 @@ class BaselineDataModule(pl.LightningDataModule):
 
         This calls the `prepare_data` function for all sub-datasets. All
         previously completed preparation steps are skipped. It is called
-        automatically by `pytorch_lightning` and executed on the first GPU in
+        automatically by `lightning.pytorch` and executed on the first GPU in
         distributed mode.
 
         Args:
